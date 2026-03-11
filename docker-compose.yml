@@ -1,0 +1,26 @@
+services:
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: sapsr-postgres
+    environment:
+      POSTGRES_USER: sapsr_user
+      POSTGRES_PASSWORD: sapsr_password
+      POSTGRES_DB: sapsr_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sapsr-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: rmq_user
+      RABBITMQ_DEFAULT_PASS: rmq_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  pgdata:
