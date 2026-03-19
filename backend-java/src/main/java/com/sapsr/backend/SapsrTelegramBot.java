@@ -17,17 +17,17 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 import java.util.List;
 
 @Component
-public class MyTelegramBot implements SpringLongPollingBot, LongPollingUpdateConsumer {
+public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdateConsumer {
 
     private final TelegramClient telegramClient;
     private final String botToken;
     private final String webAppUrl;
 
-    // Внедряем значения по ключам из application.properties
-    public MyTelegramBot(@Value("${telegram.bot.token}") String botToken,
-                         @Value("${bot.webapp.url}") String webAppUrl) {
+    public SapsrTelegramBot(@Value("${telegram.bot.token}") String botToken,
+                            @Value("${bot.webapp.url}") String webAppUrl) {
         this.botToken = botToken;
         this.webAppUrl = webAppUrl;
+        // В v7.x мы используем TelegramClient для отправки сообщений
         this.telegramClient = new OkHttpTelegramClient(botToken);
     }
 
@@ -43,31 +43,25 @@ public class MyTelegramBot implements SpringLongPollingBot, LongPollingUpdateCon
 
     @Override
     public void consume(List<Update> updates) {
-        updates.forEach(this::processUpdate);
-    }
+        updates.forEach(update -> {
+            if (update.hasMessage() && update.getMessage().hasText()) {
+                String text = update.getMessage().getText();
+                long chatId = update.getMessage().getChatId();
 
-    private void processUpdate(Update update) {
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            String text = update.getMessage().getText();
-            long chatId = update.getMessage().getChatId();
-
-            if ("/start".equals(text)) {
-                sendStartMessage(chatId);
-            } else {
-                sendDefaultMessage(chatId);
+                if ("/start".equals(text)) {
+                    sendStartMessage(chatId);
+                }
             }
-        }
+        });
     }
 
     private void sendStartMessage(long chatId) {
-        // Создаем WebAppInfo с URL фронтенда
         WebAppInfo webAppInfo = WebAppInfo.builder()
                 .url(webAppUrl)
                 .build();
 
-        // Кнопка для запуска Web App
         InlineKeyboardButton webAppButton = InlineKeyboardButton.builder()
-                .text("Открыть приложение SAPSR 🚀")
+                .text("Открыть кабинет")
                 .webApp(webAppInfo)
                 .build();
 
@@ -77,23 +71,10 @@ public class MyTelegramBot implements SpringLongPollingBot, LongPollingUpdateCon
 
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text("*Привет!*\n\nНажми на кнопку ниже, чтобы открыть веб-интерфейс и начать обучение.")
-                .parseMode("Markdown")
+                .text("Добро пожаловать в SAPSR! Нажмите кнопку ниже, чтобы сдать работу")
                 .replyMarkup(keyboard)
                 .build();
 
-        try {
-            telegramClient.execute(message);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void sendDefaultMessage(long chatId) {
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("Используй команду /start для запуска приложения.")
-                .build();
         try {
             telegramClient.execute(message);
         } catch (TelegramApiException e) {
