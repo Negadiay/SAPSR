@@ -1,7 +1,11 @@
 package com.sapsr.backend.controller;
 
-import org.springframework.amqp.rabbit.core.RabbitTemplate; // ДОБАВЛЕНО
-import org.springframework.beans.factory.annotation.Value;  // ДОБАВЛЕНО
+import com.sapsr.backend.entity.Submission;
+import com.sapsr.backend.entity.User;
+import com.sapsr.backend.repository.SubmissionRepository;
+import com.sapsr.backend.repository.UserRepository;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,12 +24,18 @@ public class UploadController {
     private final String UPLOAD_DIR = "../storage/";
 
     private final RabbitTemplate rabbitTemplate;
+    private final SubmissionRepository submissionRepository;
+    private final UserRepository userRepository;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
 
-    public UploadController(RabbitTemplate rabbitTemplate) {
+    public UploadController(RabbitTemplate rabbitTemplate,
+                            SubmissionRepository submissionRepository,
+                            UserRepository userRepository) {
         this.rabbitTemplate = rabbitTemplate;
+        this.submissionRepository = submissionRepository;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/upload")
@@ -45,12 +55,22 @@ public class UploadController {
             Path filePath = Paths.get(UPLOAD_DIR + fileName);
             Files.write(filePath, file.getBytes());
 
+            // Хардкод telegram_id, пока нет авторизации
+            Long telegramId = 12345L;
+            User student = userRepository.findById(telegramId).orElseGet(() -> {
+                User u = new User(telegramId, "STUDENT", "Test User");
+                return userRepository.save(u);
+            });
 
-            String jsonMessage = String.format("{\"file_path\": \"%s\", \"status\": \"PROCESSING\"}", filePath.toAbsolutePath());
+            Submission submission = new Submission(student, "PROCESSING", filePath.toAbsolutePath().toString());
+            submissionRepository.save(submission);
+
+            String jsonMessage = String.format(
+                    "{\"file_path\": \"%s\", \"status\": \"PROCESSING\"}",
+                    filePath.toAbsolutePath());
 
             rabbitTemplate.convertAndSend(tasksQueue, jsonMessage);
             System.out.println("Отправлено задание Питону: " + jsonMessage);
-            // -------------------------------------
 
             return ResponseEntity.ok(Map.of(
                     "status", "SUCCESS",
