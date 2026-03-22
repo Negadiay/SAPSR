@@ -1,0 +1,47 @@
+name: Deploy Vite site to Pages
+on:
+  push:
+    branches: ["main"]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          # Указываем, где искать package-lock.json
+          cache-dependency-path: './frontend-webapp/package-lock.json'
+
+      - name: Install dependencies
+        # Заходим в папку и устанавливаем зависимости
+        run: |
+          cd frontend-webapp
+          npm install
+
+      - name: Build
+        # Заходим в папку и собираем проект
+        run: |
+          cd frontend-webapp
+          npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Указываем путь к папке dist ВНУТРИ frontend-webapp
+          path: './frontend-webapp/dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
