@@ -17,4 +17,12 @@ public class RabbitMQConfig {
     public Queue pdfTasksQueue() {
         return new Queue(tasksQueue, true); // true = очередь будет сохраняться при перезагрузке
     }
+
+    @Value("${sapsr.rabbitmq.results-queue}")
+    private String resultsQueue;
+
+    @Bean
+    public Queue pdfResultsQueue() {
+        return new Queue(resultsQueue, true);
+    }
 }

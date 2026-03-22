@@ -138,4 +138,19 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
             telegramClient.execute(SendMessage.builder().chatId(chatId).text(text).replyMarkup(markup).build());
         } catch (TelegramApiException e) { e.printStackTrace(); }
     }
+
+    // Публичный метод для отправки уведомлений
+    public void sendMessageToUser(Long chatId, String text) {
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text(text)
+                .parseMode("HTML") // Позволяет использовать <b> или <i> теги
+                .build();
+
+        try {
+            telegramClient.execute(message);
+        } catch (TelegramApiException e) {
+            System.err.println("Ошибка при отправке уведомления пользователю " + chatId + ": " + e.getMessage());
+        }
+    }
 }
