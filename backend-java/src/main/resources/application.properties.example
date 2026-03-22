@@ -1,5 +1,4 @@
 spring.application.name=backend
-
 server.port=8080
 
 spring.datasource.url=jdbc:postgresql://localhost:5433/sapsr_db
@@ -10,12 +9,16 @@ spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=true
 
-telegram.bot.token=ТОКЕН
+# Telegram Bot
+telegram.bot.token=ВАШ_ТОКЕН
+# Обязательно добавляем URL фронтенда (пока для теста можно google.com)
+bot.webapp.url=https://google.com
 
-# Подключение к RabbitMQ в Docker
+# Подключение к RabbitMQ
 spring.rabbitmq.host=localhost
 spring.rabbitmq.port=5672
 spring.rabbitmq.username=rmq_user
 spring.rabbitmq.password=rmq_password
-
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
+
+logging.level.org.telegram=INFO
