@@ -1,0 +1,128 @@
+/* Основной контейнер подстраивается под тему Telegram */
+.App {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--tg-theme-bg-color, #ffffff);
+  color: var(--tg-theme-text-color, #000000);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  width: 100%;
+}
+
+.logo {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 10px;
+  border-radius: 20px;
+  object-fit: cover;
+}
+
+h1 {
+  font-size: 28px;
+  margin: 10px 0;
+  color: var(--tg-theme-button-color, #2481cc);
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.description {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.8;
+  margin-bottom: 30px;
+}
+
+.upload-container {
+  width: 100%;
+  max-width: 400px;
+  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Скрываем стандартный input */
+input[type="file"] {
+  display: none;
+}
+
+/* Стилизуем наш кастомный ярлык (label) как кнопку выбора */
+.custom-file-upload {
+  border: 2px dashed var(--tg-theme-button-color, #2481cc);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(36, 129, 204, 0.05);
+}
+
+.custom-file-upload:active {
+  transform: scale(0.98);
+}
+
+.file-name {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--tg-theme-button-color, #2481cc);
+}
+
+/* Кнопка отправки */
+.submit-btn {
+  background-color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-text-color, #ffffff);
+  border: none;
+  padding: 15px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.3s;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  margin-top: 15px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Обнуляем отступы браузера и фиксируем ширину */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden; /* Запрещает горизонтальный скролл на уровне всей страницы */
+  position: relative;
+}
+
+
+
+/* Универсальное правило для всех элементов */
+* {
+  box-sizing: border-box;
+}
