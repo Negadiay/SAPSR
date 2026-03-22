@@ -49,7 +49,7 @@ function App() {
   return (
     <div className="App">
       {/* Логотип (замени путь на свою картинку) */}
-      <img src="/cat.jpg" alt="SAPSR Logo" className="logo" />
+      <img src="cat.jpg" alt="SAPSR Logo" className="logo" />
 
       <h1>SAPSR</h1>
       <p className="description">
