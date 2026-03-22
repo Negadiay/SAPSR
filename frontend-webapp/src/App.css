@@ -1,4 +1,12 @@
-/* Основной контейнер подстраивается под тему Telegram */
+/* --- ГЛОБАЛЬНЫЕ СТИЛИ --- */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  position: relative;
+}
+
 .App {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background-color: var(--tg-theme-bg-color, #ffffff);
@@ -9,16 +17,6 @@
   align-items: center;
   padding: 20px;
   box-sizing: border-box;
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-  overflow-y: auto;
-  height: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-#root {
-  width: 100%;
 }
 
 .logo {
@@ -34,16 +32,100 @@ h1 {
   margin: 10px 0;
   color: var(--tg-theme-button-color, #2481cc);
   font-weight: 800;
-  letter-spacing: 1px;
 }
 
 .description {
   text-align: center;
   font-size: 14px;
   opacity: 0.8;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
 }
 
+/* --- ЭКРАНЫ --- */
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+/* --- ВЫБОР РОЛИ (Вертикальный список) --- */
+.role-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.role-card {
+  width: 100%;
+  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 15px;
+  padding: 10px 15px; /* Немного уменьшили отступы для компактности */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px; /* Расстояние между "квадратом иконки" и текстом */
+  cursor: pointer;
+  color: var(--tg-theme-text-color);
+  transition: all 0.2s ease;
+}
+
+/* ФИКСИРОВАННАЯ ОБЛАСТЬ ДЛЯ ИКОНКИ */
+.role-icon {
+  width: 40px; /* Фиксированная ширина! Теперь текст всегда будет на одном уровне */
+  display: flex;
+  justify-content: center; /* Центрируем иконку внутри этих 40px */
+  font-size: 26px;
+  flex-shrink: 0; /* Чтобы иконка не сжималась */
+}
+
+/* СТИЛЬ ТЕКСТА */
+.role-text {
+  font-weight: 600;
+  font-size: 25px; /* Уменьшили шрифт, как ты просил */
+  text-align: left;
+}
+
+.role-card:active {
+  transform: scale(0.97);
+  background: var(--tg-theme-button-color, #2481cc);
+  color: white;
+}
+
+/* --- ВВОД КОДА (Узкий инпут + Вертикальные кнопки) --- */
+.code-form-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.code-input {
+  width: 160px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 2px solid var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-size: 18px;
+  text-align: center;
+  outline: none;
+  margin-bottom: 20px;
+}
+
+.vertical-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 220px; /* Кнопки навигации чуть уже */
+}
+
+/* --- ТВОЙ ЛЮБИМЫЙ ДИЗАЙН ЗАГРУЗКИ (Без изменений) --- */
 .upload-container {
   width: 100%;
   max-width: 400px;
@@ -56,12 +138,6 @@ h1 {
   gap: 20px;
 }
 
-/* Скрываем стандартный input */
-input[type="file"] {
-  display: none;
-}
-
-/* Стилизуем наш кастомный ярлык (label) как кнопку выбора */
 .custom-file-upload {
   border: 2px dashed var(--tg-theme-button-color, #2481cc);
   display: flex;
@@ -71,58 +147,96 @@ input[type="file"] {
   padding: 20px;
   border-radius: 15px;
   cursor: pointer;
-  transition: all 0.3s ease;
   background: rgba(36, 129, 204, 0.05);
 }
 
-.custom-file-upload:active {
-  transform: scale(0.98);
+input[type="file"] {
+  display: none;
 }
 
-.file-name {
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--tg-theme-button-color, #2481cc);
-}
+/* --- КНОПКИ --- */
 
-/* Кнопка отправки */
 .submit-btn {
   background-color: var(--tg-theme-button-color, #2481cc);
   color: var(--tg-theme-button-text-color, #ffffff);
   border: none;
-  padding: 15px;
+  padding: 14px;
   border-radius: 12px;
   font-size: 16px;
   font-weight: bold;
   cursor: pointer;
   width: 100%;
-  transition: opacity 0.3s;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* ТЕКСТ ПО ЦЕНТРУ */
+  gap: 10px;
 }
 
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.status {
-  margin-top: 15px;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Обнуляем отступы браузера и фиксируем ширину */
-html, body {
-  margin: 0;
-  padding: 0;
+.secondary-btn {
+  background-color: var(--tg-theme-secondary-bg-color, #eef0f2);
+  color: var(--tg-theme-button-color, #2481cc);
+  border: none;
+  padding: 14px; /* Одинаковая высота с основной кнопкой */
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
   width: 100%;
-  overflow-x: hidden; /* Запрещает горизонтальный скролл на уровне всей страницы */
-  position: relative;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* ТЕКСТ ПО ЦЕНТРУ */
+  gap: 10px;
+  margin-top: 10px;
 }
 
+/* ЭФФЕКТЫ ПРИ НАЖАТИИ (Подсветка) */
+.submit-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+  filter: brightness(1.1); /* Легкое осветление */
+}
 
+.secondary-btn:active {
+  transform: scale(0.98);
+  background-color: #d1d5db; /* Явное потемнение при нажатии */
+  color: var(--tg-theme-text-color);
+}
 
-/* Универсальное правило для всех элементов */
-* {
-  box-sizing: border-box;
+/* Иконки внутри кнопок */
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* Кнопки в самом низу (Пропустить / Сменить роль) */
+.skip-btn, .back-link {
+  background: none;
+  border: none;
+  color: var(--tg-theme-hint-color, #999);
+  margin-top: 20px; /* ОПУСТИЛИ НИЖЕ */
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.skip-btn:active, .back-link:active {
+  opacity: 1;
+  color: var(--tg-theme-button-color);
+}
+
+/* --- АНИМАЦИЯ --- */
+.fade-in {
+  animation: fadeInAnim 0.3s ease forwards;
+}
+
+@keyframes fadeInAnim {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
