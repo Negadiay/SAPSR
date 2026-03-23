@@ -1,7 +1,10 @@
 package com.sapsr.backend.controller;
 
 import com.sapsr.backend.entity.Submission;
+import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
+import com.sapsr.backend.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Optional;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -23,21 +27,24 @@ public class UploadController {
     private final String UPLOAD_DIR = "../storage/";
 
     private final RabbitTemplate rabbitTemplate;
-    // Подключаем репозиторий БД
     private final SubmissionRepository submissionRepository;
+    private final UserRepository userRepository;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
 
-    // Внедряем репозиторий через конструктор
-    public UploadController(RabbitTemplate rabbitTemplate, SubmissionRepository submissionRepository) {
+    public UploadController(RabbitTemplate rabbitTemplate,
+                            SubmissionRepository submissionRepository,
+                            UserRepository userRepository) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
-
+    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
+                                        @RequestParam(value = "teacher_id", required = false) Long teacherId,
+                                        HttpServletRequest request) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой!"));
         }
@@ -53,17 +60,21 @@ public class UploadController {
             Files.write(filePath, file.getBytes());
 
             Submission submission = new Submission();
-            // Пока мы не сделали регистрацию, оставляем студента пустым (null)
             submission.setFilePath(filePath.toAbsolutePath().toString());
-            submission.setStatus("PROCESSING"); // Статус: В обработке
+            submission.setStatus("PROCESSING");
 
-            // Сохраняем в PostgreSQL
+            Long telegramId = (Long) request.getAttribute("telegram_id");
+            if (telegramId != null) {
+                Optional<User> student = userRepository.findById(telegramId);
+                student.ifPresent(submission::setStudent);
+            }
+
             Submission savedSubmission = submissionRepository.save(submission);
-            // ---------------------------------------------
 
-            // ОБНОВЛЕНО: Теперь передаем Питону реальный ID из базы данных!
-            String jsonMessage = String.format("{\"task_id\": %d, \"file_path\": \"%s\", \"status\": \"PROCESSING\"}",
-                    savedSubmission.getId(), filePath.toAbsolutePath().toString().replace("\\", "/"));
+            String jsonMessage = String.format(
+                    "{\"task_id\": %d, \"file_path\": \"%s\", \"status\": \"PROCESSING\"}",
+                    savedSubmission.getId(),
+                    filePath.toAbsolutePath().toString().replace("\\", "/"));
 
             rabbitTemplate.convertAndSend(tasksQueue, jsonMessage);
             System.out.println("Отправлено задание Питону: " + jsonMessage);
@@ -71,7 +82,7 @@ public class UploadController {
             return ResponseEntity.ok(Map.of(
                     "status", "SUCCESS",
                     "message", "Файл успешно загружен в систему SAPSR!",
-                    "db_id", savedSubmission.getId() // Возвращаем ID фронтенду для красоты
+                    "db_id", savedSubmission.getId()
             ));
 
         } catch (IOException e) {

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
+const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
+
 function App() {
   const [step, setStep] = useState('role');
   const [activeTab, setActiveTab] = useState(1);
@@ -10,18 +12,39 @@ function App() {
   const [accessCode, setAccessCode] = useState('');
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
+  const [teachers, setTeachers] = useState([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [uploading, setUploading] = useState(false);
 
-  // Теперь только .pdf файлы
   const notifications = [
     { id: 1, subject: 'ИАД', teacher: 'Пакутник Д.В.', fileName: 'Задание_1.pdf' },
     { id: 2, subject: 'ГИИС', teacher: 'Сальников Д.А.', fileName: 'Отчет_проверки.pdf' },
     { id: 3, subject: 'ОС', teacher: 'Иванов И.И.', fileName: 'Результат_лаб.pdf' },
   ];
 
+  const tg = window.Telegram?.WebApp;
+  const initData = tg?.initData || '';
+
   useEffect(() => {
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
+    tg?.ready();
+    tg?.expand();
+    fetchTeachers();
   }, []);
+
+  const fetchTeachers = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/teachers`, {
+        headers: { 'Authorization': initData },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeachers(data);
+        if (data.length > 0) setSelectedTeacherId(String(data[0].telegram_id || data[0].id || 0));
+      }
+    } catch (err) {
+      console.warn('Не удалось загрузить преподавателей:', err);
+    }
+  };
 
   // Функция скачивания (имитация PDF)
   const handleDownload = (fileName) => {
@@ -59,12 +82,40 @@ function App() {
 
   const handleSubmitFile = async (e) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file || uploading) return;
+
+    setUploading(true);
     setStatus('⏳ Загрузка...');
-    setTimeout(() => {
-      setStatus('✅ Работа успешно отправлена!');
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-    }, 1500);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (selectedTeacherId) formData.append('teacher_id', selectedTeacherId);
+
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': initData },
+        body: formData,
+      });
+
+      if (res.ok) {
+        setStatus('✅ Работа успешно отправлена!');
+        tg?.HapticFeedback?.notificationOccurred('success');
+        tg?.showPopup(
+          { title: 'Готово!', message: 'Файл отправлен на проверку.', buttons: [{ type: 'ok' }] },
+          () => setTimeout(() => tg?.close(), 2000),
+        );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setStatus(`❌ Ошибка: ${err.error || res.statusText}`);
+        tg?.HapticFeedback?.notificationOccurred('error');
+      }
+    } catch (err) {
+      setStatus('❌ Сервер недоступен');
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const variants = {
@@ -148,12 +199,31 @@ function App() {
                 <h2 className="view-title">Загрузка</h2>
                 <div className="upload-container">
                   <form onSubmit={handleSubmitFile}>
+                    {teachers.length > 0 && (
+                      <div className="teacher-select-wrapper">
+                        <label htmlFor="teacher-select" className="select-label">Преподаватель</label>
+                        <select
+                          id="teacher-select"
+                          className="teacher-select"
+                          value={selectedTeacherId}
+                          onChange={(e) => setSelectedTeacherId(e.target.value)}
+                        >
+                          {teachers.map((t) => (
+                            <option key={t.telegram_id || t.id} value={t.telegram_id || t.id}>
+                              {t.full_name || t.fio || t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <label htmlFor="file-upload" className="custom-file-upload">
                       <span style={{fontSize: '30px'}}>📁</span>
-                      <span>{file ? file.name : 'Нажмите, чтобы выбрать файл'}</span>
+                      <span>{file ? file.name : 'Нажмите, чтобы выбрать файл (.pdf)'}</span>
                     </label>
-                    <input id="file-upload" type="file" onChange={(e) => {setFile(e.target.files[0]); setStatus('')}} />
-                    <button type="submit" className="submit-btn" disabled={!file} style={{marginTop: '20px'}}>Отправить</button>
+                    <input id="file-upload" type="file" accept=".pdf" onChange={(e) => {setFile(e.target.files[0]); setStatus('')}} />
+                    <button type="submit" className="submit-btn" disabled={!file || uploading} style={{marginTop: '20px'}}>
+                      {uploading ? '⏳ Отправка...' : 'Отправить'}
+                    </button>
                   </form>
                 </div>
                 {status && <div className="status-msg">{status}</div>}

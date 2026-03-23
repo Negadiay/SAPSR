@@ -20,6 +20,7 @@ spring.rabbitmq.port=5672
 spring.rabbitmq.username=rmq_user
 spring.rabbitmq.password=rmq_password
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
+sapsr.rabbitmq.results-queue=pdf_results_queue
 
 logging.level.org.telegram=INFO
 
