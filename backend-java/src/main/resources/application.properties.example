@@ -10,7 +10,7 @@ spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=true
 
 # Telegram Bot
-telegram.bot.token=ВАШ_ТОКЕН
+telegram.bot.token=ТОКЕН
 # Обязательно добавляем URL фронтенда (пока для теста можно google.com)
 bot.webapp.url=https://google.com
 
@@ -22,3 +22,4 @@ spring.rabbitmq.password=rmq_password
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 
 logging.level.org.telegram=INFO
+
