@@ -11,8 +11,9 @@ spring.jpa.show-sql=true
 
 # Telegram Bot
 telegram.bot.token=ТОКЕН
-# Обязательно добавляем URL фронтенда (пока для теста можно google.com)
-bot.webapp.url=https://google.com
+# URL мини-приложения (GitHub Pages, Vercel, или ngrok для локальной разработки)
+# ВАЖНО: замени на реальный HTTPS-адрес, иначе кнопка "Открыть кабинет" откроет не то
+bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 
 # Подключение к RabbitMQ
 spring.rabbitmq.host=localhost
@@ -21,6 +22,11 @@ spring.rabbitmq.username=rmq_user
 spring.rabbitmq.password=rmq_password
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
+
+# Режим разработки (true = не проверять подпись Telegram, для локального тестирования)
+# ОТКЛЮЧИ в продакшене!
+sapsr.security.dev-mode=true
+sapsr.security.dev-telegram-id=123456789
 
 logging.level.org.telegram=INFO
 

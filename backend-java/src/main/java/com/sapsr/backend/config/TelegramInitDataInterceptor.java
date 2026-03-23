@@ -10,7 +10,6 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -18,9 +17,19 @@ import java.util.TreeMap;
 public class TelegramInitDataInterceptor implements HandlerInterceptor {
 
     private final String botToken;
+    private final boolean devMode;
+    private final long devTelegramId;
 
-    public TelegramInitDataInterceptor(@Value("${telegram.bot.token}") String botToken) {
+    public TelegramInitDataInterceptor(
+            @Value("${telegram.bot.token}") String botToken,
+            @Value("${sapsr.security.dev-mode:false}") boolean devMode,
+            @Value("${sapsr.security.dev-telegram-id:0}") long devTelegramId) {
         this.botToken = botToken;
+        this.devMode = devMode;
+        this.devTelegramId = devTelegramId;
+        if (devMode) {
+            System.out.println("[SECURITY] DEV MODE ENABLED — initData verification is OFF, telegram_id=" + devTelegramId);
+        }
     }
 
     @Override
@@ -30,6 +39,11 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
         }
 
         String initData = request.getHeader("Authorization");
+
+        if (devMode && (initData == null || initData.isBlank())) {
+            request.setAttribute("telegram_id", devTelegramId);
+            return true;
+        }
 
         if (initData == null || initData.isBlank()) {
             response.setStatus(401);
@@ -43,6 +57,10 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
             String hash = params.remove("hash");
 
             if (hash == null) {
+                if (devMode) {
+                    request.setAttribute("telegram_id", devTelegramId);
+                    return true;
+                }
                 response.setStatus(401);
                 response.setContentType("application/json");
                 response.getWriter().write("{\"error\": \"No hash in initData\"}");
@@ -50,6 +68,10 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
             }
 
             if (!verifyHash(params, hash)) {
+                if (devMode) {
+                    request.setAttribute("telegram_id", devTelegramId);
+                    return true;
+                }
                 response.setStatus(403);
                 response.setContentType("application/json");
                 response.getWriter().write("{\"error\": \"Invalid initData signature\"}");
@@ -66,6 +88,10 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
 
             return true;
         } catch (Exception e) {
+            if (devMode) {
+                request.setAttribute("telegram_id", devTelegramId);
+                return true;
+            }
             response.setStatus(401);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Invalid initData format\"}");
