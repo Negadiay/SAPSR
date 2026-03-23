@@ -1,6 +1,6 @@
 package com.sapsr.backend.service;
 
-import com.sapsr.backend.model.User;
+import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
