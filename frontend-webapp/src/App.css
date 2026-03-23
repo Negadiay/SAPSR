@@ -1,22 +1,33 @@
-/* --- ГЛОБАЛЬНЫЕ СТИЛИ --- */
+/* --- 1. ГЛОБАЛЬНЫЕ НАСТРОЙКИ --- */
+* {
+  box-sizing: border-box;
+}
+
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
   overflow-x: hidden;
-  position: relative;
+  background-color: var(--tg-theme-bg-color, #ffffff);
 }
 
 .App {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--tg-theme-bg-color, #ffffff);
   color: var(--tg-theme-text-color, #000000);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px;
-  box-sizing: border-box;
+  width: 100%;
+}
+
+/* --- 2. БРЕНДИНГ (ЛОГОТИП И ЗАГОЛОВОК) --- */
+.branding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
 }
 
 .logo {
@@ -41,7 +52,7 @@ h1 {
   margin-bottom: 25px;
 }
 
-/* --- ЭКРАНЫ --- */
+/* --- 3. ЭКРАНЫ И МАКЕТЫ ТАБОВ --- */
 .screen {
   display: flex;
   flex-direction: column;
@@ -50,7 +61,24 @@ h1 {
   max-width: 400px;
 }
 
-/* --- ВЫБОР РОЛИ (Вертикальный список) --- */
+.main-content {
+  padding-bottom: 140px; /* Отступ снизу для навигации */
+}
+
+.tab-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.view-title {
+  font-size: 24px;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+/* --- 4. РЕГИСТРАЦИЯ (ВЫБОР РОЛИ) --- */
 .role-container {
   display: flex;
   flex-direction: column;
@@ -62,48 +90,38 @@ h1 {
 .role-card {
   width: 100%;
   background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 15px;
-  padding: 10px 15px; /* Немного уменьшили отступы для компактности */
+  padding: 10px 15px;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px; /* Расстояние между "квадратом иконки" и текстом */
+  gap: 10px;
   cursor: pointer;
   color: var(--tg-theme-text-color);
   transition: all 0.2s ease;
 }
 
-/* ФИКСИРОВАННАЯ ОБЛАСТЬ ДЛЯ ИКОНКИ */
 .role-icon {
-  width: 40px; /* Фиксированная ширина! Теперь текст всегда будет на одном уровне */
+  width: 40px;
   display: flex;
-  justify-content: center; /* Центрируем иконку внутри этих 40px */
+  justify-content: center;
   font-size: 26px;
-  flex-shrink: 0; /* Чтобы иконка не сжималась */
+  flex-shrink: 0;
 }
 
-/* СТИЛЬ ТЕКСТА */
 .role-text {
   font-weight: 600;
-  font-size: 25px; /* Уменьшили шрифт, как ты просил */
+  font-size: 13px;
   text-align: left;
 }
 
 .role-card:active {
-  transform: scale(0.97);
   background: var(--tg-theme-button-color, #2481cc);
   color: white;
 }
 
-/* --- ВВОД КОДА (Узкий инпут + Вертикальные кнопки) --- */
-.code-form-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
+/* --- 5. ФОРМЫ (ВВОД КОДА) --- */
 .code-input {
   width: 160px;
   padding: 10px;
@@ -113,29 +131,27 @@ h1 {
   color: var(--tg-theme-text-color, #000);
   font-size: 18px;
   text-align: center;
-  outline: none;
   margin-bottom: 20px;
+  outline: none;
 }
 
 .vertical-button-group {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   width: 100%;
-  max-width: 220px; /* Кнопки навигации чуть уже */
+  max-width: 220px;
 }
 
-/* --- ТВОЙ ЛЮБИМЫЙ ДИЗАЙН ЗАГРУЗКИ (Без изменений) --- */
+/* --- 6. ЗАГРУЗКА ФАЙЛА --- */
 .upload-container {
-  width: 100%;
-  max-width: 400px;
+  width: 90vw;
+  max-width: 350px;
   background: var(--tg-theme-secondary-bg-color, #f4f4f5);
   padding: 30px;
   border-radius: 20px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
 
 .custom-file-upload {
@@ -148,95 +164,190 @@ h1 {
   border-radius: 15px;
   cursor: pointer;
   background: rgba(36, 129, 204, 0.05);
+  transition: background 0.2s;
 }
 
 input[type="file"] {
   display: none;
 }
 
-/* --- КНОПКИ --- */
+.status-msg {
+  margin-top: 15px;
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--tg-theme-button-color);
+}
+
+/* --- 7. УВЕДОМЛЕНИЯ (СПИСОК ФАЙЛОВ) --- */
+.notif-window {
+  width: 90vw;
+  max-width: 340px;
+  height: 50vh;
+  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.notif-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding-bottom: 12px;
+}
+
+.notif-info {
+  display: flex;
+  flex-direction: column; /* ФИО на новой строке */
+  text-align: left;
+  gap: 4px;
+  flex: 1;
+}
+
+.notif-file-subject {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--tg-theme-text-color);
+}
+
+.notif-teacher {
+  font-size: 13px;
+  opacity: 0.6;
+  color: var(--tg-theme-text-color);
+}
+
+.download-btn {
+  background: var(--tg-theme-button-color, #2481cc);
+  border: none;
+  color: white;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-left: 10px;
+  transition: transform 0.1s;
+}
+
+.download-btn:active {
+  transform: scale(0.9);
+}
+
+/* --- 8. КНОПКИ (ОБЩИЕ СТИЛИ) --- */
+.submit-btn, .secondary-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+}
 
 .submit-btn {
   background-color: var(--tg-theme-button-color, #2481cc);
   color: var(--tg-theme-button-text-color, #ffffff);
-  border: none;
-  padding: 14px;
-  border-radius: 12px;
   font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  width: 100%;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center; /* ТЕКСТ ПО ЦЕНТРУ */
-  gap: 10px;
 }
 
 .secondary-btn {
   background-color: var(--tg-theme-secondary-bg-color, #eef0f2);
   color: var(--tg-theme-button-color, #2481cc);
-  border: none;
-  padding: 14px; /* Одинаковая высота с основной кнопкой */
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: bold;
-  cursor: pointer;
+  font-size: 14px;
+}
+
+.submit-btn:active, .secondary-btn:active {
+  transform: scale(0.98);
+  opacity: 0.8;
+}
+
+/* --- 9. НИЖНЯЯ НАВИГАЦИЯ (STYLE TELEGRAM) --- */
+.nav-wrapper {
+  position: fixed;
+  bottom: 20px;
   width: 100%;
-  transition: all 0.2s ease;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center; /* ТЕКСТ ПО ЦЕНТРУ */
+  gap: 15px;
+  z-index: 1000;
+}
+
+.bottom-nav {
+  background: rgba(28, 37, 52, 0.9);
+  backdrop-filter: blur(10px);
+  padding: 8px 15px;
+  border-radius: 50px;
+  display: flex;
   gap: 10px;
-  margin-top: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-/* ЭФФЕКТЫ ПРИ НАЖАТИИ (Подсветка) */
-.submit-btn:active {
-  transform: scale(0.98);
-  opacity: 0.9;
-  filter: brightness(1.1); /* Легкое осветление */
-}
-
-.secondary-btn:active {
-  transform: scale(0.98);
-  background-color: #d1d5db; /* Явное потемнение при нажатии */
-  color: var(--tg-theme-text-color);
-}
-
-/* Иконки внутри кнопок */
-.btn-icon {
+.bottom-nav button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 55px;
+  height: 40px;
   display: flex;
-  align-items: center;
   justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
+  align-items: center;
 }
 
-/* Кнопки в самом низу (Пропустить / Сменить роль) */
-.skip-btn, .back-link {
+.nav-icon-bg {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.bottom-nav button.active .nav-icon-bg {
+  background: var(--tg-theme-button-color, #2481cc);
+  color: white;
+}
+
+/* --- 10. ССЫЛКИ И АНИМАЦИИ --- */
+.skip-btn, .back-link-bottom {
   background: none;
   border: none;
   color: var(--tg-theme-hint-color, #999);
-  margin-top: 20px; /* ОПУСТИЛИ НИЖЕ */
+  margin-top: 40px;
   cursor: pointer;
   text-decoration: underline;
   font-size: 13px;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+  transition: color 0.2s;
 }
 
-.skip-btn:active, .back-link:active {
-  opacity: 1;
+.skip-btn:active, .back-link-bottom:active {
   color: var(--tg-theme-button-color);
 }
 
-/* --- АНИМАЦИЯ --- */
 .fade-in {
   animation: fadeInAnim 0.3s ease forwards;
 }
 
 @keyframes fadeInAnim {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
