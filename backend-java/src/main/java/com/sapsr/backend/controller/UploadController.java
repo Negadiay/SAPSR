@@ -41,6 +41,55 @@ public class UploadController {
         this.userRepository = userRepository;
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<?> getMe(HttpServletRequest request) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        }
+        Optional<User> user = userRepository.findById(telegramId);
+        if (user.isPresent()) {
+            User u = user.get();
+            return ResponseEntity.ok(Map.of(
+                    "telegram_id", u.getTelegramId(),
+                    "role", u.getRole(),
+                    "full_name", u.getFullName() != null ? u.getFullName() : ""
+            ));
+        }
+        return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        }
+
+        String role = body.getOrDefault("role", "").toUpperCase();
+        String fullName = body.getOrDefault("full_name", "").trim();
+
+        if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Роль должна быть STUDENT или TEACHER"));
+        }
+        if (fullName.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
+        }
+
+        Optional<User> existing = userRepository.findById(telegramId);
+        User user = existing.orElseGet(User::new);
+        user.setTelegramId(telegramId);
+        user.setRole(role);
+        user.setFullName(fullName);
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of(
+                "status", "OK",
+                "role", role,
+                "full_name", fullName
+        ));
+    }
+
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
                                         @RequestParam(value = "teacher_id", required = false) Long teacherId,

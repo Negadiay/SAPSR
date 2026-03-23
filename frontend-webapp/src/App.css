@@ -121,18 +121,36 @@ h1 {
   color: white;
 }
 
-/* --- 5. ФОРМЫ (ВВОД КОДА) --- */
-.code-input {
-  width: 160px;
-  padding: 10px;
-  border-radius: 10px;
+/* --- 5. ФОРМЫ (РЕГИСТРАЦИЯ) --- */
+.register-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 300px;
+  gap: 12px;
+}
+
+.reg-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 2px solid var(--tg-theme-button-color, #2481cc);
   background: var(--tg-theme-bg-color, #fff);
   color: var(--tg-theme-text-color, #000);
-  font-size: 18px;
-  text-align: center;
-  margin-bottom: 20px;
+  font-size: 15px;
   outline: none;
+}
+
+.reg-input::placeholder {
+  opacity: 0.5;
+}
+
+.reg-error {
+  color: #e53935;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .vertical-button-group {
@@ -141,7 +159,8 @@ h1 {
   align-items: center;
   gap: 10px;
   width: 100%;
-  max-width: 220px;
+  max-width: 300px;
+  margin-top: 8px;
 }
 
 /* --- 5b. СЕЛЕКТ ПРЕПОДАВАТЕЛЯ --- */

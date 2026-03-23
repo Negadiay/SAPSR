@@ -5,11 +5,14 @@ import './App.css';
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
 function App() {
-  const [step, setStep] = useState('role');
+  const [step, setStep] = useState('loading');
   const [activeTab, setActiveTab] = useState(1);
   const [direction, setDirection] = useState(0);
   const [userRole, setUserRole] = useState('');
-  const [accessCode, setAccessCode] = useState('');
+  const [regInput, setRegInput] = useState('');
+  const [regGroup, setRegGroup] = useState('');
+  const [regError, setRegError] = useState('');
+  const [registering, setRegistering] = useState(false);
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
   const [teachers, setTeachers] = useState([]);
@@ -25,17 +28,35 @@ function App() {
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
 
+  const apiHeaders = (extra = {}) => ({ 'Authorization': initData, ...extra });
+
   useEffect(() => {
     tg?.ready();
     tg?.expand();
-    fetchTeachers();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/me`, { headers: apiHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.role && data.role !== 'NONE') {
+          setUserRole(data.role.toLowerCase());
+          setStep('main');
+          fetchTeachers();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Не удалось проверить авторизацию:', err);
+    }
+    setStep('role');
+  };
 
   const fetchTeachers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/teachers`, {
-        headers: { 'Authorization': initData },
-      });
+      const res = await fetch(`${API_BASE}/teachers`, { headers: apiHeaders() });
       if (res.ok) {
         const data = await res.json();
         setTeachers(data);
@@ -43,6 +64,55 @@ function App() {
       }
     } catch (err) {
       console.warn('Не удалось загрузить преподавателей:', err);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setRegError('');
+
+    if (userRole === 'student') {
+      if (!regInput.trim() || !regGroup.trim()) {
+        setRegError('Заполните ФИО и номер группы');
+        return;
+      }
+      if (!/^\d{6}$/.test(regGroup.trim())) {
+        setRegError('Номер группы — 6 цифр');
+        return;
+      }
+    }
+
+    if (userRole === 'teacher') {
+      if (!regInput.trim() || !regInput.includes('@bsuir.by')) {
+        setRegError('Введите почту @bsuir.by');
+        return;
+      }
+    }
+
+    setRegistering(true);
+    try {
+      const fullName = userRole === 'student'
+        ? `${regInput.trim()} (гр. ${regGroup.trim()})`
+        : regInput.trim();
+
+      const res = await fetch(`${API_BASE}/register`, {
+        method: 'POST',
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ role: userRole.toUpperCase(), full_name: fullName }),
+      });
+
+      if (res.ok) {
+        tg?.HapticFeedback?.notificationOccurred('success');
+        setStep('main');
+        fetchTeachers();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setRegError(err.error || 'Ошибка регистрации');
+      }
+    } catch {
+      setRegError('Сервер недоступен');
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -72,12 +142,10 @@ function App() {
 
   const handleRoleSelect = (role) => {
     setUserRole(role);
-    setStep('code');
-  };
-
-  const handleCodeSubmit = (e) => {
-    e.preventDefault();
-    if (accessCode.length > 0) setStep('main');
+    setRegInput('');
+    setRegGroup('');
+    setRegError('');
+    setStep('register');
   };
 
   const handleSubmitFile = async (e) => {
@@ -134,6 +202,12 @@ function App() {
       )}
 
       <AnimatePresence custom={direction} mode="wait">
+        {step === 'loading' && (
+          <motion.div key="loading" className="screen" exit={{opacity: 0}}>
+            <p className="description">Загрузка...</p>
+          </motion.div>
+        )}
+
         {step === 'role' && (
           <motion.div key="role" className="screen" exit={{opacity: 0}}>
             <p className="description">Выберите вашу роль в системе</p>
@@ -151,13 +225,49 @@ function App() {
           </motion.div>
         )}
 
-        {step === 'code' && (
-          <motion.div key="code" className="screen" exit={{opacity: 0}}>
-            <p className="description">Введите код доступа для роли <br/> <b>{userRole === 'student' ? 'Студент' : 'Преподаватель'}</b></p>
-            <form onSubmit={handleCodeSubmit} className="code-form-container">
-              <input type="text" className="code-input" placeholder="Код..." value={accessCode} onChange={(e) => setAccessCode(e.target.value)} autoFocus />
+        {step === 'register' && (
+          <motion.div key="register" className="screen" exit={{opacity: 0}}>
+            <p className="description">
+              {userRole === 'student'
+                ? 'Введите ваше ФИО и номер группы'
+                : 'Введите вашу почту @bsuir.by'}
+            </p>
+            <form onSubmit={handleRegister} className="register-form">
+              {userRole === 'student' ? (
+                <>
+                  <input
+                    type="text"
+                    className="reg-input"
+                    placeholder="ФИО (Иванов Иван Иванович)"
+                    value={regInput}
+                    onChange={(e) => setRegInput(e.target.value)}
+                    autoFocus
+                  />
+                  <input
+                    type="text"
+                    className="reg-input"
+                    placeholder="Номер группы (123456)"
+                    value={regGroup}
+                    onChange={(e) => setRegGroup(e.target.value)}
+                    maxLength={6}
+                    inputMode="numeric"
+                  />
+                </>
+              ) : (
+                <input
+                  type="email"
+                  className="reg-input"
+                  placeholder="email@bsuir.by"
+                  value={regInput}
+                  onChange={(e) => setRegInput(e.target.value)}
+                  autoFocus
+                />
+              )}
+              {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
-                <button type="submit" className="submit-btn">✅ Войти</button>
+                <button type="submit" className="submit-btn" disabled={registering}>
+                  {registering ? '⏳ Регистрация...' : '✅ Зарегистрироваться'}
+                </button>
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
               </div>
             </form>
