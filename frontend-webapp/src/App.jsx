@@ -10,7 +10,7 @@ function App() {
   const [direction, setDirection] = useState(0);
   const [userRole, setUserRole] = useState('');
   const [regInput, setRegInput] = useState('');
-  const [regGroup, setRegGroup] = useState('');
+  const [regCode, setRegCode] = useState('');
   const [regError, setRegError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [file, setFile] = useState(null);
@@ -67,40 +67,66 @@ function App() {
     }
   };
 
-  const handleRegister = async (e) => {
+  const handleRegisterStudent = async (e) => {
     e.preventDefault();
     setRegError('');
 
-    if (userRole === 'student') {
-      if (!regInput.trim() || !regGroup.trim()) {
-        setRegError('Заполните ФИО и номер группы');
-        return;
-      }
-      if (!/^\d{6}$/.test(regGroup.trim())) {
-        setRegError('Номер группы — 6 цифр');
-        return;
-      }
+    const match = regInput.trim().match(/^(.+),\s*(\d{6})$/);
+    if (!match) {
+      setRegError('Формат: Иванов И.И., 123456');
+      return;
     }
 
-    if (userRole === 'teacher') {
-      if (!regInput.trim() || !regInput.includes('@bsuir.by')) {
-        setRegError('Введите почту @bsuir.by');
-        return;
+    const fullName = match[1].trim() + ' (гр. ' + match[2] + ')';
+
+    setRegistering(true);
+    try {
+      const res = await fetch(`${API_BASE}/register`, {
+        method: 'POST',
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ role: 'STUDENT', full_name: fullName }),
+      });
+      if (res.ok) {
+        tg?.HapticFeedback?.notificationOccurred('success');
+        setStep('main');
+        fetchTeachers();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setRegError(err.error || 'Ошибка регистрации');
       }
+    } catch {
+      setRegError('Сервер недоступен');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const handleTeacherEmailSubmit = (e) => {
+    e.preventDefault();
+    setRegError('');
+    if (!regInput.trim().includes('@bsuir.by')) {
+      setRegError('Введите почту @bsuir.by');
+      return;
+    }
+    setStep('confirm_code');
+  };
+
+  const handleConfirmCode = async (e) => {
+    e.preventDefault();
+    setRegError('');
+
+    if (regCode.trim() !== '1234') {
+      setRegError('Неверный код подтверждения');
+      return;
     }
 
     setRegistering(true);
     try {
-      const fullName = userRole === 'student'
-        ? `${regInput.trim()} (гр. ${regGroup.trim()})`
-        : regInput.trim();
-
       const res = await fetch(`${API_BASE}/register`, {
         method: 'POST',
         headers: apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ role: userRole.toUpperCase(), full_name: fullName }),
+        body: JSON.stringify({ role: 'TEACHER', full_name: regInput.trim() }),
       });
-
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred('success');
         setStep('main');
@@ -143,7 +169,7 @@ function App() {
   const handleRoleSelect = (role) => {
     setUserRole(role);
     setRegInput('');
-    setRegGroup('');
+    setRegCode('');
     setRegError('');
     setStep('register');
   };
@@ -225,50 +251,74 @@ function App() {
           </motion.div>
         )}
 
-        {step === 'register' && (
-          <motion.div key="register" className="screen" exit={{opacity: 0}}>
-            <p className="description">
-              {userRole === 'student'
-                ? 'Введите ваше ФИО и номер группы'
-                : 'Введите вашу почту @bsuir.by'}
-            </p>
-            <form onSubmit={handleRegister} className="register-form">
-              {userRole === 'student' ? (
-                <>
-                  <input
-                    type="text"
-                    className="reg-input"
-                    placeholder="ФИО (Иванов Иван Иванович)"
-                    value={regInput}
-                    onChange={(e) => setRegInput(e.target.value)}
-                    autoFocus
-                  />
-                  <input
-                    type="text"
-                    className="reg-input"
-                    placeholder="Номер группы (123456)"
-                    value={regGroup}
-                    onChange={(e) => setRegGroup(e.target.value)}
-                    maxLength={6}
-                    inputMode="numeric"
-                  />
-                </>
-              ) : (
-                <input
-                  type="email"
-                  className="reg-input"
-                  placeholder="email@bsuir.by"
-                  value={regInput}
-                  onChange={(e) => setRegInput(e.target.value)}
-                  autoFocus
-                />
-              )}
+        {step === 'register' && userRole === 'student' && (
+          <motion.div key="reg-student" className="screen" exit={{opacity: 0}}>
+            <p className="description">Введите ФИО и номер группы</p>
+            <form onSubmit={handleRegisterStudent} className="register-form">
+              <input
+                type="text"
+                className="reg-input"
+                placeholder="Иванов И.И., 123456"
+                value={regInput}
+                onChange={(e) => setRegInput(e.target.value)}
+                autoFocus
+              />
+              <p className="reg-hint">Формат: ФИО, номер группы (6 цифр)</p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering}>
                   {registering ? '⏳ Регистрация...' : '✅ Зарегистрироваться'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {step === 'register' && userRole === 'teacher' && (
+          <motion.div key="reg-teacher" className="screen" exit={{opacity: 0}}>
+            <p className="description">Введите вашу почту @bsuir.by</p>
+            <form onSubmit={handleTeacherEmailSubmit} className="register-form">
+              <input
+                type="email"
+                className="reg-input"
+                placeholder="ivanov@bsuir.by"
+                value={regInput}
+                onChange={(e) => setRegInput(e.target.value)}
+                autoFocus
+              />
+              {regError && <div className="reg-error">{regError}</div>}
+              <div className="vertical-button-group">
+                <button type="submit" className="submit-btn">Отправить код</button>
+                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {step === 'confirm_code' && (
+          <motion.div key="confirm-code" className="screen" exit={{opacity: 0}}>
+            <div className="debug-banner">
+              [DEBUG] Код подтверждения: 1234. Введите его ниже.
+            </div>
+            <p className="description">На почту {regInput} отправлен код подтверждения</p>
+            <form onSubmit={handleConfirmCode} className="register-form">
+              <input
+                type="text"
+                className="reg-input code-input-wide"
+                placeholder="Введите код"
+                value={regCode}
+                onChange={(e) => setRegCode(e.target.value)}
+                maxLength={4}
+                inputMode="numeric"
+                autoFocus
+              />
+              {regError && <div className="reg-error">{regError}</div>}
+              <div className="vertical-button-group">
+                <button type="submit" className="submit-btn" disabled={registering}>
+                  {registering ? '⏳ Проверка...' : '✅ Подтвердить'}
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => { setStep('register'); setRegError(''); setRegCode(''); }}>⬅️ Назад</button>
               </div>
             </form>
           </motion.div>
