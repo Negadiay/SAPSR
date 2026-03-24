@@ -45,7 +45,7 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
             SetChatMenuButton setMenu = SetChatMenuButton.builder()
                     .menuButton(MenuButtonWebApp.builder()
                             .text("Загрузить работу")
-                            .webApp(WebAppInfo.builder().url(webAppUrl).build())
+                            .webAppInfo(WebAppInfo.builder().url(webAppUrl).build())
                             .build())
                     .build();
             telegramClient.execute(setMenu);
