@@ -57,8 +57,41 @@ if errorlevel 1 (
 echo [OK] PostgreSQL готов.
 echo.
 
-:: 2. Backend
-echo [2/5] Запуск Backend...
+:: 2. Frontend
+echo [2/5] Запуск Frontend...
+start "SAPSR — Frontend" cmd /k "cd /d %~dp0frontend-webapp && npm run dev"
+echo [OK] Frontend запускается на порту 5173.
+echo.
+
+:: 3. Cloudflare Tunnel
+if "%USE_TUNNEL%"=="0" goto skip_tunnel
+
+echo [3/5] Запуск Cloudflare Tunnel...
+start "SAPSR — Cloudflare Tunnel" cmd /k "cloudflared tunnel --url http://localhost:5173"
+echo [OK] Туннель запускается в отдельном окне.
+echo.
+echo ============================================
+echo  Скопируйте HTTPS-ссылку из окна туннеля
+echo  и вставьте её ниже:
+echo ============================================
+echo.
+set /p TUNNEL_URL="Вставьте URL туннеля: "
+
+if not "%TUNNEL_URL%"=="" (
+    powershell -Command "(Get-Content 'backend-java\src\main\resources\application.properties') -replace 'bot\.webapp\.url=.*', 'bot.webapp.url=%TUNNEL_URL%' | Set-Content 'backend-java\src\main\resources\application.properties'"
+    echo [OK] application.properties обновлён: bot.webapp.url=%TUNNEL_URL%
+    echo.
+)
+goto done_tunnel
+
+:skip_tunnel
+echo [3/5] Cloudflare Tunnel пропущен - cloudflared не установлен.
+echo.
+
+:done_tunnel
+
+:: 4. Backend
+echo [4/5] Запуск Backend...
 start "SAPSR — Backend" cmd /k "cd /d %~dp0backend-java && mvnw.cmd spring-boot:run"
 echo [OK] Backend запускается в отдельном окне.
 echo.
@@ -66,46 +99,25 @@ echo.
 echo Ожидание запуска Backend, 15 сек...
 timeout /t 15 /nobreak >nul
 
-:: 3. Worker
-echo [3/5] Запуск Python Worker...
+:: 5. Python Worker
+echo [5/5] Запуск Python Worker...
 start "SAPSR — Worker" cmd /k "cd /d %~dp0worker-python && python main.py"
-echo [OK] Worker запущен в отдельном окне.
+echo [OK] Worker запущен.
 echo.
 
-:: 4. Frontend
-echo [4/5] Запуск Frontend...
-start "SAPSR — Frontend" cmd /k "cd /d %~dp0frontend-webapp && npm run dev"
-echo [OK] Frontend запускается в отдельном окне.
-echo.
-
-:: 5. Cloudflare Tunnel
-if "%USE_TUNNEL%"=="0" goto skip_tunnel
-
-echo [5/5] Запуск Cloudflare Tunnel...
-echo.
-echo *** ВАЖНО: скопируйте HTTPS-ссылку из окна туннеля        ***
-echo *** и пропишите её в application.properties:                ***
-echo ***   bot.webapp.url=https://xxxxx.trycloudflare.com        ***
-echo *** Затем перезапустите Backend - Ctrl+C в окне Backend     ***
-echo.
-start "SAPSR — Cloudflare Tunnel" cmd /k "cloudflared tunnel --url http://localhost:5173"
-echo [OK] Туннель запускается в отдельном окне.
-echo.
-goto done_tunnel
-
-:skip_tunnel
-echo [5/5] Cloudflare Tunnel пропущен - cloudflared не установлен.
-echo.
-
-:done_tunnel
 echo ============================================
 echo   Все сервисы запущены!
 echo.
 echo   Frontend:     http://localhost:5173
 echo   Backend:      http://localhost:8080
 echo   RabbitMQ UI:  http://localhost:15672
+if "%USE_TUNNEL%"=="1" (
+    echo   Tunnel:       %TUNNEL_URL%
+)
+echo.
+echo   Menu Button и Открыть кабинет обновлены
+echo   автоматически при старте Backend.
 echo ============================================
 echo.
-echo Закройте это окно когда закончите работу.
-echo Для остановки Docker: docker compose down
+echo Для остановки: закройте все окна или используйте stop.bat
 pause
