@@ -24,15 +24,26 @@ if not exist "backend-java\src\main\resources\application.properties" (
     exit /b 1
 )
 
-:: 1. Docker (PostgreSQL + RabbitMQ)
-echo [1/4] Запуск PostgreSQL и RabbitMQ...
+:: Проверка cloudflared
+set USE_TUNNEL=0
+cloudflared --version >nul 2>&1
+if not errorlevel 1 set USE_TUNNEL=1
+
+if "%USE_TUNNEL%"=="0" (
+    echo [ПРЕДУПРЕЖДЕНИЕ] cloudflared не найден! Туннель не будет запущен.
+    echo Установите: winget install cloudflare.cloudflared
+    echo.
+)
+
+:: 1. Docker
+echo [1/5] Запуск PostgreSQL и RabbitMQ...
 docker compose up -d
 if errorlevel 1 (
     echo [ОШИБКА] Не удалось запустить Docker-контейнеры!
     pause
     exit /b 1
 )
-echo [OK] PostgreSQL (порт 5433) и RabbitMQ (порт 5672) запущены.
+echo [OK] PostgreSQL и RabbitMQ запущены.
 echo.
 
 :: Ждём готовности PostgreSQL
@@ -46,34 +57,53 @@ if errorlevel 1 (
 echo [OK] PostgreSQL готов.
 echo.
 
-:: 2. Backend (Spring Boot)
-echo [2/4] Запуск Backend (Spring Boot)...
+:: 2. Backend
+echo [2/5] Запуск Backend...
 start "SAPSR — Backend" cmd /k "cd /d %~dp0backend-java && mvnw.cmd spring-boot:run"
-echo [OK] Backend запускается в отдельном окне (порт 8080).
+echo [OK] Backend запускается в отдельном окне.
 echo.
 
-:: Пауза, чтобы бэкенд успел подняться
-echo Ожидание запуска Backend (15 сек)...
+echo Ожидание запуска Backend, 15 сек...
 timeout /t 15 /nobreak >nul
 
-:: 3. Python Worker
-echo [3/4] Запуск Python Worker...
+:: 3. Worker
+echo [3/5] Запуск Python Worker...
 start "SAPSR — Worker" cmd /k "cd /d %~dp0worker-python && python main.py"
 echo [OK] Worker запущен в отдельном окне.
 echo.
 
-:: 4. Frontend (Vite)
-echo [4/4] Запуск Frontend (Vite)...
+:: 4. Frontend
+echo [4/5] Запуск Frontend...
 start "SAPSR — Frontend" cmd /k "cd /d %~dp0frontend-webapp && npm run dev"
-echo [OK] Frontend запускается в отдельном окне (порт 5173).
+echo [OK] Frontend запускается в отдельном окне.
 echo.
 
+:: 5. Cloudflare Tunnel
+if "%USE_TUNNEL%"=="0" goto skip_tunnel
+
+echo [5/5] Запуск Cloudflare Tunnel...
+echo.
+echo *** ВАЖНО: скопируйте HTTPS-ссылку из окна туннеля        ***
+echo *** и пропишите её в application.properties:                ***
+echo ***   bot.webapp.url=https://xxxxx.trycloudflare.com        ***
+echo *** Затем перезапустите Backend - Ctrl+C в окне Backend     ***
+echo.
+start "SAPSR — Cloudflare Tunnel" cmd /k "cloudflared tunnel --url http://localhost:5173"
+echo [OK] Туннель запускается в отдельном окне.
+echo.
+goto done_tunnel
+
+:skip_tunnel
+echo [5/5] Cloudflare Tunnel пропущен - cloudflared не установлен.
+echo.
+
+:done_tunnel
 echo ============================================
 echo   Все сервисы запущены!
 echo.
-echo   Frontend:  http://localhost:5173
-echo   Backend:   http://localhost:8080
-echo   RabbitMQ:  http://localhost:15672
+echo   Frontend:     http://localhost:5173
+echo   Backend:      http://localhost:8080
+echo   RabbitMQ UI:  http://localhost:15672
 echo ============================================
 echo.
 echo Закройте это окно когда закончите работу.
