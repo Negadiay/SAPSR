@@ -16,8 +16,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -88,6 +87,75 @@ public class UploadController {
                 "role", role,
                 "full_name", fullName
         ));
+    }
+
+    @GetMapping("/submissions")
+    public ResponseEntity<?> getSubmissions(HttpServletRequest request) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        }
+
+        List<Submission> submissions = submissionRepository.findByStudent_TelegramIdOrderByCreatedAtDesc(telegramId);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Submission s : submissions) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", s.getId());
+            item.put("status", s.getStatus());
+            item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            item.put("format_errors", s.getFormatErrors());
+
+            String fp = s.getFilePath();
+            if (fp != null) {
+                String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
+                name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
+                if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
+                item.put("file_name", name);
+            } else {
+                item.put("file_name", "file.pdf");
+            }
+            result.add(item);
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/submissions/{id}/report")
+    public ResponseEntity<byte[]> getReport(@PathVariable Integer id, HttpServletRequest request) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        Optional<Submission> opt = submissionRepository.findById(id);
+
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Submission s = opt.get();
+        if (s.getStudent() != null && telegramId != null
+                && !s.getStudent().getTelegramId().equals(telegramId)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        StringBuilder report = new StringBuilder();
+        report.append("SAPSR — Отчёт о проверке форматирования\n");
+        report.append("========================================\n\n");
+        report.append("Файл: ").append(s.getFilePath()).append("\n");
+        report.append("Статус: ").append(s.getStatus()).append("\n");
+        report.append("Дата: ").append(s.getCreatedAt()).append("\n\n");
+
+        if (s.getFormatErrors() != null && !s.getFormatErrors().equals("[]")) {
+            report.append("Ошибки:\n");
+            report.append(s.getFormatErrors()).append("\n");
+        } else {
+            report.append("Ошибок не обнаружено.\n");
+        }
+
+        byte[] content = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain; charset=utf-8")
+                .header("Content-Disposition", "attachment; filename=\"report_" + id + ".txt\"")
+                .body(content);
     }
 
     @PostMapping("/upload")

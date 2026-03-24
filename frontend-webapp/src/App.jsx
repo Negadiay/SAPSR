@@ -18,12 +18,7 @@ function App() {
   const [teachers, setTeachers] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [uploading, setUploading] = useState(false);
-
-  const notifications = [
-    { id: 1, subject: 'ИАД', teacher: 'Пакутник Д.В.', fileName: 'Задание_1.pdf' },
-    { id: 2, subject: 'ГИИС', teacher: 'Сальников Д.А.', fileName: 'Отчет_проверки.pdf' },
-    { id: 3, subject: 'ОС', teacher: 'Иванов И.И.', fileName: 'Результат_лаб.pdf' },
-  ];
+  const [submissions, setSubmissions] = useState([]);
 
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
@@ -45,6 +40,7 @@ function App() {
           setUserRole(data.role.toLowerCase());
           setStep('main');
           fetchTeachers();
+          fetchSubmissions();
           return;
         }
       }
@@ -64,6 +60,18 @@ function App() {
       }
     } catch (err) {
       console.warn('Не удалось загрузить преподавателей:', err);
+    }
+  };
+
+  const fetchSubmissions = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/submissions`, { headers: apiHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissions(data);
+      }
+    } catch (err) {
+      console.warn('Не удалось загрузить историю:', err);
     }
   };
 
@@ -142,22 +150,37 @@ function App() {
     }
   };
 
-  // Функция скачивания (имитация PDF)
-  const handleDownload = (fileName) => {
-    // Создаем минимальный набор байтов, который браузер примет за PDF
-    const dummyPdfContent = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 612 792]>>endobj\nxref\n0 4\n0000000000 65535 f\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF";
+  const handleDownloadReport = async (submissionId) => {
+    try {
+      const res = await fetch(`${API_BASE}/submissions/${submissionId}/report`, {
+        headers: apiHeaders(),
+      });
+      if (!res.ok) return;
 
-    const blob = new Blob([dummyPdfContent], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName; // Имя уже содержит .pdf
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `report_${submissionId}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-    window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      tg?.HapticFeedback?.notificationOccurred('success');
+    } catch (err) {
+      console.error('Ошибка скачивания отчёта:', err);
+    }
+  };
+
+  const statusLabel = (s) => {
+    switch (s) {
+      case 'PROCESSING': return '⏳ На проверке';
+      case 'SUCCESS': return '✅ Принято';
+      case 'REJECTED': return '❌ Отклонено';
+      case 'FAIL': return '❌ Ошибки';
+      default: return s;
+    }
   };
 
   const handleTabChange = (newTab) => {
@@ -194,10 +217,11 @@ function App() {
 
       if (res.ok) {
         setStatus('✅ Работа успешно отправлена!');
+        setFile(null);
         tg?.HapticFeedback?.notificationOccurred('success');
+        fetchSubmissions();
         tg?.showPopup(
-          { title: 'Готово!', message: 'Файл отправлен на проверку.', buttons: [{ type: 'ok' }] },
-          () => setTimeout(() => tg?.close(), 2000),
+          { title: 'Готово!', message: 'Файл отправлен на проверку. Результат появится в уведомлениях.', buttons: [{ type: 'ok' }] },
         );
       } else {
         const err = await res.json().catch(() => ({}));
@@ -334,22 +358,31 @@ function App() {
             {activeTab === 1 && (
               <div className="tab-view">
                 <h2 className="view-title">Уведомления</h2>
+                <button className="refresh-btn" onClick={fetchSubmissions}>🔄 Обновить</button>
                 <div className="notif-window">
-                   {notifications.map(n => (
-                     <div key={n.id} className="notif-line">
-                       <div className="notif-info">
-                         <div className="notif-file-subject">
-                           <b>{n.fileName}</b>: {n.subject}
-                         </div>
-                         <div className="notif-teacher">
-                           {n.teacher}
-                         </div>
-                       </div>
-                       <button className="download-btn" onClick={() => handleDownload(n.fileName)}>
-                        📥
-                       </button>
-                     </div>
-                   ))}
+                  {submissions.length === 0 && (
+                    <p className="notif-empty">Пока нет загруженных файлов</p>
+                  )}
+                  {submissions.map(s => (
+                    <div key={s.id} className={`notif-line ${s.status === 'REJECTED' || s.status === 'FAIL' ? 'notif-error' : ''} ${s.status === 'SUCCESS' ? 'notif-success' : ''}`}>
+                      <div className="notif-info">
+                        <div className="notif-file-subject">
+                          <b>{s.file_name}</b>
+                        </div>
+                        <div className="notif-status">
+                          {statusLabel(s.status)}
+                        </div>
+                        {s.format_errors && s.format_errors !== '[]' && s.format_errors !== 'null' && (
+                          <div className="notif-errors">Есть ошибки форматирования</div>
+                        )}
+                      </div>
+                      {s.status !== 'PROCESSING' && (
+                        <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>
+                          📥
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
