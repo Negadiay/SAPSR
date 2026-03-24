@@ -1,7 +1,7 @@
 package com.sapsr.backend.controller;
 
-import com.sapsr.backend.entity.User;
-import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.entity.Teacher;
+import com.sapsr.backend.repository.TeacherRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,20 +13,20 @@ import java.util.Map;
 @RequestMapping("/api/v1")
 public class TeacherController {
 
-    private final UserRepository userRepository;
+    private final TeacherRepository teacherRepository;
 
-    public TeacherController(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public TeacherController(TeacherRepository teacherRepository) {
+        this.teacherRepository = teacherRepository;
     }
 
     @GetMapping("/teachers")
     public ResponseEntity<List<Map<String, Object>>> getTeachers() {
-        List<User> teachers = userRepository.findByRole("TEACHER");
+        List<Teacher> teachers = teacherRepository.findAll();
 
         List<Map<String, Object>> result = teachers.stream()
                 .map(t -> Map.<String, Object>of(
-                        "telegram_id", t.getTelegramId(),
-                        "full_name", t.getFullName() != null ? t.getFullName() : "Без имени"
+                        "id", t.getId(),
+                        "full_name", t.getFullName()
                 ))
                 .toList();
 

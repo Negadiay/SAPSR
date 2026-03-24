@@ -1,12 +1,17 @@
 package com.sapsr.backend;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
+import org.telegram.telegrambots.meta.api.methods.menubutton.SetChatMenuButton;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
+import org.telegram.telegrambots.meta.api.objects.menubutton.MenuButtonWebApp;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
@@ -28,6 +33,26 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
         this.botToken = botToken;
         this.webAppUrl = webAppUrl;
         this.telegramClient = new OkHttpTelegramClient(botToken);
+    }
+
+    @PostConstruct
+    public void init() {
+        updateMenuButton();
+    }
+
+    private void updateMenuButton() {
+        try {
+            SetChatMenuButton setMenu = SetChatMenuButton.builder()
+                    .menuButton(MenuButtonWebApp.builder()
+                            .text("Загрузить работу")
+                            .webAppInfo(WebAppInfo.builder().url(webAppUrl).build())
+                            .build())
+                    .build();
+            telegramClient.execute(setMenu);
+            System.out.println("[BOT] Menu Button обновлена -> " + webAppUrl);
+        } catch (TelegramApiException e) {
+            System.err.println("[BOT] Не удалось обновить Menu Button: " + e.getMessage());
+        }
     }
 
     @Override
