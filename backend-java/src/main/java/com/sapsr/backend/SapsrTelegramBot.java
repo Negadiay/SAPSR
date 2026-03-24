@@ -27,7 +27,6 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
                             @Value("${bot.webapp.url}") String webAppUrl) {
         this.botToken = botToken;
         this.webAppUrl = webAppUrl;
-        // В v7.x мы используем TelegramClient для отправки сообщений
         this.telegramClient = new OkHttpTelegramClient(botToken);
     }
 
@@ -44,18 +43,14 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
     @Override
     public void consume(List<Update> updates) {
         updates.forEach(update -> {
-            if (update.hasMessage() && update.getMessage().hasText()) {
-                String text = update.getMessage().getText();
-                long chatId = update.getMessage().getChatId();
+            if (!update.hasMessage() || !update.getMessage().hasText()) return;
 
-                if ("/start".equals(text)) {
-                    sendStartMessage(chatId);
-                }
-            }
+            long chatId = update.getMessage().getChatId();
+            sendWebAppButton(chatId);
         });
     }
 
-    private void sendStartMessage(long chatId) {
+    private void sendWebAppButton(long chatId) {
         WebAppInfo webAppInfo = WebAppInfo.builder()
                 .url(webAppUrl)
                 .build();
@@ -71,10 +66,22 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
 
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text("Добро пожаловать в SAPSR! Нажмите кнопку ниже, чтобы сдать работу")
+                .text("Добро пожаловать в SAPSR! Нажмите кнопку ниже, чтобы открыть приложение.")
                 .replyMarkup(keyboard)
                 .build();
 
+        try {
+            telegramClient.execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void notifyUser(Long chatId, String text) {
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text(text)
+                .build();
         try {
             telegramClient.execute(message);
         } catch (TelegramApiException e) {
