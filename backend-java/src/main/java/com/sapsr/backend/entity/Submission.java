@@ -16,7 +16,11 @@ public class Submission {
 
     @ManyToOne
     @JoinColumn(name = "student_telegram_id")
-    private User student;
+    private Student student;
+
+    @ManyToOne
+    @JoinColumn(name = "teacher_id")
+    private Teacher teacher;
 
     @Column(name = "status", nullable = false)
     private String status;
@@ -35,8 +39,10 @@ public class Submission {
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
-    public User getStudent() { return student; }
-    public void setStudent(User student) { this.student = student; }
+    public Student getStudent() { return student; }
+    public void setStudent(Student student) { this.student = student; }
+    public Teacher getTeacher() { return teacher; }
+    public void setTeacher(Teacher teacher) { this.teacher = teacher; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getFilePath() { return filePath; }

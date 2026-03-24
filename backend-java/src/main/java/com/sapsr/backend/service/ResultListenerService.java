@@ -55,7 +55,7 @@ public class ResultListenerService {
                 if ("SUCCESS".equals(status)) {
                     text = "✅ Ваша работа прошла проверку форматирования!";
                 } else {
-                    text = "❌ Проверка выявила ошибки форматирования:\n" + errorsJson;
+                    text = "❌ Проверка выявила ошибки форматирования. Скачайте отчёт в приложении.";
                 }
                 bot.notifyUser(chatId, text);
             }

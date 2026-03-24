@@ -9,8 +9,6 @@ function App() {
   const [activeTab, setActiveTab] = useState(1);
   const [direction, setDirection] = useState(0);
   const [userRole, setUserRole] = useState('');
-  const [regInput, setRegInput] = useState('');
-  const [regCode, setRegCode] = useState('');
   const [regError, setRegError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [file, setFile] = useState(null);
@@ -19,6 +17,16 @@ function App() {
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [uploading, setUploading] = useState(false);
   const [submissions, setSubmissions] = useState([]);
+
+  // Student registration fields
+  const [studentFio, setStudentFio] = useState('');
+  const [studentGroup, setStudentGroup] = useState('');
+
+  // Teacher registration fields
+  const [teacherEmail, setTeacherEmail] = useState('');
+  const [teacherName, setTeacherName] = useState('');
+  const [verifyCode, setVerifyCode] = useState('');
+  const [devCode, setDevCode] = useState('');
 
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
@@ -56,7 +64,6 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setTeachers(data);
-        if (data.length > 0) setSelectedTeacherId(String(data[0].telegram_id || data[0].id || 0));
       }
     } catch (err) {
       console.warn('Не удалось загрузить преподавателей:', err);
@@ -79,25 +86,33 @@ function App() {
     e.preventDefault();
     setRegError('');
 
-    const match = regInput.trim().match(/^(.+),\s*(\d{6})$/);
-    if (!match) {
-      setRegError('Формат: Иванов И.И., 123456');
+    const fio = studentFio.trim();
+    const group = studentGroup.trim();
+
+    const fioPattern = /^[А-ЯЁ][а-яё]+(-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.[А-ЯЁ]\.$/;
+    if (!fioPattern.test(fio)) {
+      setRegError('ФИО должно быть в формате: Фамилия И.О. (например, Иванов И.И.)');
       return;
     }
 
-    const fullName = match[1].trim() + ' (гр. ' + match[2] + ')';
+    if (!/^\d{6}$/.test(group)) {
+      setRegError('Номер группы — 6 цифр');
+      return;
+    }
 
     setRegistering(true);
     try {
-      const res = await fetch(`${API_BASE}/register`, {
+      const res = await fetch(`${API_BASE}/register/student`, {
         method: 'POST',
         headers: apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ role: 'STUDENT', full_name: fullName }),
+        body: JSON.stringify({ full_name: fio, group_number: group }),
       });
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred('success');
+        setUserRole('student');
         setStep('main');
         fetchTeachers();
+        fetchSubmissions();
       } else {
         const err = await res.json().catch(() => ({}));
         setRegError(err.error || 'Ошибка регистрации');
@@ -109,39 +124,58 @@ function App() {
     }
   };
 
-  const handleTeacherEmailSubmit = (e) => {
+  const handleTeacherEmailSubmit = async (e) => {
     e.preventDefault();
     setRegError('');
-    if (!regInput.trim().includes('@bsuir.by')) {
+
+    const email = teacherEmail.trim().toLowerCase();
+    if (!email.endsWith('@bsuir.by')) {
       setRegError('Введите почту @bsuir.by');
       return;
     }
-    setStep('confirm_code');
+
+    setRegistering(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/send-code`, {
+        method: 'POST',
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTeacherName(data.teacher_name || '');
+        if (data.dev_code) setDevCode(data.dev_code);
+        setStep('confirm_code');
+      } else {
+        setRegError(data.error || 'Ошибка отправки кода');
+      }
+    } catch {
+      setRegError('Сервер недоступен');
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const handleConfirmCode = async (e) => {
     e.preventDefault();
     setRegError('');
 
-    if (regCode.trim() !== '1234') {
-      setRegError('Неверный код подтверждения');
-      return;
-    }
-
     setRegistering(true);
     try {
-      const res = await fetch(`${API_BASE}/register`, {
+      const res = await fetch(`${API_BASE}/auth/verify-code`, {
         method: 'POST',
         headers: apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ role: 'TEACHER', full_name: regInput.trim() }),
+        body: JSON.stringify({ email: teacherEmail.trim().toLowerCase(), code: verifyCode.trim() }),
       });
+      const data = await res.json();
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred('success');
+        setUserRole('teacher');
         setStep('main');
         fetchTeachers();
+        fetchSubmissions();
       } else {
-        const err = await res.json().catch(() => ({}));
-        setRegError(err.error || 'Ошибка регистрации');
+        setRegError(data.error || 'Ошибка подтверждения');
       }
     } catch {
       setRegError('Сервер недоступен');
@@ -161,7 +195,7 @@ function App() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `report_${submissionId}.txt`;
+      link.download = `report_${submissionId}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -191,8 +225,12 @@ function App() {
 
   const handleRoleSelect = (role) => {
     setUserRole(role);
-    setRegInput('');
-    setRegCode('');
+    setStudentFio('');
+    setStudentGroup('');
+    setTeacherEmail('');
+    setTeacherName('');
+    setVerifyCode('');
+    setDevCode('');
     setRegError('');
     setStep('register');
   };
@@ -201,13 +239,18 @@ function App() {
     e.preventDefault();
     if (!file || uploading) return;
 
+    if (!selectedTeacherId) {
+      setStatus('❌ Выберите преподавателя');
+      return;
+    }
+
     setUploading(true);
     setStatus('⏳ Загрузка...');
 
     try {
       const formData = new FormData();
       formData.append('file', file);
-      if (selectedTeacherId) formData.append('teacher_id', selectedTeacherId);
+      formData.append('teacher_id', selectedTeacherId);
 
       const res = await fetch(`${API_BASE}/upload`, {
         method: 'POST',
@@ -271,7 +314,6 @@ function App() {
                 <span className="role-text">Преподаватель</span>
               </button>
             </div>
-            <button className="skip-btn" onClick={() => setStep('main')}>Пропустить регистрацию ➔</button>
           </motion.div>
         )}
 
@@ -282,12 +324,21 @@ function App() {
               <input
                 type="text"
                 className="reg-input"
-                placeholder="Иванов И.И., 123456"
-                value={regInput}
-                onChange={(e) => setRegInput(e.target.value)}
+                placeholder="Иванов И.И."
+                value={studentFio}
+                onChange={(e) => setStudentFio(e.target.value)}
                 autoFocus
               />
-              <p className="reg-hint">Формат: ФИО, номер группы (6 цифр)</p>
+              <input
+                type="text"
+                className="reg-input"
+                placeholder="123456"
+                value={studentGroup}
+                onChange={(e) => setStudentGroup(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                maxLength={6}
+              />
+              <p className="reg-hint">ФИО: Фамилия И.О. | Группа: 6 цифр</p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering}>
@@ -301,19 +352,22 @@ function App() {
 
         {step === 'register' && userRole === 'teacher' && (
           <motion.div key="reg-teacher" className="screen" exit={{opacity: 0}}>
-            <p className="description">Введите вашу почту @bsuir.by</p>
+            <p className="description">Введите вашу рабочую почту @bsuir.by</p>
             <form onSubmit={handleTeacherEmailSubmit} className="register-form">
               <input
                 type="email"
                 className="reg-input"
                 placeholder="ivanov@bsuir.by"
-                value={regInput}
-                onChange={(e) => setRegInput(e.target.value)}
+                value={teacherEmail}
+                onChange={(e) => setTeacherEmail(e.target.value)}
                 autoFocus
               />
+              <p className="reg-hint">Почта должна быть зарегистрирована в системе</p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
-                <button type="submit" className="submit-btn">Отправить код</button>
+                <button type="submit" className="submit-btn" disabled={registering}>
+                  {registering ? '⏳ Проверка...' : 'Отправить код'}
+                </button>
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
               </div>
             </form>
@@ -322,18 +376,21 @@ function App() {
 
         {step === 'confirm_code' && (
           <motion.div key="confirm-code" className="screen" exit={{opacity: 0}}>
-            <div className="debug-banner">
-              [DEBUG] Код подтверждения: 1234. Введите его ниже.
-            </div>
-            <p className="description">На почту {regInput} отправлен код подтверждения</p>
+            {devCode && (
+              <div className="debug-banner">
+                [DEV] Код подтверждения: {devCode}
+              </div>
+            )}
+            {teacherName && <p className="description" style={{fontWeight: 'bold'}}>{teacherName}</p>}
+            <p className="description">На почту {teacherEmail} отправлен код подтверждения</p>
             <form onSubmit={handleConfirmCode} className="register-form">
               <input
                 type="text"
                 className="reg-input code-input-wide"
-                placeholder="Введите код"
-                value={regCode}
-                onChange={(e) => setRegCode(e.target.value)}
-                maxLength={4}
+                placeholder="Введите 6-значный код"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
                 inputMode="numeric"
                 autoFocus
               />
@@ -342,7 +399,7 @@ function App() {
                 <button type="submit" className="submit-btn" disabled={registering}>
                   {registering ? '⏳ Проверка...' : '✅ Подтвердить'}
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => { setStep('register'); setRegError(''); setRegCode(''); }}>⬅️ Назад</button>
+                <button type="button" className="secondary-btn" onClick={() => { setStep('register'); setRegError(''); setVerifyCode(''); setDevCode(''); }}>⬅️ Назад</button>
               </div>
             </form>
           </motion.div>
@@ -368,6 +425,7 @@ function App() {
                       <div className="notif-info">
                         <div className="notif-file-subject">
                           <b>{s.file_name}</b>
+                          {s.teacher_name && <span className="notif-teacher"> → {s.teacher_name}</span>}
                         </div>
                         <div className="notif-status">
                           {statusLabel(s.status)}
@@ -392,29 +450,32 @@ function App() {
                 <h2 className="view-title">Загрузка</h2>
                 <div className="upload-container">
                   <form onSubmit={handleSubmitFile}>
-                    {teachers.length > 0 && (
-                      <div className="teacher-select-wrapper">
-                        <label htmlFor="teacher-select" className="select-label">Преподаватель</label>
+                    <div className="teacher-select-wrapper">
+                      <label htmlFor="teacher-select" className="select-label">Преподаватель</label>
+                      {teachers.length > 0 ? (
                         <select
                           id="teacher-select"
                           className="teacher-select"
                           value={selectedTeacherId}
                           onChange={(e) => setSelectedTeacherId(e.target.value)}
                         >
+                          <option value="">— Выберите преподавателя —</option>
                           {teachers.map((t) => (
-                            <option key={t.telegram_id || t.id} value={t.telegram_id || t.id}>
-                              {t.full_name || t.fio || t.name}
+                            <option key={t.id} value={t.id}>
+                              {t.full_name}
                             </option>
                           ))}
                         </select>
-                      </div>
-                    )}
+                      ) : (
+                        <p className="notif-empty">Нет доступных преподавателей</p>
+                      )}
+                    </div>
                     <label htmlFor="file-upload" className="custom-file-upload">
                       <span style={{fontSize: '30px'}}>📁</span>
                       <span>{file ? file.name : 'Нажмите, чтобы выбрать файл (.pdf)'}</span>
                     </label>
                     <input id="file-upload" type="file" accept=".pdf" onChange={(e) => {setFile(e.target.files[0]); setStatus('')}} />
-                    <button type="submit" className="submit-btn" disabled={!file || uploading} style={{marginTop: '20px'}}>
+                    <button type="submit" className="submit-btn" disabled={!file || !selectedTeacherId || uploading} style={{marginTop: '20px'}}>
                       {uploading ? '⏳ Отправка...' : 'Отправить'}
                     </button>
                   </form>
