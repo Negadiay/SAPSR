@@ -31,6 +31,7 @@ public class ResultListenerService {
             int taskId = json.get("task_id").asInt();
             String status = json.get("status").asText();
             String errorsJson = json.has("errors") ? json.get("errors").toString() : "[]";
+            int score = json.has("score") ? json.get("score").asInt() : -1;
 
             Optional<Submission> optSubmission = submissionRepository.findById(taskId);
             if (optSubmission.isEmpty()) {
@@ -46,18 +47,34 @@ public class ResultListenerService {
                 submission.setStatus("REJECTED");
             }
             submission.setFormatErrors(errorsJson);
+            if (score >= 0) submission.setScore(score);
             submissionRepository.save(submission);
-            System.out.println("[RESULT LISTENER] Submission #" + taskId + " обновлён -> " + submission.getStatus());
+            System.out.println("[RESULT LISTENER] Submission #" + taskId + " обновлён -> " + submission.getStatus() + " (score=" + score + ")");
 
             if (submission.getStudent() != null) {
                 Long chatId = submission.getStudent().getTelegramId();
-                String text;
+                String studentText;
                 if ("SUCCESS".equals(status)) {
-                    text = "✅ Ваша работа прошла проверку форматирования!";
+                    studentText = "✅ Ваша работа прошла автоматическую проверку форматирования!" +
+                            (score >= 0 ? "\nОценка оформления: " + score + "/100" : "") +
+                            "\nРабота передана преподавателю на смысловую проверку.";
                 } else {
-                    text = "❌ Проверка выявила ошибки форматирования:\n" + errorsJson;
+                    studentText = "❌ Работа не прошла проверку форматирования." +
+                            (score >= 0 ? "\nОценка оформления: " + score + "/100" : "") +
+                            "\nИсправьте ошибки и загрузите работу заново.";
                 }
-                bot.notifyUser(chatId, text);
+                bot.notifyUser(chatId, studentText);
+            }
+
+            if ("SUCCESS".equals(status) && submission.getTeacher() != null) {
+                Long teacherChatId = submission.getTeacher().getTelegramId();
+                String studentName = submission.getStudent() != null
+                        ? submission.getStudent().getFullName()
+                        : "Студент";
+                String teacherText = "📄 " + studentName + " прислал(а) работу на проверку.\n" +
+                        "Оценка форматирования: " + score + "/100\n" +
+                        "Откройте кабинет для просмотра и вынесения вердикта.";
+                bot.notifyUser(teacherChatId, teacherText);
             }
 
         } catch (Exception e) {

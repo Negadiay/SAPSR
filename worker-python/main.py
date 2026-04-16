@@ -52,6 +52,7 @@ def on_message(channel, method, properties, body):
     response = {
         "task_id": task_id,
         "status": result["status"],
+        "score": result.get("score", -1),
         "errors": result["errors"],
     }
 
@@ -63,9 +64,11 @@ def on_message(channel, method, properties, body):
     )
     print(f"[WORKER] Результат отправлен в очередь '{RESULTS_QUEUE}'")
 
+    score = result.get("score", -1)
+    print(f"[WORKER] Балл оформления: {score}/100")
     if result["errors"]:
         for err in result["errors"]:
-            print(f"   ❌ Стр. {err['page']}: {err['message']}")
+            print(f"   [{err.get('severity','?').upper()}] стр.{err['page']}: {err['message']}")
     else:
         print("   ✅ Документ соответствует требованиям")
 

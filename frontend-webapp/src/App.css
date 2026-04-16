@@ -465,12 +465,151 @@ input[type="file"] {
 }
 
 @keyframes fadeInAnim {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 11. БАЛЛЫ И ВЕРДИКТ (СТУДЕНТ) --- */
+.notif-score {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.notif-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.notif-comment {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #888);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.verdict-ok { color: #43a047; }
+.verdict-revision { color: #fb8c00; }
+
+/* --- 12. ДАШБОРД ПРЕПОДАВАТЕЛЯ --- */
+.teacher-submission-card {
+  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-student {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.ts-date {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #999);
+}
+
+.ts-file {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #888);
+}
+
+.ts-score {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ts-verdict {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ts-comment {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #888);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.ts-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.download-btn-sm {
+  background: none;
+  border: 1px solid var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2481cc);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.approve-btn {
+  background: #43a047;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.revision-btn {
+  background: #fb8c00;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.revision-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.revision-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+}
+
+.revision-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.revision-btns .submit-btn,
+.revision-btns .secondary-btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 10px;
 }

@@ -4,6 +4,7 @@ import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.service.EmailVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,16 +29,19 @@ public class UploadController {
     private final RabbitTemplate rabbitTemplate;
     private final SubmissionRepository submissionRepository;
     private final UserRepository userRepository;
+    private final EmailVerificationService emailVerificationService;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
 
     public UploadController(RabbitTemplate rabbitTemplate,
                             SubmissionRepository submissionRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            EmailVerificationService emailVerificationService) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @GetMapping("/me")
@@ -75,11 +79,28 @@ public class UploadController {
             return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
         }
 
+        String email = null;
+        if ("TEACHER".equals(role)) {
+            email = body.getOrDefault("email", "").trim().toLowerCase();
+            String code = body.getOrDefault("code", "").trim();
+
+            if (email.isEmpty() || code.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Для преподавателя требуются email и код подтверждения"));
+            }
+            if (!emailVerificationService.isAllowedDomain(email)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Требуется почта @bsuir.by"));
+            }
+            if (!emailVerificationService.verifyCode(email, code)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
+            }
+        }
+
         Optional<User> existing = userRepository.findById(telegramId);
         User user = existing.orElseGet(User::new);
         user.setTelegramId(telegramId);
         user.setRole(role);
         user.setFullName(fullName);
+        if (email != null) user.setEmail(email);
         userRepository.save(user);
 
         return ResponseEntity.ok(Map.of(
@@ -105,6 +126,9 @@ public class UploadController {
             item.put("status", s.getStatus());
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
             item.put("format_errors", s.getFormatErrors());
+            item.put("score", s.getScore());
+            item.put("teacher_verdict", s.getTeacherVerdict());
+            item.put("teacher_comment", s.getTeacherComment());
 
             String fp = s.getFilePath();
             if (fp != null) {
@@ -184,6 +208,11 @@ public class UploadController {
             if (telegramId != null) {
                 Optional<User> student = userRepository.findById(telegramId);
                 student.ifPresent(submission::setStudent);
+            }
+
+            if (teacherId != null) {
+                Optional<User> teacher = userRepository.findById(teacherId);
+                teacher.ifPresent(submission::setTeacher);
             }
 
             Submission savedSubmission = submissionRepository.save(submission);

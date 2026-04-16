@@ -23,6 +23,17 @@ spring.rabbitmq.password=rmq_password
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
 
+# Email (Gmail SMTP для верификации преподавателей)
+# Используй App Password из Google Account -> Security -> 2FA -> App passwords
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=YOUR_GMAIL@gmail.com
+spring.mail.password=YOUR_APP_PASSWORD
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+# Допустимый домен для преподавателей
+sapsr.teacher.allowed-domain=@bsuir.by
+
 # Режим разработки (true = не проверять подпись Telegram, для локального тестирования)
 # ОТКЛЮЧИ в продакшене!
 sapsr.security.dev-mode=true
