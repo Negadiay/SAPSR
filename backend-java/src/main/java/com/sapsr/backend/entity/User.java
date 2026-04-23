@@ -16,13 +16,17 @@ public class User {
     @Column(name = "full_name")
     private String fullName;
 
+    @Column(name = "email")
+    private String email;
+
     public User() {}
 
-    // Геттеры и сеттеры
     public Long getTelegramId() { return telegramId; }
     public void setTelegramId(Long telegramId) { this.telegramId = telegramId; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 }
