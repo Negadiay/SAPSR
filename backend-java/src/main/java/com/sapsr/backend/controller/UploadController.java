@@ -1,7 +1,10 @@
 package com.sapsr.backend.controller;
 
-import com.lowagie.text.*;
+import com.lowagie.text.Chunk;
+import com.lowagie.text.Document;
 import com.lowagie.text.Font;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.BaseFont;
 import com.lowagie.text.pdf.PdfWriter;
 import com.sapsr.backend.entity.Submission;
@@ -184,7 +187,7 @@ public class UploadController {
         PdfWriter.getInstance(doc, baos);
         doc.open();
 
-        BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, false);
+        BaseFont bf = loadCyrillicFont();
         Font fontTitle = new Font(bf, 16, Font.BOLD);
         Font fontHeader = new Font(bf, 11, Font.BOLD);
         Font fontNormal = new Font(bf, 10, Font.NORMAL);
@@ -234,6 +237,29 @@ public class UploadController {
 
         doc.close();
         return baos.toByteArray();
+    }
+
+    private BaseFont loadCyrillicFont() {
+        String[] candidates = {
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/times.ttf",
+            "C:/Windows/Fonts/calibri.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        };
+        for (String path : candidates) {
+            if (new File(path).exists()) {
+                try {
+                    return BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                } catch (Exception ignored) {}
+            }
+        }
+        try {
+            return BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, false);
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot create font", e);
+        }
     }
 
     @PostMapping("/upload")

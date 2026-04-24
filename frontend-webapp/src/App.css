@@ -741,20 +741,21 @@ input[type="file"] {
 
 .theme-toggle {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .theme-btn {
   flex: 1;
-  padding: 10px;
+  padding: 9px 4px;
   border-radius: 10px;
   border: 2px solid transparent;
   background: var(--tg-theme-bg-color, #fff);
   color: var(--tg-theme-text-color, #000);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.2s;
+  white-space: nowrap;
 }
 
 .theme-btn.active {
@@ -822,13 +823,54 @@ input[type="file"] {
   color: #e0e0e0 !important;
 }
 
-/* --- 17. РЕЖИМ ДЛЯ СЛАБОВИДЯЩИХ --- */
-.app-a11y {
-  font-size: 18px !important;
+/* --- 17. РАЗМЕР ШРИФТА --- */
+.font-small  { font-size: 12px; }
+.font-normal { font-size: 14px; }
+.font-large  { font-size: 16px; }
+.font-xlarge { font-size: 18px; }
+
+/* --- 18. КОНТРАСТНЫЙ РЕЖИМ --- */
+.app-contrast:not(.app-dark) {
+  --tg-theme-text-color: #000000 !important;
+  --tg-theme-bg-color: #ffffff !important;
+  --tg-theme-secondary-bg-color: #e8e8e8 !important;
+  filter: contrast(1.25);
+}
+.app-contrast.app-dark {
+  --tg-theme-text-color: #ffffff !important;
+  --tg-theme-bg-color: #000000 !important;
+  --tg-theme-secondary-bg-color: #111 !important;
+  filter: contrast(1.3);
 }
 
-.app-a11y .notif-status,
-.app-a11y .ts-student,
-.app-a11y .view-title {
-  font-size: 1.2em !important;
+/* --- 19. КНОПКИ РАЗМЕРА ШРИФТА --- */
+.fontsize-row {
+  display: flex;
+  gap: 6px;
+}
+
+.fontsize-btn {
+  flex: 1;
+  padding: 10px 4px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s, font-size 0.1s;
+}
+.fontsize-btn:nth-child(1) { font-size: 11px; }
+.fontsize-btn:nth-child(2) { font-size: 13px; }
+.fontsize-btn:nth-child(3) { font-size: 15px; }
+.fontsize-btn:nth-child(4) { font-size: 17px; }
+
+.fontsize-btn.active {
+  border-color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2481cc);
+}
+
+.app-dark .fontsize-btn {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
 }

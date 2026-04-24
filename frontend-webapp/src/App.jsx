@@ -11,13 +11,13 @@ const STUDENT_STEPS = [
   { refKey: 'fileUpload',  text: 'Прикрепите PDF-файл курсовой работы.' },
   { refKey: 'submitBtn',   text: 'Нажмите «Отправить» — система автоматически проверит оформление по ГОСТу.' },
   { refKey: 'navNotif',    text: 'Во вкладке «Мои работы» отображаются результаты проверки и вердикт преподавателя.' },
-  { refKey: 'navSettings', text: 'В настройках можно сменить тему и включить режим для слабовидящих.' },
+  { refKey: 'navSettings', text: 'В настройках можно изменить тему, размер шрифта и включить контрастный режим.' },
 ];
 const TEACHER_STEPS = [
   { refKey: null,           text: 'Добро пожаловать! Здесь вы проверяете курсовые работы студентов.' },
-  { refKey: 'submissions',  text: 'Здесь появляются работы, прошедшие автоматическую проверку оформления.' },
+  { refKey: 'submissions',  text: 'Здесь появляются работы, прошедшие автоматическую проверку оформления. Нажмите на карточку чтобы раскрыть действия.' },
   { refKey: null,           text: 'Вы получите уведомление в Telegram, когда студент пришлёт работу на проверку.' },
-  { refKey: 'navSettings',  text: 'В настройках можно сменить тему и включить режим для слабовидящих.' },
+  { refKey: 'navSettings',  text: 'В настройках можно изменить тему, размер шрифта и включить контрастный режим.' },
 ];
 
 function TutorialOverlay({ steps, step, onNext, refs }) {
@@ -34,6 +34,27 @@ function TutorialOverlay({ steps, step, onNext, refs }) {
   }, [step, targetRef]);
 
   const PAD = 6;
+  const TOOLTIP_W = Math.min(300, window.innerWidth - 24);
+  const TOOLTIP_H = 110;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let tooltipStyle;
+  if (rect) {
+    // Вертикаль: предпочитаем снизу, если не влезает — сверху
+    const spaceBelow = vh - rect.bottom - PAD - 16;
+    let top = spaceBelow >= TOOLTIP_H
+      ? rect.bottom + PAD + 10
+      : Math.max(12, rect.top - PAD - TOOLTIP_H - 10);
+    top = Math.max(12, Math.min(top, vh - TOOLTIP_H - 12));
+    // Горизонталь: центрируем по элементу, не выходим за экран
+    let left = rect.left + rect.width / 2 - TOOLTIP_W / 2;
+    left = Math.max(12, Math.min(left, vw - TOOLTIP_W - 12));
+    tooltipStyle = { top, left, width: TOOLTIP_W };
+  } else {
+    tooltipStyle = { top: '38%', left: '50%', transform: 'translateX(-50%)', width: TOOLTIP_W };
+  }
+
   return (
     <div className="tutorial-overlay" onClick={onNext}>
       {rect && (
@@ -44,10 +65,7 @@ function TutorialOverlay({ steps, step, onNext, refs }) {
           height: rect.height + PAD * 2,
         }} />
       )}
-      <div className="tutorial-tooltip" style={rect
-        ? { top: rect.bottom + PAD + 12, left: Math.max(12, rect.left) }
-        : { top: '40%', left: '50%', transform: 'translateX(-50%)' }
-      }>
+      <div className="tutorial-tooltip" style={tooltipStyle}>
         <p>{current?.text}</p>
         <span className="tutorial-counter">{step + 1} / {steps.length}</span>
         <span className="tutorial-hint">Нажмите в любое место →</span>
@@ -89,8 +107,9 @@ function App() {
   const [verdictLoading, setVerdictLoading] = useState(false);
 
   // Настройки
-  const [theme, setTheme]         = useState(() => localStorage.getItem('sapsr_theme') || 'light');
-  const [accessible, setAccessible] = useState(() => localStorage.getItem('sapsr_a11y') === '1');
+  const [theme, setTheme]       = useState(() => localStorage.getItem('sapsr_theme') || 'auto');
+  const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
+  const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
 
   // Туториал
   const [tutorialActive, setTutorialActive] = useState(false);
@@ -116,13 +135,15 @@ function App() {
     checkAuth();
   }, []);
 
-  // Применяем тему
-  useEffect(() => {
-    localStorage.setItem('sapsr_theme', theme);
-  }, [theme]);
-  useEffect(() => {
-    localStorage.setItem('sapsr_a11y', accessible ? '1' : '0');
-  }, [accessible]);
+  // Сохраняем настройки
+  useEffect(() => { localStorage.setItem('sapsr_theme', theme); }, [theme]);
+  useEffect(() => { localStorage.setItem('sapsr_fontsize', fontSize); }, [fontSize]);
+  useEffect(() => { localStorage.setItem('sapsr_contrast', contrast ? '1' : '0'); }, [contrast]);
+
+  // Эффективная тема: 'auto' читает из Telegram
+  const resolvedTheme = theme === 'auto'
+    ? (window.Telegram?.WebApp?.colorScheme || 'light')
+    : theme;
 
   const checkAuth = async () => {
     try {
@@ -168,10 +189,6 @@ function App() {
   };
 
   // --- Туториал ---
-  const startTutorial = useCallback((role) => {
-    setTutorialStep(0);
-    setTutorialActive(true);
-  }, []);
 
   const handleTutorialNext = useCallback(() => {
     const steps = userRole === 'teacher' ? TEACHER_STEPS : STUDENT_STEPS;
@@ -384,7 +401,7 @@ function App() {
   const tabs = userRole === 'teacher' ? teacherTabs : studentTabs;
 
   return (
-    <div className={`App ${theme === 'dark' ? 'app-dark' : ''} ${accessible ? 'app-a11y' : ''}`}>
+    <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''}`}>
 
       {/* Кнопка туториала */}
       {step === 'main' && (
@@ -522,8 +539,12 @@ function App() {
                     </label>
                     <input id="file-upload" type="file" accept=".pdf"
                       onChange={(e) => { setFile(e.target.files[0]); setStatus(''); }} />
+                    {teachers.length === 0 && (
+                      <p className="reg-hint" style={{color:'#e53935'}}>Нет доступных преподавателей. Попробуйте позже.</p>
+                    )}
                     <button type="submit" className="submit-btn" ref={refs.submitBtn}
-                      disabled={!file || uploading} style={{ marginTop: '20px' }}>
+                      disabled={!file || uploading || teachers.length === 0 || !selectedTeacherId}
+                      style={{ marginTop: '20px' }}>
                       {uploading ? '⏳ Отправка...' : 'Отправить'}
                     </button>
                   </form>
@@ -625,21 +646,29 @@ function App() {
                 <div className="settings-section">
                   <div className="settings-label">Тема оформления</div>
                   <div className="theme-toggle">
-                    <button className={`theme-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>
-                      ☀️ Светлая
-                    </button>
-                    <button className={`theme-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>
-                      🌙 Тёмная
-                    </button>
+                    {[['light','☀️ Светлая'],['dark','🌙 Тёмная'],['auto','⚙️ Авто']].map(([val, label]) => (
+                      <button key={val} className={`theme-btn ${theme === val ? 'active' : ''}`}
+                        onClick={() => setTheme(val)}>{label}</button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="settings-section">
-                  <div className="settings-label">Режим для слабовидящих</div>
+                  <div className="settings-label">Размер шрифта</div>
+                  <div className="fontsize-row">
+                    {[['small','А−'],['normal','А'],['large','А+'],['xlarge','А++']].map(([val, label]) => (
+                      <button key={val} className={`fontsize-btn ${fontSize === val ? 'active' : ''}`}
+                        onClick={() => setFontSize(val)}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="settings-section">
+                  <div className="settings-label">Контрастный режим</div>
                   <div className="settings-row">
-                    <span className="settings-desc">Увеличенный текст, высокий контраст</span>
-                    <button className={`toggle-switch ${accessible ? 'on' : ''}`}
-                      onClick={() => setAccessible(a => !a)}>
+                    <span className="settings-desc">Усиленный контраст цветов</span>
+                    <button className={`toggle-switch ${contrast ? 'on' : ''}`}
+                      onClick={() => setContrast(c => !c)}>
                       <span className="toggle-thumb" />
                     </button>
                   </div>
