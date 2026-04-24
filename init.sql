@@ -17,6 +17,11 @@ CREATE TABLE submissions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Тестовый преподаватель (Telegram-уведомления идут на ID 1816771555, email не используется для рассылки)
+INSERT INTO users (telegram_id, role, full_name, email)
+VALUES (1816771555, 'TEACHER', 'Гракова Н.В.', 'grakova@bsuir.by')
+ON CONFLICT (telegram_id) DO NOTHING;
+
 CREATE TABLE email_verifications (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
