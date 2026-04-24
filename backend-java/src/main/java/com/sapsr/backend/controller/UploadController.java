@@ -1,9 +1,19 @@
 package com.sapsr.backend.controller;
 
+import com.lowagie.text.Chunk;
+import com.lowagie.text.Document;
+import com.lowagie.text.Font;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfWriter;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.service.EmailVerificationService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.Color;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,16 +40,19 @@ public class UploadController {
     private final RabbitTemplate rabbitTemplate;
     private final SubmissionRepository submissionRepository;
     private final UserRepository userRepository;
+    private final EmailVerificationService emailVerificationService;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
 
     public UploadController(RabbitTemplate rabbitTemplate,
                             SubmissionRepository submissionRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            EmailVerificationService emailVerificationService) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @GetMapping("/me")
@@ -75,11 +90,28 @@ public class UploadController {
             return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
         }
 
+        String email = null;
+        if ("TEACHER".equals(role)) {
+            email = body.getOrDefault("email", "").trim().toLowerCase();
+            String code = body.getOrDefault("code", "").trim();
+
+            if (email.isEmpty() || code.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Для преподавателя требуются email и код подтверждения"));
+            }
+            if (!emailVerificationService.isAllowedDomain(email)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Требуется почта @bsuir.by"));
+            }
+            if (!emailVerificationService.verifyCode(email, code)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
+            }
+        }
+
         Optional<User> existing = userRepository.findById(telegramId);
         User user = existing.orElseGet(User::new);
         user.setTelegramId(telegramId);
         user.setRole(role);
         user.setFullName(fullName);
+        if (email != null) user.setEmail(email);
         userRepository.save(user);
 
         return ResponseEntity.ok(Map.of(
@@ -105,6 +137,8 @@ public class UploadController {
             item.put("status", s.getStatus());
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
             item.put("format_errors", s.getFormatErrors());
+            item.put("teacher_verdict", s.getTeacherVerdict());
+            item.put("teacher_comment", s.getTeacherComment());
 
             String fp = s.getFilePath();
             if (fp != null) {
@@ -136,26 +170,96 @@ public class UploadController {
             return ResponseEntity.status(403).build();
         }
 
-        StringBuilder report = new StringBuilder();
-        report.append("SAPSR — Отчёт о проверке форматирования\n");
-        report.append("========================================\n\n");
-        report.append("Файл: ").append(s.getFilePath()).append("\n");
-        report.append("Статус: ").append(s.getStatus()).append("\n");
-        report.append("Дата: ").append(s.getCreatedAt()).append("\n\n");
+        try {
+            byte[] content = buildPdfReport(s);
+            return ResponseEntity.ok()
+                    .header("Content-Type", "application/pdf")
+                    .header("Content-Disposition", "attachment; filename=\"report_" + id + ".pdf\"")
+                    .body(content);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
-        if (s.getFormatErrors() != null && !s.getFormatErrors().equals("[]")) {
-            report.append("Ошибки:\n");
-            report.append(s.getFormatErrors()).append("\n");
+    private byte[] buildPdfReport(Submission s) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Document doc = new Document(PageSize.A4, 50, 50, 60, 60);
+        PdfWriter.getInstance(doc, baos);
+        doc.open();
+
+        BaseFont bf = loadCyrillicFont();
+        Font fontTitle = new Font(bf, 16, Font.BOLD);
+        Font fontHeader = new Font(bf, 11, Font.BOLD);
+        Font fontNormal = new Font(bf, 10, Font.NORMAL);
+        Font fontOk = new Font(bf, 10, Font.NORMAL, new Color(56, 142, 60));
+        Font fontWarn = new Font(bf, 10, Font.NORMAL, new Color(230, 81, 0));
+        Font fontErr = new Font(bf, 10, Font.NORMAL, new Color(211, 47, 47));
+
+        doc.add(new Paragraph("SAPSR - Otchet o proverke formatirovaniia", fontTitle));
+        doc.add(new Paragraph("----------------------------------------", fontNormal));
+        doc.add(Chunk.NEWLINE);
+
+        String studentName = (s.getStudent() != null && s.getStudent().getFullName() != null)
+                ? s.getStudent().getFullName() : "-";
+        String fp = s.getFilePath();
+        String fileName = fp != null
+                ? (fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp)
+                : "file.pdf";
+        if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
+
+        doc.add(new Paragraph("Student:  " + studentName, fontHeader));
+        doc.add(new Paragraph("File:     " + fileName, fontNormal));
+        doc.add(new Paragraph("Date:     " + (s.getCreatedAt() != null ? s.getCreatedAt().toString() : "-"), fontNormal));
+        doc.add(new Paragraph("Status:   " + ("SUCCESS".equals(s.getStatus()) ? "PASSED" : "FAILED"), fontNormal));
+        doc.add(Chunk.NEWLINE);
+
+        String errorsJson = s.getFormatErrors();
+        if (errorsJson == null || errorsJson.equals("[]") || errorsJson.equals("null")) {
+            doc.add(new Paragraph("No errors found. Document meets formatting requirements.", fontOk));
         } else {
-            report.append("Ошибок не обнаружено.\n");
+            doc.add(new Paragraph("Errors:", fontHeader));
+            doc.add(Chunk.NEWLINE);
+            try {
+                ObjectMapper om = new ObjectMapper();
+                JsonNode arr = om.readTree(errorsJson);
+                for (JsonNode err : arr) {
+                    String severity = err.has("severity") ? err.get("severity").asText().toUpperCase() : "ERROR";
+                    String page = err.has("page") && !err.get("page").isNull() ? "p." + err.get("page").asText() + " " : "";
+                    String msg = err.has("message") ? err.get("message").asText() : err.toString();
+                    String line = "[" + severity + "] " + page + msg;
+                    Font f = "WARNING".equals(severity) ? fontWarn : fontErr;
+                    doc.add(new Paragraph(line, f));
+                }
+            } catch (Exception ex) {
+                doc.add(new Paragraph(errorsJson, fontNormal));
+            }
         }
 
-        byte[] content = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        doc.close();
+        return baos.toByteArray();
+    }
 
-        return ResponseEntity.ok()
-                .header("Content-Type", "text/plain; charset=utf-8")
-                .header("Content-Disposition", "attachment; filename=\"report_" + id + ".txt\"")
-                .body(content);
+    private BaseFont loadCyrillicFont() {
+        String[] candidates = {
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/times.ttf",
+            "C:/Windows/Fonts/calibri.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        };
+        for (String path : candidates) {
+            if (new File(path).exists()) {
+                try {
+                    return BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                } catch (Exception ignored) {}
+            }
+        }
+        try {
+            return BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, false);
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot create font", e);
+        }
     }
 
     @PostMapping("/upload")
@@ -184,6 +288,11 @@ public class UploadController {
             if (telegramId != null) {
                 Optional<User> student = userRepository.findById(telegramId);
                 student.ifPresent(submission::setStudent);
+            }
+
+            if (teacherId != null) {
+                Optional<User> teacher = userRepository.findById(teacherId);
+                teacher.ifPresent(submission::setTeacher);
             }
 
             Submission savedSubmission = submissionRepository.save(submission);

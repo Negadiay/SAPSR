@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface SubmissionRepository extends JpaRepository<Submission, Integer> {
     List<Submission> findByStudent_TelegramIdOrderByCreatedAtDesc(Long telegramId);
+    List<Submission> findByTeacher_TelegramIdAndStatusAndTeacherVerdictIsNullOrderByCreatedAtDesc(Long teacherTelegramId, String status);
 }

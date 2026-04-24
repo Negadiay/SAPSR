@@ -39,25 +39,24 @@ public class ResultListenerService {
             }
 
             Submission submission = optSubmission.get();
-
-            if ("SUCCESS".equals(status)) {
-                submission.setStatus("SUCCESS");
-            } else {
-                submission.setStatus("REJECTED");
-            }
+            submission.setStatus("SUCCESS".equals(status) ? "SUCCESS" : "REJECTED");
             submission.setFormatErrors(errorsJson);
             submissionRepository.save(submission);
-            System.out.println("[RESULT LISTENER] Submission #" + taskId + " обновлён -> " + submission.getStatus());
+            System.out.println("[RESULT LISTENER] Submission #" + taskId + " -> " + submission.getStatus());
 
             if (submission.getStudent() != null) {
                 Long chatId = submission.getStudent().getTelegramId();
-                String text;
-                if ("SUCCESS".equals(status)) {
-                    text = "✅ Ваша работа прошла проверку форматирования!";
-                } else {
-                    text = "❌ Проверка выявила ошибки форматирования:\n" + errorsJson;
-                }
-                bot.notifyUser(chatId, text);
+                String studentText = "SUCCESS".equals(status)
+                        ? "✅ Ваша работа прошла автоматическую проверку оформления!\nРабота передана преподавателю на содержательную проверку."
+                        : "❌ Работа не прошла проверку оформления. Исправьте ошибки и загрузите работу заново.";
+                bot.notifyUser(chatId, studentText);
+            }
+
+            if ("SUCCESS".equals(status) && submission.getTeacher() != null) {
+                String studentName = submission.getStudent() != null
+                        ? submission.getStudent().getFullName() : "Студент";
+                bot.notifyUser(submission.getTeacher().getTelegramId(),
+                        "📄 " + studentName + " прислал(а) работу на проверку.\nОткройте кабинет для просмотра и вынесения вердикта.");
             }
 
         } catch (Exception e) {

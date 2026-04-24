@@ -465,12 +465,412 @@ input[type="file"] {
 }
 
 @keyframes fadeInAnim {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 11. БАЛЛЫ И ВЕРДИКТ (СТУДЕНТ) --- */
+.notif-score {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.notif-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.notif-comment {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #888);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.verdict-ok { color: #43a047; }
+.verdict-revision { color: #fb8c00; }
+
+/* --- 12. ДАШБОРД ПРЕПОДАВАТЕЛЯ --- */
+.teacher-submission-card {
+  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-student {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.ts-date {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #999);
+}
+
+.ts-file {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #888);
+}
+
+.ts-score {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ts-verdict {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ts-comment {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #888);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.ts-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.download-btn-sm {
+  background: none;
+  border: 1px solid var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2481cc);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.approve-btn {
+  background: #43a047;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.revision-btn {
+  background: #fb8c00;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.revision-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.revision-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+}
+
+.revision-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.revision-btns .submit-btn,
+.revision-btns .secondary-btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 10px;
+}
+
+/* --- 13. КОМПАКТНЫЕ КАРТОЧКИ ПРЕПОДАВАТЕЛЯ --- */
+.ts-card-compact {
+  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.ts-card-main {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ts-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-row-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-student { font-weight: 700; font-size: 13px; }
+.ts-date    { font-size: 11px; color: var(--tg-theme-hint-color, #999); }
+.ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #888); flex: 1; }
+.ts-chevron { font-size: 11px; color: var(--tg-theme-hint-color, #aaa); margin-left: 8px; }
+
+.ts-card-expanded .ts-card-main { border-bottom: 1px solid rgba(0,0,0,0.08); }
+
+.ts-card-expanded .ts-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+/* --- 14. ТУТОРИАЛ --- */
+.tutorial-btn {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 8000;
+  background: rgba(0,0,0,0.15);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 9000;
+  cursor: pointer;
+}
+
+.tutorial-spotlight {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.65);
+  z-index: 9001;
+  pointer-events: none;
+  outline: 2px solid rgba(255,255,255,0.8);
+}
+
+.tutorial-tooltip {
+  position: fixed;
+  z-index: 9002;
+  background: #fff;
+  color: #111;
+  border-radius: 14px;
+  padding: 16px 18px;
+  max-width: min(320px, calc(100vw - 24px));
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+
+.tutorial-tooltip p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; }
+.tutorial-counter { font-size: 12px; font-weight: 700; color: #2481cc; margin-right: 10px; }
+.tutorial-hint    { font-size: 11px; color: #999; }
+
+/* --- 15. НАСТРОЙКИ --- */
+.settings-section {
+  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.settings-label {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 10px;
+  color: var(--tg-theme-hint-color, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-desc { font-size: 14px; }
+
+.settings-divider {
+  height: 1px;
+  background: rgba(0,0,0,0.08);
+  margin: 16px 0;
+}
+
+.theme-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.theme-btn {
+  flex: 1;
+  padding: 9px 4px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  white-space: nowrap;
+}
+
+.theme-btn.active {
+  border-color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2481cc);
+}
+
+.toggle-switch {
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background: #ccc;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-switch.on { background: var(--tg-theme-button-color, #2481cc); }
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+}
+
+.toggle-switch.on .toggle-thumb { left: 23px; }
+
+/* --- 16. ТЁМНАЯ ТЕМА --- */
+.app-dark {
+  background-color: #1a1a2e !important;
+  color: #e0e0e0 !important;
+}
+
+.app-dark .teacher-submission-card,
+.app-dark .ts-card-compact,
+.app-dark .notif-line,
+.app-dark .settings-section {
+  background: #16213e !important;
+}
+
+.app-dark .reg-input,
+.app-dark .revision-input,
+.app-dark .teacher-select {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  border-color: #333 !important;
+}
+
+.app-dark .secondary-btn {
+  background: #16213e !important;
+  color: #90caf9 !important;
+}
+
+.app-dark .bottom-nav {
+  background: rgba(10, 10, 30, 0.95) !important;
+}
+
+.app-dark .theme-btn {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+}
+
+/* --- 17. РАЗМЕР ШРИФТА --- */
+.font-small  { font-size: 12px; }
+.font-normal { font-size: 14px; }
+.font-large  { font-size: 16px; }
+.font-xlarge { font-size: 18px; }
+
+/* --- 18. КОНТРАСТНЫЙ РЕЖИМ --- */
+.app-contrast:not(.app-dark) {
+  --tg-theme-text-color: #000000 !important;
+  --tg-theme-bg-color: #ffffff !important;
+  --tg-theme-secondary-bg-color: #e8e8e8 !important;
+  filter: contrast(1.25);
+}
+.app-contrast.app-dark {
+  --tg-theme-text-color: #ffffff !important;
+  --tg-theme-bg-color: #000000 !important;
+  --tg-theme-secondary-bg-color: #111 !important;
+  filter: contrast(1.3);
+}
+
+/* --- 19. КНОПКИ РАЗМЕРА ШРИФТА --- */
+.fontsize-row {
+  display: flex;
+  gap: 6px;
+}
+
+.fontsize-btn {
+  flex: 1;
+  padding: 10px 4px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s, font-size 0.1s;
+}
+.fontsize-btn:nth-child(1) { font-size: 11px; }
+.fontsize-btn:nth-child(2) { font-size: 13px; }
+.fontsize-btn:nth-child(3) { font-size: 15px; }
+.fontsize-btn:nth-child(4) { font-size: 17px; }
+
+.fontsize-btn.active {
+  border-color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2481cc);
+}
+
+.app-dark .fontsize-btn {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
 }
