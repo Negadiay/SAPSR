@@ -29,6 +29,28 @@ public class BsuirApiService {
         return cache.computeIfAbsent(groupNumber, this::fetchFromApi);
     }
 
+    public boolean groupExists(String groupNumber) {
+        if (groupNumber == null || !groupNumber.matches("\\d{6}")) return false;
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(SCHEDULE_URL + groupNumber))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(8))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return false;
+
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode schedules = root.get("schedules");
+            return schedules != null && schedules.isObject();
+        } catch (Exception e) {
+            System.err.println("[BSUIR API] Не удалось проверить группу " + groupNumber + ": " + e.getMessage());
+            return false;
+        }
+    }
+
     private Set<String> fetchFromApi(String groupNumber) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
