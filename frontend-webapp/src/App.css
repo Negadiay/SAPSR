@@ -1015,9 +1015,62 @@ input[type="file"] {
 
 /* --- 18. КОНТРАСТНЫЙ РЕЖИМ --- */
 .app-contrast:not(.app-dark) {
-  --tg-theme-text-color: #000000 !important;
-  --tg-theme-bg-color: #ffffff !important;
-  --tg-theme-secondary-bg-color: #e8e8e8 !important;
+  --tg-theme-text-color: #03233f !important;
+  --tg-theme-bg-color: #eaf7ff !important;
+  --tg-theme-secondary-bg-color: #cfefff !important;
+  --tg-theme-button-color: #006bb6 !important;
+  --tg-theme-button-text-color: #ffffff !important;
+  --tg-theme-hint-color: #275f86 !important;
+  background: linear-gradient(180deg, #eaf7ff 0%, #d6f0ff 100%) !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .upload-container,
+.app-contrast:not(.app-dark) .settings-section,
+.app-contrast:not(.app-dark) .notif-window,
+.app-contrast:not(.app-dark) .ts-card-compact,
+.app-contrast:not(.app-dark) .notif-line {
+  background: #d8f2ff !important;
+  border: 2px solid #38a7e8 !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .reg-input,
+.app-contrast:not(.app-dark) .revision-input,
+.app-contrast:not(.app-dark) .teacher-select,
+.app-contrast:not(.app-dark) .teacher-search,
+.app-contrast:not(.app-dark) .theme-btn,
+.app-contrast:not(.app-dark) .fontsize-btn {
+  background: #ffffff !important;
+  border-color: #38a7e8 !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .theme-btn.active,
+.app-contrast:not(.app-dark) .fontsize-btn.active {
+  background: #007ad1 !important;
+  border-color: #005f9f !important;
+  color: #ffffff !important;
+}
+
+.app-contrast:not(.app-dark) .bottom-nav {
+  background: rgba(0, 70, 120, 0.95) !important;
+  border: 2px solid #7fd3ff;
+}
+
+.app-contrast:not(.app-dark) .bottom-nav button.active .nav-icon-bg,
+.app-contrast:not(.app-dark) .submit-btn,
+.app-contrast:not(.app-dark) .toggle-switch.on {
+  background: #007ad1 !important;
+  color: #ffffff !important;
+}
+
+.app-contrast:not(.app-dark) .secondary-btn,
+.app-contrast:not(.app-dark) .refresh-btn,
+.app-contrast:not(.app-dark) .download-btn-sm {
+  background: #ffffff !important;
+  border: 2px solid #007ad1 !important;
+  color: #005f9f !important;
 }
 .app-contrast.app-dark {
   --tg-theme-text-color: #ffffff !important;
