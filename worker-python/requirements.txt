@@ -2,3 +2,4 @@ pika
 pdfplumber
 pydantic
 requests
+reportlab

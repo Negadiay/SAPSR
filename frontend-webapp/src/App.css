@@ -12,7 +12,9 @@ html, body {
 }
 
 .App {
+  --app-font-size: 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: var(--app-font-size);
   color: var(--tg-theme-text-color, #000000);
   min-height: 100vh;
   display: flex;
@@ -824,10 +826,78 @@ input[type="file"] {
 }
 
 /* --- 17. РАЗМЕР ШРИФТА --- */
-.font-small  { font-size: 12px; }
-.font-normal { font-size: 14px; }
-.font-large  { font-size: 16px; }
-.font-xlarge { font-size: 18px; }
+.font-small  { --app-font-size: 12px; }
+.font-normal { --app-font-size: 14px; }
+.font-large  { --app-font-size: 16px; }
+.font-xlarge { --app-font-size: 18px; }
+
+.App button,
+.App input,
+.App select,
+.App textarea,
+.App label,
+.App p,
+.App span,
+.App div,
+.App small {
+  font-size: inherit;
+}
+
+.App h1 { font-size: calc(var(--app-font-size) * 2); }
+.App .description { font-size: var(--app-font-size); }
+.App .view-title { font-size: calc(var(--app-font-size) * 1.7); }
+.App .role-icon { font-size: calc(var(--app-font-size) * 1.85); }
+.App .role-text,
+.App .select-label,
+.App .reg-error,
+.App .refresh-btn,
+.App .download-btn-sm,
+.App .revision-btns .submit-btn,
+.App .revision-btns .secondary-btn,
+.App .settings-label {
+  font-size: calc(var(--app-font-size) * 0.93);
+}
+.App .reg-hint,
+.App .notif-score,
+.App .notif-comment,
+.App .ts-date,
+.App .ts-file,
+.App .ts-comment,
+.App .theme-btn {
+  font-size: calc(var(--app-font-size) * 0.86);
+}
+.App .reg-input,
+.App .teacher-select,
+.App .status-msg,
+.App .secondary-btn,
+.App .revision-input,
+.App .approve-btn,
+.App .revision-btn,
+.App .notif-empty,
+.App .settings-desc {
+  font-size: var(--app-font-size);
+}
+.App .code-input-wide { font-size: calc(var(--app-font-size) * 1.7); }
+.App .notif-file-subject,
+.App .submit-btn {
+  font-size: calc(var(--app-font-size) * 1.14);
+}
+.App .download-btn,
+.App .tutorial-btn {
+  font-size: calc(var(--app-font-size) * 1.3);
+}
+.App .nav-icon-bg {
+  font-size: calc(var(--app-font-size) * 1.43);
+}
+.App .tutorial-tooltip p {
+  font-size: var(--app-font-size);
+}
+.App .tutorial-counter {
+  font-size: calc(var(--app-font-size) * 0.86);
+}
+.App .tutorial-hint {
+  font-size: calc(var(--app-font-size) * 0.8);
+}
 
 /* --- 18. КОНТРАСТНЫЙ РЕЖИМ --- */
 .app-contrast:not(.app-dark) {
@@ -860,10 +930,10 @@ input[type="file"] {
   cursor: pointer;
   transition: border-color 0.2s, font-size 0.1s;
 }
-.fontsize-btn:nth-child(1) { font-size: 11px; }
-.fontsize-btn:nth-child(2) { font-size: 13px; }
-.fontsize-btn:nth-child(3) { font-size: 15px; }
-.fontsize-btn:nth-child(4) { font-size: 17px; }
+.fontsize-btn:nth-child(1) { font-size: calc(var(--app-font-size) * 0.8); }
+.fontsize-btn:nth-child(2) { font-size: calc(var(--app-font-size) * 0.93); }
+.fontsize-btn:nth-child(3) { font-size: calc(var(--app-font-size) * 1.07); }
+.fontsize-btn:nth-child(4) { font-size: calc(var(--app-font-size) * 1.21); }
 
 .fontsize-btn.active {
   border-color: var(--tg-theme-button-color, #2481cc);
@@ -873,4 +943,57 @@ input[type="file"] {
 .app-dark .fontsize-btn {
   background: #16213e !important;
   color: #e0e0e0 !important;
+}
+
+/* --- 20. ШАБЛОНЫ КОММЕНТАРИЕВ --- */
+.comment-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(36, 129, 204, 0.18);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(36, 129, 204, 0.06);
+}
+
+.App .comment-suggestions-title {
+  font-size: calc(var(--app-font-size) * 0.8);
+  font-weight: 700;
+  color: var(--tg-theme-hint-color, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.comment-suggestion {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  cursor: pointer;
+  text-align: left;
+}
+
+.comment-suggestion span {
+  flex: 1;
+}
+
+.comment-suggestion small {
+  color: var(--tg-theme-hint-color, #888);
+  white-space: nowrap;
+}
+
+.app-dark .comment-suggestions {
+  background: rgba(144, 202, 249, 0.08);
+  border-color: rgba(144, 202, 249, 0.2);
+}
+
+.app-dark .comment-suggestion {
+  background: #16213e;
+  color: #e0e0e0;
 }
