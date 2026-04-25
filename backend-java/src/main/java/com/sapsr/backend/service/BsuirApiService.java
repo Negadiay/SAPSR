@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BsuirApiService {
 
     private static final String SCHEDULE_URL = "https://iis.bsuir.by/api/v1/schedule/student-group/";
+    private static final String STUDENT_GROUPS_URL = "https://iis.bsuir.by/api/v1/student-groups";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -24,6 +25,7 @@ public class BsuirApiService {
 
     // Кэш: номер группы → набор нормализованных ФИО преподавателей
     private final Map<String, Set<String>> cache = new ConcurrentHashMap<>();
+    private final Set<String> knownGroupsCache = ConcurrentHashMap.newKeySet();
 
     public Set<String> getTeachersForGroup(String groupNumber) {
         return cache.computeIfAbsent(groupNumber, this::fetchFromApi);
@@ -31,9 +33,10 @@ public class BsuirApiService {
 
     public boolean groupExists(String groupNumber) {
         if (groupNumber == null || !groupNumber.matches("\\d{6}")) return false;
+        if (knownGroupsCache.contains(groupNumber)) return true;
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(SCHEDULE_URL + groupNumber))
+                    .uri(URI.create(STUDENT_GROUPS_URL))
                     .header("Accept", "application/json")
                     .timeout(Duration.ofSeconds(8))
                     .GET()
@@ -42,9 +45,14 @@ public class BsuirApiService {
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) return false;
 
-            JsonNode root = objectMapper.readTree(response.body());
-            JsonNode schedules = root.get("schedules");
-            return schedules != null && schedules.isObject();
+            JsonNode groups = objectMapper.readTree(response.body());
+            if (!groups.isArray()) return false;
+
+            for (JsonNode group : groups) {
+                String name = text(group, "name");
+                if (name != null) knownGroupsCache.add(name);
+            }
+            return knownGroupsCache.contains(groupNumber);
         } catch (Exception e) {
             System.err.println("[BSUIR API] Не удалось проверить группу " + groupNumber + ": " + e.getMessage());
             return false;
@@ -122,6 +130,7 @@ public class BsuirApiService {
     @Scheduled(fixedDelay = 3_600_000)
     public void clearCache() {
         cache.clear();
+        knownGroupsCache.clear();
         System.out.println("[BSUIR API] Кэш расписаний очищен");
     }
 }
