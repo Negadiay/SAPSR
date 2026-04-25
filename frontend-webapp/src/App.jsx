@@ -6,7 +6,8 @@ const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 const MotionDiv = motion.div;
 const AUTO_REFRESH_INTERVAL_MS = 12000;
 const COMMENT_TEMPLATE_LIMIT = 20;
-const COMMENT_SUGGESTION_LIMIT = 5;
+const COMMENT_SUGGESTION_LIMIT = 3;
+const LAST_TEACHER_KEY = 'sapsr_last_teacher_id';
 
 const getTelegramUserId = (initData) => {
   try {
@@ -197,6 +198,62 @@ function App() {
     })
     .slice(0, COMMENT_SUGGESTION_LIMIT);
 
+  const parseFormatErrors = (formatErrors) => {
+    if (!formatErrors || formatErrors === 'null') return [];
+    if (Array.isArray(formatErrors)) return formatErrors;
+    try {
+      const parsed = JSON.parse(formatErrors);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const severityGroups = [
+    {
+      key: 'critical',
+      title: '🔴 Критические (блокируют передачу преподавателю)',
+      matches: (severity) => severity === 'critical',
+    },
+    {
+      key: 'major',
+      title: '🟡 Серьёзные',
+      matches: (severity) => severity === 'major',
+    },
+    {
+      key: 'warning',
+      title: '🔵 Предупреждения (не влияют на результат)',
+      matches: (severity) => ['warning', 'minor'].includes(severity),
+    },
+  ];
+
+  const getBaseFileName = (name = '') => name.replace(/\.[^.]+$/, '').trim().toLowerCase() || name;
+
+  const iterationMark = (submission) => {
+    if (submission.status === 'PROCESSING') return '⏳';
+    if (submission.status === 'REJECTED') return '❌';
+    if (submission.teacher_verdict === 'REVISION') return '🔄';
+    if (submission.status === 'SUCCESS') return '✅';
+    return '•';
+  };
+
+  const buildStudentWorkGroups = () => {
+    const groups = new Map();
+    submissions.forEach((submission) => {
+      const key = getBaseFileName(submission.file_name);
+      const group = groups.get(key) || { key, fileName: submission.file_name, items: [] };
+      group.items.push(submission);
+      groups.set(key, group);
+    });
+
+    return [...groups.values()].map((group) => {
+      const desc = [...group.items].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      return { ...group, items: desc, timeline: [...desc].reverse(), latest: desc[0] };
+    }).sort((a, b) => new Date(b.latest?.created_at || 0) - new Date(a.latest?.created_at || 0));
+  };
+
+  const studentWorkGroups = buildStudentWorkGroups();
+
   useEffect(() => {
     tg?.ready();
     tg?.expand();
@@ -280,7 +337,11 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setTeachers(data);
-        if (data.length > 0) setSelectedTeacherId(String(data[0].telegram_id || data[0].id || 0));
+        if (data.length > 0) {
+          const savedTeacherId = localStorage.getItem(LAST_TEACHER_KEY);
+          const savedExists = data.some(t => String(t.telegram_id || t.id || 0) === savedTeacherId);
+          setSelectedTeacherId(savedExists ? savedTeacherId : String(data[0].telegram_id || data[0].id || 0));
+        }
       }
     } catch (err) { console.warn('Teachers error:', err); }
   };
@@ -445,7 +506,10 @@ function App() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      if (selectedTeacherId) formData.append('teacher_id', selectedTeacherId);
+      if (selectedTeacherId) {
+        formData.append('teacher_id', selectedTeacherId);
+        localStorage.setItem(LAST_TEACHER_KEY, selectedTeacherId);
+      }
       const res = await fetch(`${API_BASE}/upload`, { method: 'POST', headers: { 'Authorization': initData }, body: formData });
       if (res.ok) {
         setStatus('✅ Работа успешно отправлена!'); setFile(null);
@@ -641,7 +705,10 @@ function App() {
                       <div className="teacher-select-wrapper" ref={refs.teacherSel}>
                         <label htmlFor="teacher-select" className="select-label">Преподаватель</label>
                         <select id="teacher-select" className="teacher-select"
-                          value={selectedTeacherId} onChange={(e) => setSelectedTeacherId(e.target.value)}>
+                          value={selectedTeacherId} onChange={(e) => {
+                            setSelectedTeacherId(e.target.value);
+                            localStorage.setItem(LAST_TEACHER_KEY, e.target.value);
+                          }}>
                           {teachers.map((t) => (
                             <option key={t.telegram_id || t.id} value={t.telegram_id || t.id}>
                               {t.full_name || t.name}
@@ -677,23 +744,59 @@ function App() {
                 <button className="refresh-btn" onClick={fetchSubmissions}>🔄 Обновить</button>
                 <div className="notif-window">
                   {submissions.length === 0 && <p className="notif-empty">Пока нет загруженных файлов</p>}
-                  {submissions.map(s => (
-                    <div key={s.id} className={`notif-line ${s.status === 'REJECTED' ? 'notif-error' : ''} ${s.status === 'SUCCESS' ? 'notif-success' : ''}`}>
-                      <div className="notif-info">
-                        <div className="notif-file-subject"><b>{s.file_name}</b></div>
-                        <div className="notif-status">{autoStatusLabel(s.status)}</div>
-                        {s.teacher_verdict && (
-                          <div className={`notif-verdict ${s.teacher_verdict === 'APPROVED' ? 'verdict-ok' : 'verdict-revision'}`}>
-                            {verdictLabel(s.teacher_verdict)}
+                  {studentWorkGroups.map(group => {
+                    const s = group.latest;
+                    const errors = parseFormatErrors(s.format_errors);
+                    return (
+                      <div key={group.key} className={`notif-line notif-line-stacked ${s.status === 'REJECTED' ? 'notif-error' : ''} ${s.status === 'SUCCESS' ? 'notif-success' : ''}`}>
+                        <div className="notif-row-main">
+                          <div className="notif-info">
+                            <div className="notif-file-subject"><b>{group.fileName}</b></div>
+                            <div className="iteration-chain">
+                              {group.timeline.map((item, index) => (
+                                <span key={item.id} className="iteration-step">
+                                  v{index + 1} {iterationMark(item)}
+                                </span>
+                              ))}
+                              {s.teacher_verdict === 'APPROVED' && <span className="iteration-final">Принято преподавателем</span>}
+                            </div>
+                            <div className="notif-status">{autoStatusLabel(s.status)}</div>
+                            {s.teacher_verdict && (
+                              <div className={`notif-verdict ${s.teacher_verdict === 'APPROVED' ? 'verdict-ok' : 'verdict-revision'}`}>
+                                {verdictLabel(s.teacher_verdict)}
+                              </div>
+                            )}
+                            {s.teacher_comment && <div className="notif-comment">💬 {s.teacher_comment}</div>}
+                          </div>
+                          {s.status !== 'PROCESSING' && (
+                            <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
+                          )}
+                        </div>
+                        {errors.length > 0 && (
+                          <div className="result-explanation">
+                            {severityGroups.map(groupInfo => {
+                              const groupErrors = errors.filter(err => groupInfo.matches((err.severity || '').toLowerCase()));
+                              if (groupErrors.length === 0) return null;
+                              return (
+                                <div key={groupInfo.key} className="error-group">
+                                  <div className="error-group-title">{groupInfo.title}</div>
+                                  {groupErrors.map((err, index) => (
+                                    <div key={`${groupInfo.key}-${index}`} className="error-card">
+                                      <div className="error-message">{err.message || 'Нарушение оформления'}</div>
+                                      <div><b>Где:</b> {err.location || (err.page ? `Страница ${err.page}` : 'Документ')}</div>
+                                      <div><b>Правило:</b> {err.rule || 'Правило не указано'}</div>
+                                      <div><b>Обнаружено:</b> {err.found || 'Нет дополнительных данных'}</div>
+                                      <div><b>Как исправить:</b> {err.fix || 'Проверьте указанный фрагмент оформления'}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
-                        {s.teacher_comment && <div className="notif-comment">💬 {s.teacher_comment}</div>}
                       </div>
-                      {s.status !== 'PROCESSING' && (
-                        <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -738,7 +841,6 @@ function App() {
                                       <button key={template.text} type="button" className="comment-suggestion"
                                         onClick={() => setRevisionComment(template.text)}>
                                         <span>{template.text}</span>
-                                        <small>{template.count}×</small>
                                       </button>
                                     ))}
                                   </div>
@@ -818,7 +920,12 @@ function App() {
               <button key={i} ref={tab.ref || null}
                 className={activeTab === i ? 'active' : ''}
                 onClick={() => handleTabChange(i)}>
-                <div className="nav-icon-bg">{tab.icon}</div>
+                <div className="nav-icon-bg">
+                  {tab.icon}
+                  {userRole === 'teacher' && i === 0 && teacherSubmissions.length > 0 && (
+                    <span className="nav-badge">{teacherSubmissions.length}</span>
+                  )}
+                </div>
               </button>
             ))}
           </div>
