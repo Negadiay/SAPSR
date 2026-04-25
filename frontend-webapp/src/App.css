@@ -1050,8 +1050,8 @@ input[type="file"] {
 
 .app-contrast.app-dark .theme-btn.active,
 .app-contrast.app-dark .fontsize-btn.active {
-  background: #ffd400 !important;
-  border-color: #ffd400 !important;
+  background: #ff8c00 !important;
+  border-color: #ff8c00 !important;
   color: #000 !important;
 }
 
@@ -1063,7 +1063,7 @@ input[type="file"] {
 .app-contrast.app-dark .bottom-nav button.active .nav-icon-bg,
 .app-contrast.app-dark .submit-btn,
 .app-contrast.app-dark .toggle-switch.on {
-  background: #ffd400 !important;
+  background: #ff8c00 !important;
   color: #000 !important;
 }
 
@@ -1071,8 +1071,8 @@ input[type="file"] {
 .app-contrast.app-dark .refresh-btn,
 .app-contrast.app-dark .download-btn-sm {
   background: #000 !important;
-  border: 2px solid #ffd400 !important;
-  color: #ffd400 !important;
+  border: 2px solid #ff8c00 !important;
+  color: #ff8c00 !important;
 }
 
 /* --- 19. КНОПКИ РАЗМЕРА ШРИФТА --- */
