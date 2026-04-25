@@ -49,18 +49,19 @@ function TutorialOverlay({ steps, step, onNext, refs }) {
 
   const PAD = 6;
   const TOOLTIP_W = Math.min(300, window.innerWidth - 24);
-  const TOOLTIP_H = 110;
+  const TOOLTIP_H = 130;
+  const BOTTOM_SAFE_AREA = 110;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
   let tooltipStyle;
   if (rect) {
     // Вертикаль: предпочитаем снизу, если не влезает — сверху
-    const spaceBelow = vh - rect.bottom - PAD - 16;
+    const spaceBelow = vh - rect.bottom - PAD - BOTTOM_SAFE_AREA;
     let top = spaceBelow >= TOOLTIP_H
       ? rect.bottom + PAD + 10
       : Math.max(12, rect.top - PAD - TOOLTIP_H - 10);
-    top = Math.max(12, Math.min(top, vh - TOOLTIP_H - 12));
+    top = Math.max(12, Math.min(top, vh - TOOLTIP_H - BOTTOM_SAFE_AREA));
     // Горизонталь: центрируем по элементу, не выходим за экран
     let left = rect.left + rect.width / 2 - TOOLTIP_W / 2;
     left = Math.max(12, Math.min(left, vw - TOOLTIP_W - 12));
@@ -120,6 +121,7 @@ function App() {
   const [revisionId, setRevisionId]       = useState(null);
   const [revisionComment, setRevisionComment] = useState('');
   const [commentTemplates, setCommentTemplates] = useState([]);
+  const [teacherSearch, setTeacherSearch] = useState('');
   const [verdictLoading, setVerdictLoading] = useState(false);
 
   // Настройки
@@ -198,35 +200,6 @@ function App() {
     })
     .slice(0, COMMENT_SUGGESTION_LIMIT);
 
-  const parseFormatErrors = (formatErrors) => {
-    if (!formatErrors || formatErrors === 'null') return [];
-    if (Array.isArray(formatErrors)) return formatErrors;
-    try {
-      const parsed = JSON.parse(formatErrors);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const severityGroups = [
-    {
-      key: 'critical',
-      title: '🔴 Критические (блокируют передачу преподавателю)',
-      matches: (severity) => severity === 'critical',
-    },
-    {
-      key: 'major',
-      title: '🟡 Серьёзные',
-      matches: (severity) => severity === 'major',
-    },
-    {
-      key: 'warning',
-      title: '🔵 Предупреждения (не влияют на результат)',
-      matches: (severity) => ['warning', 'minor'].includes(severity),
-    },
-  ];
-
   const getBaseFileName = (name = '') => name.replace(/\.[^.]+$/, '').trim().toLowerCase() || name;
 
   const iterationMark = (submission) => {
@@ -253,6 +226,14 @@ function App() {
   };
 
   const studentWorkGroups = buildStudentWorkGroups();
+
+  const filteredTeacherSubmissions = teacherSubmissions.filter((s) => {
+    const query = teacherSearch.trim().toLowerCase();
+    if (!query) return true;
+    return [s.student_name, s.file_name, s.created_at]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(query));
+  });
 
   useEffect(() => {
     tg?.ready();
@@ -742,11 +723,10 @@ function App() {
               <div className="tab-view">
                 <h2 className="view-title">Мои работы</h2>
                 <button className="refresh-btn" onClick={fetchSubmissions}>🔄 Обновить</button>
-                <div className="notif-window">
+                <div className="notif-window student-works-window">
                   {submissions.length === 0 && <p className="notif-empty">Пока нет загруженных файлов</p>}
                   {studentWorkGroups.map(group => {
                     const s = group.latest;
-                    const errors = parseFormatErrors(s.format_errors);
                     return (
                       <div key={group.key} className={`notif-line notif-line-stacked ${s.status === 'REJECTED' ? 'notif-error' : ''} ${s.status === 'SUCCESS' ? 'notif-success' : ''}`}>
                         <div className="notif-row-main">
@@ -772,28 +752,6 @@ function App() {
                             <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
                           )}
                         </div>
-                        {errors.length > 0 && (
-                          <div className="result-explanation">
-                            {severityGroups.map(groupInfo => {
-                              const groupErrors = errors.filter(err => groupInfo.matches((err.severity || '').toLowerCase()));
-                              if (groupErrors.length === 0) return null;
-                              return (
-                                <div key={groupInfo.key} className="error-group">
-                                  <div className="error-group-title">{groupInfo.title}</div>
-                                  {groupErrors.map((err, index) => (
-                                    <div key={`${groupInfo.key}-${index}`} className="error-card">
-                                      <div className="error-message">{err.message || 'Нарушение оформления'}</div>
-                                      <div><b>Где:</b> {err.location || (err.page ? `Страница ${err.page}` : 'Документ')}</div>
-                                      <div><b>Правило:</b> {err.rule || 'Правило не указано'}</div>
-                                      <div><b>Обнаружено:</b> {err.found || 'Нет дополнительных данных'}</div>
-                                      <div><b>Как исправить:</b> {err.fix || 'Проверьте указанный фрагмент оформления'}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -806,9 +764,15 @@ function App() {
               <div className="tab-view">
                 <h2 className="view-title">Работы студентов</h2>
                 <button className="refresh-btn" onClick={fetchTeacherSubmissions}>🔄 Обновить</button>
+                <input className="teacher-search" type="search"
+                  placeholder="Поиск по группе, студенту или файлу..."
+                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
                 <div className="notif-window" ref={refs.submissions}>
                   {teacherSubmissions.length === 0 && <p className="notif-empty">Нет работ, ожидающих проверки</p>}
-                  {teacherSubmissions.map(s => {
+                  {teacherSubmissions.length > 0 && filteredTeacherSubmissions.length === 0 && (
+                    <p className="notif-empty">По этому запросу работ не найдено</p>
+                  )}
+                  {filteredTeacherSubmissions.map(s => {
                     const isExpanded = expandedId === s.id;
                     return (
                       <div key={s.id} className={`ts-card-compact ${isExpanded ? 'ts-card-expanded' : ''}`}>

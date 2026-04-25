@@ -117,7 +117,7 @@ def _check_structure(full_text):
 
 def _check_references_count(full_text):
     errors = []
-    heading_pattern = r"список используемых источников"
+    heading_pattern = r"список использованных источников"
     matches = list(re.finditer(heading_pattern, full_text, re.IGNORECASE))
     if not matches:
         return errors
@@ -132,11 +132,11 @@ def _check_references_count(full_text):
         errors.append(_make_error(
             "critical",
             None,
-            f"Список используемых источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников.",
-            f"В разделе «Список используемых источников» должно быть не менее {MIN_REFERENCES} источников.",
+            f"Список использованных источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников.",
+            f"В разделе «Список использованных источников» должно быть не менее {MIN_REFERENCES} источников.",
             f"Найдено источников: {count}.",
             "Добавьте недостающие источники и оформите каждый пункт отдельной пронумерованной строкой.",
-            "Раздел «Список используемых источников»",
+            "Раздел «Список использованных источников»",
             "critical",
         ))
     elif count < MIN_REFERENCES:
@@ -144,10 +144,10 @@ def _check_references_count(full_text):
             "warning",
             None,
             f"Рекомендуется не менее {MIN_REFERENCES} источников.",
-            f"В разделе «Список используемых источников» рекомендуется не менее {MIN_REFERENCES} источников.",
+            f"В разделе «Список использованных источников» рекомендуется не менее {MIN_REFERENCES} источников.",
             f"Найдено источников: {count}.",
             "Добавьте источники или уточните нумерацию списка.",
-            "Раздел «Список используемых источников»",
+            "Раздел «Список использованных источников»",
             "warning",
         ))
     return errors

@@ -78,6 +78,8 @@ h1 {
   font-size: 24px;
   margin-bottom: 20px;
   font-weight: 700;
+  color: #fff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 /* --- 4. РЕГИСТРАЦИЯ (ВЫБОР РОЛИ) --- */
@@ -269,6 +271,12 @@ input[type="file"] {
   overflow-y: auto;
 }
 
+.student-works-window {
+  width: 96vw;
+  max-width: 430px;
+  height: 64vh;
+}
+
 .notif-line {
   display: flex;
   justify-content: space-between;
@@ -346,6 +354,18 @@ input[type="file"] {
 .refresh-btn:active {
   background: var(--tg-theme-button-color, #2481cc);
   color: #fff;
+}
+
+.teacher-search {
+  width: 90vw;
+  max-width: 340px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  outline: none;
 }
 
 .notif-empty {
@@ -755,7 +775,7 @@ input[type="file"] {
 .tutorial-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0,0,0,0.34);
   z-index: 9000;
   cursor: pointer;
 }
@@ -763,7 +783,7 @@ input[type="file"] {
 .tutorial-spotlight {
   position: fixed;
   border-radius: 10px;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,0.65);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.34);
   z-index: 9001;
   pointer-events: none;
   outline: 2px solid rgba(255,255,255,0.8);
@@ -882,7 +902,8 @@ input[type="file"] {
 
 .app-dark .reg-input,
 .app-dark .revision-input,
-.app-dark .teacher-select {
+.app-dark .teacher-select,
+.app-dark .teacher-search {
   background: #16213e !important;
   color: #e0e0e0 !important;
   border-color: #333 !important;
@@ -948,6 +969,7 @@ input[type="file"] {
 }
 .App .reg-input,
 .App .teacher-select,
+.App .teacher-search,
 .App .status-msg,
 .App .secondary-btn,
 .App .revision-input,
@@ -984,13 +1006,11 @@ input[type="file"] {
   --tg-theme-text-color: #000000 !important;
   --tg-theme-bg-color: #ffffff !important;
   --tg-theme-secondary-bg-color: #e8e8e8 !important;
-  filter: contrast(1.25);
 }
 .app-contrast.app-dark {
   --tg-theme-text-color: #ffffff !important;
   --tg-theme-bg-color: #000000 !important;
   --tg-theme-secondary-bg-color: #111 !important;
-  filter: contrast(1.3);
 }
 
 /* --- 19. КНОПКИ РАЗМЕРА ШРИФТА --- */
