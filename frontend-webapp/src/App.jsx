@@ -358,7 +358,12 @@ function App() {
 
   const maybeLaunchTutorial = (role) => {
     if (!localStorage.getItem('sapsr_onboarded_' + role)) {
-      setTimeout(() => { openTutorialStep(role, 0); setTutorialActive(true); }, 600);
+      setTimeout(() => {
+        setDirection(-1);
+        setActiveTab(0);
+        setTutorialStep(0);
+        setTutorialActive(true);
+      }, 600);
     }
   };
 
@@ -533,7 +538,10 @@ function App() {
   const handleTabChange = (t) => { setDirection(t > activeTab ? 1 : -1); setActiveTab(t); setStatus(''); };
 
   const startTutorial = () => {
-    openTutorialStep(userRole, 0);
+    setStep('main');
+    setDirection(0 > activeTab ? 1 : -1);
+    setActiveTab(0);
+    setTutorialStep(0);
     setTutorialActive(true);
   };
 
