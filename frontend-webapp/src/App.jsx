@@ -29,6 +29,7 @@ const STUDENT_STEPS = [
 ];
 const TEACHER_STEPS = [
   { refKey: null,           text: 'Добро пожаловать! Здесь вы проверяете курсовые работы студентов.' },
+  { refKey: 'teacherSearch', text: 'Используйте поиск, чтобы быстро отфильтровать работы по группе, студенту или названию файла.' },
   { refKey: 'submissions',  text: 'Здесь появляются работы, прошедшие автоматическую проверку оформления. Нажмите на карточку чтобы раскрыть действия.' },
   { refKey: null,           text: 'Вы получите уведомление в Telegram, когда студент пришлёт работу на проверку.' },
   { refKey: 'navSettings',  text: 'В настройках можно изменить тему, размер шрифта и включить контрастный режим.' },
@@ -141,6 +142,7 @@ function App() {
     navNotif:    useRef(null),
     navSettings: useRef(null),
     submissions: useRef(null),
+    teacherSearch: useRef(null),
   };
 
   const tg = window.Telegram?.WebApp;
@@ -149,6 +151,7 @@ function App() {
 
   const getTutorialTabIndex = (role, refKey) => {
     if (role === 'teacher') {
+      if (refKey === 'teacherSearch') return 0;
       if (refKey === 'submissions') return 0;
       if (refKey === 'navSettings') return 1;
       return null;
@@ -766,6 +769,7 @@ function App() {
                 <button className="refresh-btn" onClick={fetchTeacherSubmissions}>🔄 Обновить</button>
                 <input className="teacher-search" type="search"
                   placeholder="Поиск по группе, студенту или файлу..."
+                  ref={refs.teacherSearch}
                   value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
                 <div className="notif-window" ref={refs.submissions}>
                   {teacherSubmissions.length === 0 && <p className="notif-empty">Нет работ, ожидающих проверки</p>}

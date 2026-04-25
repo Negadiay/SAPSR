@@ -11,6 +11,7 @@ import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.service.BsuirApiService;
 import com.sapsr.backend.service.EmailVerificationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +30,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -41,6 +44,7 @@ public class UploadController {
     private final SubmissionRepository submissionRepository;
     private final UserRepository userRepository;
     private final EmailVerificationService emailVerificationService;
+    private final BsuirApiService bsuirApiService;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
@@ -48,11 +52,13 @@ public class UploadController {
     public UploadController(RabbitTemplate rabbitTemplate,
                             SubmissionRepository submissionRepository,
                             UserRepository userRepository,
-                            EmailVerificationService emailVerificationService) {
+                            EmailVerificationService emailVerificationService,
+                            BsuirApiService bsuirApiService) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.emailVerificationService = emailVerificationService;
+        this.bsuirApiService = bsuirApiService;
     }
 
     @GetMapping("/me")
@@ -88,6 +94,17 @@ public class UploadController {
         }
         if (fullName.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
+        }
+
+        if ("STUDENT".equals(role)) {
+            Matcher groupMatcher = Pattern.compile("\\(гр\\.\\s*(\\d{6})\\)").matcher(fullName);
+            if (!groupMatcher.find()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Укажите номер группы в формате: Иванов И.И., 123456"));
+            }
+            String groupNumber = groupMatcher.group(1);
+            if (!bsuirApiService.groupExists(groupNumber)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Группа " + groupNumber + " не найдена в IIS БГУИР"));
+            }
         }
 
         String email = null;

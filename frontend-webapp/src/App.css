@@ -296,6 +296,7 @@ input[type="file"] {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .notif-info {
@@ -304,12 +305,17 @@ input[type="file"] {
   text-align: left;
   gap: 4px;
   flex: 1;
+  min-width: 0;
 }
 
 .notif-file-subject {
   font-size: 16px;
   font-weight: 500;
   color: var(--tg-theme-text-color);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notif-teacher {
@@ -332,6 +338,7 @@ input[type="file"] {
   align-items: center;
   margin-left: 10px;
   transition: transform 0.1s;
+  flex-shrink: 0;
 }
 
 .download-btn:active {
@@ -620,6 +627,10 @@ input[type="file"] {
 .ts-file {
   font-size: 12px;
   color: var(--tg-theme-hint-color, #888);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ts-score {
@@ -738,11 +749,12 @@ input[type="file"] {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-width: 0;
 }
 
 .ts-student { font-weight: 700; font-size: 13px; }
 .ts-date    { font-size: 11px; color: var(--tg-theme-hint-color, #999); }
-.ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #888); flex: 1; }
+.ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #888); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ts-chevron { font-size: 11px; color: var(--tg-theme-hint-color, #aaa); margin-left: 8px; }
 
 .ts-card-expanded .ts-card-main { border-bottom: 1px solid rgba(0,0,0,0.08); }
@@ -1010,7 +1022,50 @@ input[type="file"] {
 .app-contrast.app-dark {
   --tg-theme-text-color: #ffffff !important;
   --tg-theme-bg-color: #000000 !important;
-  --tg-theme-secondary-bg-color: #111 !important;
+  --tg-theme-secondary-bg-color: #050505 !important;
+  background: #000 !important;
+  color: #fff !important;
+}
+
+.app-contrast.app-dark .teacher-submission-card,
+.app-contrast.app-dark .ts-card-compact,
+.app-contrast.app-dark .notif-line,
+.app-contrast.app-dark .settings-section,
+.app-contrast.app-dark .upload-container {
+  background: #000 !important;
+  border: 2px solid #fff !important;
+  color: #fff !important;
+}
+
+.app-contrast.app-dark .reg-input,
+.app-contrast.app-dark .revision-input,
+.app-contrast.app-dark .teacher-select,
+.app-contrast.app-dark .teacher-search,
+.app-contrast.app-dark .theme-btn,
+.app-contrast.app-dark .fontsize-btn {
+  background: #000 !important;
+  border-color: #fff !important;
+  color: #fff !important;
+}
+
+.app-contrast.app-dark .bottom-nav {
+  background: #000 !important;
+  border: 2px solid #fff;
+}
+
+.app-contrast.app-dark .bottom-nav button.active .nav-icon-bg,
+.app-contrast.app-dark .submit-btn,
+.app-contrast.app-dark .toggle-switch.on {
+  background: #ffd400 !important;
+  color: #000 !important;
+}
+
+.app-contrast.app-dark .secondary-btn,
+.app-contrast.app-dark .refresh-btn,
+.app-contrast.app-dark .download-btn-sm {
+  background: #000 !important;
+  border: 2px solid #ffd400 !important;
+  color: #ffd400 !important;
 }
 
 /* --- 19. КНОПКИ РАЗМЕРА ШРИФТА --- */
