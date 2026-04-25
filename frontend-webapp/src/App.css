@@ -1044,8 +1044,15 @@ input[type="file"] {
 .app-contrast.app-dark .theme-btn,
 .app-contrast.app-dark .fontsize-btn {
   background: #000 !important;
-  border-color: #fff !important;
+  border-color: #555 !important;
   color: #fff !important;
+}
+
+.app-contrast.app-dark .theme-btn.active,
+.app-contrast.app-dark .fontsize-btn.active {
+  background: #ffd400 !important;
+  border-color: #ffd400 !important;
+  color: #000 !important;
 }
 
 .app-contrast.app-dark .bottom-nav {
