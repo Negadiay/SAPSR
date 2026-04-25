@@ -5,33 +5,26 @@ from collections import Counter
 from datetime import datetime
 import pdfplumber
 import requests
-
-# --- Константы BSUIR ---
-PAGE_WIDTH  = 595.28
-PAGE_HEIGHT = 841.89
-
-MARGIN_LEFT      = 85.0
-MARGIN_RIGHT     = 553.0
-MARGIN_TOP       = 57.0
-MARGIN_BOTTOM    = 765.0
-MARGIN_TOLERANCE = 10.0
-
-REQUIRED_FONT_SIZE  = 14.0
-FONT_SIZE_TOLERANCE = 1.0
-
-# Номера страниц — нижний правый угол (y от верха страницы)
-PAGE_NUM_X_MIN = 460.0
-PAGE_NUM_Y_MIN = 750.0  # 842 - 92 ≈ нижние ~90pt
-
-BSUIR_SPECIALITIES_URL = "https://iis.bsuir.by/api/v1/specialities"
-
-REQUIRED_SECTIONS = {
-    "title_page": {"patterns": [r"министерство", r"белорусский", r"кафедра"], "name": "Титульный лист"},
-    "toc":        {"patterns": [r"содержание", r"оглавление"],                "name": "Содержание"},
-    "intro":      {"patterns": [r"введение"],                                  "name": "Введение"},
-    "conclusion": {"patterns": [r"заключение"],                               "name": "Заключение"},
-    "references": {"patterns": [r"список использованных", r"список литературы", r"библиограф"], "name": "Список источников"},
-}
+from check_config import (
+    ALLOWED_FONT_FAMILIES,
+    BSUIR_SPECIALITIES_URL,
+    CRITICAL_REFERENCES_THRESHOLD,
+    FONT_FAMILY_VIOLATION_THRESHOLD,
+    FONT_SIZE_MAJOR_THRESHOLD_PCT,
+    FONT_SIZE_MAX,
+    FONT_SIZE_MIN,
+    MARGIN_BOTTOM,
+    MARGIN_LEFT,
+    MARGIN_RIGHT,
+    MARGIN_TOLERANCE,
+    MARGIN_TOP,
+    MIN_REFERENCES,
+    PAGE_NUMBER_MIN_CHECKABLE_PAGES,
+    PAGE_NUMBER_MIN_COVERAGE,
+    PAGE_NUM_X_MIN,
+    PAGE_NUM_Y_MIN,
+    REQUIRED_SECTIONS,
+)
 
 # --- Утилиты ---
 
@@ -42,6 +35,28 @@ def _dominant_size(chars):
         if text and text not in (" ", "\n"):
             size_counts[round(c.get("size", 0), 1)] += 1
     return size_counts.most_common(1)[0][0] if size_counts else 0.0
+
+
+def _normalize_font_family(font_name):
+    name = (font_name or "").lower()
+    if "+" in name:
+        name = name.split("+", 1)[1]
+    return re.sub(r"[^a-zа-яё0-9]", "", name)
+
+
+def _is_allowed_font_family(font_name):
+    normalized = _normalize_font_family(font_name)
+    return any(_normalize_font_family(family) in normalized for family in ALLOWED_FONT_FAMILIES)
+
+
+def _dominant_font(chars):
+    font_counts = Counter()
+    for c in chars:
+        text = c.get("text", "").strip()
+        font_name = c.get("fontname")
+        if text and font_name:
+            font_counts[font_name] += 1
+    return font_counts.most_common(1)[0][0] if font_counts else ""
 
 
 def _pages_to_range(pages):
@@ -84,25 +99,29 @@ def _check_structure(full_text):
 
 def _check_references_count(full_text):
     errors = []
-    pattern = r"(?:список использованных источников|список литературы|библиограф)(.*?)(?:\n[А-ЯЁЪ][А-ЯЁЪ]{2,}|\Z)"
-    match = re.search(pattern, full_text, re.IGNORECASE | re.DOTALL)
-    if not match:
+    heading_pattern = r"список использованных источников|список литературы|библиограф"
+    matches = list(re.finditer(heading_pattern, full_text, re.IGNORECASE))
+    if not matches:
         return errors
-    section_text = match.group(1)
+
+    # The same heading usually appears in the table of contents. Use the last
+    # occurrence to inspect the actual references section.
+    section_text = full_text[matches[-1].end():]
     count = len(re.findall(r"^\s*\[?\d+\]?[\.\)]?\s+\S", section_text, re.MULTILINE))
     if count == 0:
         count = len(re.findall(r"^\s*\d+\s+\S", section_text, re.MULTILINE))
-    if count < 5:
+    if count < CRITICAL_REFERENCES_THRESHOLD:
         errors.append({
             "severity": "critical",
             "page": None,
-            "message": f"Список источников содержит менее 5 источников (найдено: {count}). Требуется не менее 10.",
+            "message": f"Список источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников "
+                       f"(найдено: {count}). Требуется не менее {MIN_REFERENCES}.",
         })
-    elif count < 10:
+    elif count < MIN_REFERENCES:
         errors.append({
             "severity": "warning",
             "page": None,
-            "message": f"Рекомендуется не менее 10 источников (найдено: {count}).",
+            "message": f"Рекомендуется не менее {MIN_REFERENCES} источников (найдено: {count}).",
         })
     return errors
 
@@ -285,6 +304,7 @@ def analyze_pdf(path: str) -> dict:
             page_margin_errors = []
             full_text = ""
             pages_with_size_err = []
+            pages_with_font_family_err = []
             pages_with_page_num = 0
             total_pages = len(pdf.pages)
             first_page_text = ""
@@ -299,8 +319,12 @@ def analyze_pdf(path: str) -> dict:
                 page_margin_errors.extend(_check_margins(page, i))
 
                 psize = _dominant_size(chars)
-                if psize and abs(psize - REQUIRED_FONT_SIZE) > FONT_SIZE_TOLERANCE:
+                if psize and not (FONT_SIZE_MIN <= psize <= FONT_SIZE_MAX):
                     pages_with_size_err.append(i)
+
+                font_name = _dominant_font(chars)
+                if font_name and not _is_allowed_font_family(font_name):
+                    pages_with_font_family_err.append(i)
 
                 # Ищем номер страницы в нижнем правом углу (со стр. 3+)
                 if i > 2 and chars:
@@ -328,13 +352,30 @@ def analyze_pdf(path: str) -> dict:
             if pages_with_size_err:
                 dominant_size = _dominant_size(all_chars)
                 page_range = _pages_to_range(pages_with_size_err)
-                severity = "major" if size_err_pct > 30 else "minor"
+                severity = "major" if size_err_pct > FONT_SIZE_MAJOR_THRESHOLD_PCT else "minor"
                 errors.append({
                     "severity": severity,
                     "page": page_range,
                     "message": (
-                        f"Размер основного шрифта {dominant_size}pt не соответствует норме 14pt "
+                        f"Размер основного шрифта {dominant_size}pt вне допустимого диапазона "
+                        f"{FONT_SIZE_MIN:g}–{FONT_SIZE_MAX:g}pt "
                         f"(затронуто {len(pages_with_size_err)} стр. — {size_err_pct:.0f}%: стр. {page_range})."
+                    ),
+                })
+
+            # 2b. Семейство шрифта
+            if pages_with_font_family_err:
+                font_err_pct = len(pages_with_font_family_err) / total_pages
+                dominant_font = _dominant_font(all_chars)
+                page_range = _pages_to_range(pages_with_font_family_err)
+                severity = "major" if font_err_pct > FONT_FAMILY_VIOLATION_THRESHOLD else "warning"
+                errors.append({
+                    "severity": severity,
+                    "page": page_range,
+                    "message": (
+                        f"Основное семейство шрифта «{dominant_font}» не входит в допустимые семейства "
+                        f"({', '.join(ALLOWED_FONT_FAMILIES)}). Проверяется семейство, а не конкретное начертание "
+                        f"(стр. {page_range})."
                     ),
                 })
 
@@ -352,7 +393,7 @@ def analyze_pdf(path: str) -> dict:
 
             # 4. Нумерация страниц
             checkable = max(0, total_pages - 2)
-            if checkable > 2 and pages_with_page_num < checkable * 0.6:
+            if checkable > PAGE_NUMBER_MIN_CHECKABLE_PAGES and pages_with_page_num < checkable * PAGE_NUMBER_MIN_COVERAGE:
                 errors.append({
                     "severity": "minor",
                     "page": None,

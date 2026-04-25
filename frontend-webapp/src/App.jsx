@@ -1,8 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
+const MotionDiv = motion.div;
+const AUTO_REFRESH_INTERVAL_MS = 12000;
+const COMMENT_TEMPLATE_LIMIT = 20;
+const COMMENT_SUGGESTION_LIMIT = 5;
+
+const getTelegramUserId = (initData) => {
+  try {
+    const user = new URLSearchParams(initData).get('user');
+    return user ? String(JSON.parse(user).id || '') : '';
+  } catch {
+    return '';
+  }
+};
 
 // --- Туториал ---
 const STUDENT_STEPS = [
@@ -79,6 +92,7 @@ function App() {
   const [activeTab, setActiveTab]     = useState(0);
   const [direction, setDirection]     = useState(0);
   const [userRole, setUserRole]       = useState('');
+  const [currentUserId, setCurrentUserId] = useState('');
 
   // Регистрация студента
   const [regInput, setRegInput]       = useState('');
@@ -104,6 +118,7 @@ function App() {
   const [expandedId, setExpandedId]       = useState(null);
   const [revisionId, setRevisionId]       = useState(null);
   const [revisionComment, setRevisionComment] = useState('');
+  const [commentTemplates, setCommentTemplates] = useState([]);
   const [verdictLoading, setVerdictLoading] = useState(false);
 
   // Настройки
@@ -129,16 +144,111 @@ function App() {
   const initData = tg?.initData || '';
   const apiHeaders = (extra = {}) => ({ 'Authorization': initData, ...extra });
 
+  const getTutorialTabIndex = (role, refKey) => {
+    if (role === 'teacher') {
+      if (refKey === 'submissions') return 0;
+      if (refKey === 'navSettings') return 1;
+      return null;
+    }
+
+    if (['teacherSel', 'fileUpload', 'submitBtn'].includes(refKey)) return 0;
+    if (refKey === 'navNotif') return 1;
+    if (refKey === 'navSettings') return 2;
+    return null;
+  };
+
+  const openTutorialStep = (role, nextStep) => {
+    const steps = role === 'teacher' ? TEACHER_STEPS : STUDENT_STEPS;
+    const tabIndex = getTutorialTabIndex(role, steps[nextStep]?.refKey);
+    if (tabIndex !== null && tabIndex !== activeTab) {
+      setDirection(tabIndex > activeTab ? 1 : -1);
+      setActiveTab(tabIndex);
+    }
+    setTutorialStep(nextStep);
+  };
+
+  const getTemplateStorageKey = () => `sapsr_revision_templates_${currentUserId || userRole || 'teacher'}`;
+
+  const sortTemplates = (templates) => [...templates]
+    .sort((a, b) => (b.count - a.count) || (b.lastUsed - a.lastUsed))
+    .slice(0, COMMENT_TEMPLATE_LIMIT);
+
+  const saveCommentTemplates = (templates) => {
+    const sorted = sortTemplates(templates);
+    setCommentTemplates(sorted);
+    localStorage.setItem(getTemplateStorageKey(), JSON.stringify(sorted));
+  };
+
+  const rememberCommentTemplate = (comment) => {
+    const text = comment.trim();
+    if (!text) return;
+    const now = Date.now();
+    const existing = commentTemplates.find(t => t.text === text);
+    const next = existing
+      ? commentTemplates.map(t => t.text === text ? { ...t, count: t.count + 1, lastUsed: now } : t)
+      : [...commentTemplates, { text, count: 1, lastUsed: now }];
+    saveCommentTemplates(next);
+  };
+
+  const revisionSuggestions = sortTemplates(commentTemplates)
+    .filter(t => {
+      const query = revisionComment.trim().toLowerCase();
+      return !query || t.text.toLowerCase().includes(query);
+    })
+    .slice(0, COMMENT_SUGGESTION_LIMIT);
+
   useEffect(() => {
     tg?.ready();
     tg?.expand();
     checkAuth();
+    // Telegram WebApp bootstrapping should happen once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Сохраняем настройки
   useEffect(() => { localStorage.setItem('sapsr_theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('sapsr_fontsize', fontSize); }, [fontSize]);
   useEffect(() => { localStorage.setItem('sapsr_contrast', contrast ? '1' : '0'); }, [contrast]);
+  useEffect(() => {
+    const telegramUserId = getTelegramUserId(initData);
+    if (telegramUserId) setCurrentUserId(telegramUserId);
+  }, [initData]);
+
+  useEffect(() => {
+    if (userRole !== 'teacher') {
+      setCommentTemplates([]);
+      return;
+    }
+
+    try {
+      const raw = localStorage.getItem(getTemplateStorageKey());
+      setCommentTemplates(raw ? sortTemplates(JSON.parse(raw)) : []);
+    } catch {
+      setCommentTemplates([]);
+    }
+    // Storage key is derived only from these two values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userRole, currentUserId]);
+
+  useEffect(() => {
+    if (step !== 'main') return undefined;
+
+    if (userRole === 'student') {
+      fetchSubmissions();
+      const id = window.setInterval(fetchSubmissions, AUTO_REFRESH_INTERVAL_MS);
+      return () => window.clearInterval(id);
+    }
+
+    if (userRole === 'teacher') {
+      fetchTeacherSubmissions();
+      const id = window.setInterval(fetchTeacherSubmissions, AUTO_REFRESH_INTERVAL_MS);
+      return () => window.clearInterval(id);
+    }
+
+    return undefined;
+    // Polling intentionally restarts only when the current main role changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, userRole]);
 
   // Эффективная тема: 'auto' читает из Telegram
   const resolvedTheme = theme === 'auto'
@@ -152,6 +262,7 @@ function App() {
         const data = await res.json();
         if (data.role && data.role !== 'NONE') {
           const role = data.role.toLowerCase();
+          setCurrentUserId(data.telegram_id ? String(data.telegram_id) : '');
           setUserRole(role);
           setStep('main');
           if (role === 'student') { fetchTeachers(); fetchSubmissions(); }
@@ -190,19 +301,19 @@ function App() {
 
   // --- Туториал ---
 
-  const handleTutorialNext = useCallback(() => {
+  const handleTutorialNext = () => {
     const steps = userRole === 'teacher' ? TEACHER_STEPS : STUDENT_STEPS;
     if (tutorialStep + 1 >= steps.length) {
       setTutorialActive(false);
       localStorage.setItem('sapsr_onboarded_' + userRole, '1');
     } else {
-      setTutorialStep(s => s + 1);
+      openTutorialStep(userRole, tutorialStep + 1);
     }
-  }, [tutorialStep, userRole]);
+  };
 
   const maybeLaunchTutorial = (role) => {
     if (!localStorage.getItem('sapsr_onboarded_' + role)) {
-      setTimeout(() => { setTutorialActive(true); setTutorialStep(0); }, 600);
+      setTimeout(() => { openTutorialStep(role, 0); setTutorialActive(true); }, 600);
     }
   };
 
@@ -314,6 +425,7 @@ function App() {
         body: JSON.stringify({ verdict, comment }),
       });
       if (res.ok) {
+        if (verdict === 'REVISION') rememberCommentTemplate(comment);
         tg?.HapticFeedback?.notificationOccurred('success');
         setRevisionId(null); setRevisionComment(''); setExpandedId(null);
         fetchTeacherSubmissions();
@@ -372,6 +484,11 @@ function App() {
 
   const handleTabChange = (t) => { setDirection(t > activeTab ? 1 : -1); setActiveTab(t); setStatus(''); };
 
+  const startTutorial = () => {
+    openTutorialStep(userRole, 0);
+    setTutorialActive(true);
+  };
+
   const handleRoleSelect = (role) => {
     setUserRole(role); setRegInput(''); setRegCode(''); setRegError('');
     setTeacherFullName(''); setTeacherEmail(''); setStep('register');
@@ -405,7 +522,7 @@ function App() {
 
       {/* Кнопка туториала */}
       {step === 'main' && (
-        <button className="tutorial-btn" onClick={() => { setTutorialStep(0); setTutorialActive(true); }} title="Справка">
+        <button className="tutorial-btn" onClick={startTutorial} title="Справка">
           💡
         </button>
       )}
@@ -429,13 +546,13 @@ function App() {
 
       <AnimatePresence custom={direction} mode="wait">
         {step === 'loading' && (
-          <motion.div key="loading" className="screen" exit={{ opacity: 0 }}>
+          <MotionDiv key="loading" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Загрузка...</p>
-          </motion.div>
+          </MotionDiv>
         )}
 
         {step === 'role' && (
-          <motion.div key="role" className="screen" exit={{ opacity: 0 }}>
+          <MotionDiv key="role" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Выберите вашу роль в системе</p>
             <div className="role-container">
               <button className="role-card" onClick={() => handleRoleSelect('student')}>
@@ -447,11 +564,11 @@ function App() {
                 <span className="role-text">Преподаватель</span>
               </button>
             </div>
-          </motion.div>
+          </MotionDiv>
         )}
 
         {step === 'register' && userRole === 'student' && (
-          <motion.div key="reg-student" className="screen" exit={{ opacity: 0 }}>
+          <MotionDiv key="reg-student" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Введите ФИО и номер группы</p>
             <form onSubmit={handleRegisterStudent} className="register-form">
               <input type="text" className="reg-input" placeholder="Иванов И.И., 123456"
@@ -465,11 +582,11 @@ function App() {
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
               </div>
             </form>
-          </motion.div>
+          </MotionDiv>
         )}
 
         {step === 'register' && userRole === 'teacher' && (
-          <motion.div key="reg-teacher" className="screen" exit={{ opacity: 0 }}>
+          <MotionDiv key="reg-teacher" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Регистрация преподавателя</p>
             <form onSubmit={handleTeacherSendCode} className="register-form">
               <input type="text" className="reg-input" placeholder="Иванов Иван Иванович"
@@ -485,11 +602,11 @@ function App() {
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
               </div>
             </form>
-          </motion.div>
+          </MotionDiv>
         )}
 
         {step === 'confirm_code' && (
-          <motion.div key="confirm-code" className="screen" exit={{ opacity: 0 }}>
+          <MotionDiv key="confirm-code" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Код отправлен на<br /><b>{teacherEmail}</b></p>
             <p className="reg-hint">Проверьте папку «Спам», если письмо не пришло</p>
             <form onSubmit={handleConfirmCode} className="register-form">
@@ -505,11 +622,11 @@ function App() {
                 </button>
               </div>
             </form>
-          </motion.div>
+          </MotionDiv>
         )}
 
         {step === 'main' && (
-          <motion.div key={activeTab} custom={direction} variants={variants}
+          <MotionDiv key={activeTab} custom={direction} variants={variants}
             initial="enter" animate="center" exit="exit"
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="screen main-content"
@@ -534,7 +651,7 @@ function App() {
                       </div>
                     )}
                     <label htmlFor="file-upload" className="custom-file-upload" ref={refs.fileUpload}>
-                      <span style={{ fontSize: '30px' }}>📁</span>
+                      <span style={{ fontSize: 'calc(var(--app-font-size) * 2.15)' }}>📁</span>
                       <span>{file ? file.name : 'Нажмите, чтобы выбрать файл (.pdf)'}</span>
                     </label>
                     <input id="file-upload" type="file" accept=".pdf"
@@ -614,6 +731,18 @@ function App() {
                                 <textarea className="revision-input" rows={3}
                                   placeholder="Комментарий для студента..."
                                   value={revisionComment} onChange={(e) => setRevisionComment(e.target.value)} />
+                                {revisionSuggestions.length > 0 && (
+                                  <div className="comment-suggestions">
+                                    <div className="comment-suggestions-title">Шаблонные ответы</div>
+                                    {revisionSuggestions.map((template) => (
+                                      <button key={template.text} type="button" className="comment-suggestion"
+                                        onClick={() => setRevisionComment(template.text)}>
+                                        <span>{template.text}</span>
+                                        <small>{template.count}×</small>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 <div className="revision-btns">
                                   <button className="submit-btn" disabled={!revisionComment.trim() || verdictLoading}
                                     onClick={() => handleVerdict(s.id, 'REVISION', revisionComment)}>
@@ -678,7 +807,7 @@ function App() {
                 <button className="secondary-btn" onClick={resetRegistration}>Выйти из системы</button>
               </div>
             )}
-          </motion.div>
+          </MotionDiv>
         )}
       </AnimatePresence>
 
