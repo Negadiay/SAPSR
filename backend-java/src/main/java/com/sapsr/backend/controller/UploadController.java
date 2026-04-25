@@ -195,7 +195,7 @@ public class UploadController {
         Font fontWarn = new Font(bf, 10, Font.NORMAL, new Color(230, 81, 0));
         Font fontErr = new Font(bf, 10, Font.NORMAL, new Color(211, 47, 47));
 
-        doc.add(new Paragraph("SAPSR - Otchet o proverke formatirovaniia", fontTitle));
+        doc.add(new Paragraph("SAPSR — отчёт о проверке оформления", fontTitle));
         doc.add(new Paragraph("----------------------------------------", fontNormal));
         doc.add(Chunk.NEWLINE);
 
@@ -207,28 +207,34 @@ public class UploadController {
                 : "file.pdf";
         if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
 
-        doc.add(new Paragraph("Student:  " + studentName, fontHeader));
-        doc.add(new Paragraph("File:     " + fileName, fontNormal));
-        doc.add(new Paragraph("Date:     " + (s.getCreatedAt() != null ? s.getCreatedAt().toString() : "-"), fontNormal));
-        doc.add(new Paragraph("Status:   " + ("SUCCESS".equals(s.getStatus()) ? "PASSED" : "FAILED"), fontNormal));
+        doc.add(new Paragraph("Студент:  " + studentName, fontHeader));
+        doc.add(new Paragraph("Файл:     " + fileName, fontNormal));
+        doc.add(new Paragraph("Дата:     " + (s.getCreatedAt() != null ? s.getCreatedAt().toString() : "-"), fontNormal));
+        doc.add(new Paragraph("Статус:   " + ("SUCCESS".equals(s.getStatus()) ? "оформление соответствует требованиям" : "есть нарушения"), fontNormal));
         doc.add(Chunk.NEWLINE);
 
         String errorsJson = s.getFormatErrors();
         if (errorsJson == null || errorsJson.equals("[]") || errorsJson.equals("null")) {
-            doc.add(new Paragraph("No errors found. Document meets formatting requirements.", fontOk));
+            doc.add(new Paragraph("Ошибок не найдено. Документ соответствует требованиям оформления.", fontOk));
         } else {
-            doc.add(new Paragraph("Errors:", fontHeader));
+            doc.add(new Paragraph("Найденные нарушения:", fontHeader));
             doc.add(Chunk.NEWLINE);
             try {
                 ObjectMapper om = new ObjectMapper();
                 JsonNode arr = om.readTree(errorsJson);
                 for (JsonNode err : arr) {
-                    String severity = err.has("severity") ? err.get("severity").asText().toUpperCase() : "ERROR";
-                    String page = err.has("page") && !err.get("page").isNull() ? "p." + err.get("page").asText() + " " : "";
-                    String msg = err.has("message") ? err.get("message").asText() : err.toString();
-                    String line = "[" + severity + "] " + page + msg;
-                    Font f = "WARNING".equals(severity) ? fontWarn : fontErr;
-                    doc.add(new Paragraph(line, f));
+                    String severity = getJsonText(err, "severity", "error");
+                    Font f = fontForSeverity(severity, fontErr, fontWarn);
+                    String location = getJsonText(err, "location", "");
+                    String page = getJsonText(err, "page", "");
+                    if (location.isBlank() && !page.isBlank()) location = "Страница " + page;
+
+                    doc.add(new Paragraph("[" + severityLabel(severity) + "] " + getJsonText(err, "message", err.toString()), f));
+                    if (!location.isBlank()) doc.add(new Paragraph("Где: " + location, fontNormal));
+                    doc.add(new Paragraph("Правило: " + getJsonText(err, "rule", "Правило не указано."), fontNormal));
+                    doc.add(new Paragraph("Обнаружено: " + getJsonText(err, "found", "Нет дополнительных данных."), fontNormal));
+                    doc.add(new Paragraph("Как исправить: " + getJsonText(err, "fix", "Проверьте оформление указанного фрагмента."), fontNormal));
+                    doc.add(Chunk.NEWLINE);
                 }
             } catch (Exception ex) {
                 doc.add(new Paragraph(errorsJson, fontNormal));
@@ -237,6 +243,27 @@ public class UploadController {
 
         doc.close();
         return baos.toByteArray();
+    }
+
+    private String getJsonText(JsonNode node, String field, String fallback) {
+        if (node.has(field) && !node.get(field).isNull()) {
+            return node.get(field).asText();
+        }
+        return fallback;
+    }
+
+    private String severityLabel(String severity) {
+        return switch (severity == null ? "" : severity.toLowerCase()) {
+            case "critical" -> "критическое";
+            case "major" -> "серьёзное";
+            case "warning", "minor" -> "предупреждение";
+            default -> "ошибка";
+        };
+    }
+
+    private Font fontForSeverity(String severity, Font fontErr, Font fontWarn) {
+        String normalized = severity == null ? "" : severity.toLowerCase();
+        return ("warning".equals(normalized) || "minor".equals(normalized)) ? fontWarn : fontErr;
     }
 
     private BaseFont loadCyrillicFont() {

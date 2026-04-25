@@ -278,6 +278,18 @@ input[type="file"] {
   padding-bottom: 12px;
 }
 
+.notif-line-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.notif-row-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .notif-info {
   display: flex;
   flex-direction: column; /* ФИО на новой строке */
@@ -352,6 +364,54 @@ input[type="file"] {
   font-size: 12px;
   color: #e53935;
   font-weight: 500;
+}
+
+.iteration-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  color: var(--tg-theme-hint-color, #888);
+}
+
+.iteration-step,
+.iteration-final {
+  background: rgba(36, 129, 204, 0.08);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: calc(var(--app-font-size) * 0.8);
+}
+
+.result-explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.error-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.error-group-title {
+  font-weight: 700;
+  font-size: calc(var(--app-font-size) * 0.9);
+}
+
+.error-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.62);
+  font-size: calc(var(--app-font-size) * 0.86);
+}
+
+.error-message {
+  font-weight: 700;
 }
 
 .notif-error {
@@ -431,6 +491,7 @@ input[type="file"] {
 }
 
 .nav-icon-bg {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -439,6 +500,21 @@ input[type="file"] {
   font-size: 20px;
   border-radius: 20px;
   transition: all 0.3s ease;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e53935;
+  color: #fff;
+  font-size: calc(var(--app-font-size) * 0.78);
+  font-weight: 800;
+  line-height: 18px;
 }
 
 .bottom-nav button.active .nav-icon-bg {
@@ -799,7 +875,8 @@ input[type="file"] {
 .app-dark .teacher-submission-card,
 .app-dark .ts-card-compact,
 .app-dark .notif-line,
-.app-dark .settings-section {
+.app-dark .settings-section,
+.app-dark .error-card {
   background: #16213e !important;
 }
 
@@ -860,6 +937,9 @@ input[type="file"] {
 .App .reg-hint,
 .App .notif-score,
 .App .notif-comment,
+.App .iteration-step,
+.App .iteration-final,
+.App .error-card,
 .App .ts-date,
 .App .ts-file,
 .App .ts-comment,

@@ -28,6 +28,19 @@ from check_config import (
 
 # --- Утилиты ---
 
+def _make_error(severity, page, message, rule, found, fix, location=None, category=None):
+    return {
+        "severity": severity,
+        "category": category or severity,
+        "page": page,
+        "location": location or (f"Страница {page}" if page else "Документ"),
+        "message": message,
+        "rule": rule,
+        "found": found,
+        "fix": fix,
+    }
+
+
 def _dominant_size(chars):
     size_counts = Counter()
     for c in chars:
@@ -89,17 +102,22 @@ def _check_structure(full_text):
     errors = []
     for key, section in REQUIRED_SECTIONS.items():
         if not any(re.search(p, full_text, re.IGNORECASE) for p in section["patterns"]):
-            errors.append({
-                "severity": "critical",
-                "page": None,
-                "message": f"Отсутствует обязательный раздел: «{section['name']}»",
-            })
+            errors.append(_make_error(
+                "critical",
+                None,
+                f"Отсутствует обязательный раздел: «{section['name']}».",
+                f"В документе должен быть раздел «{section['name']}».",
+                "Раздел не найден по ключевому заголовку.",
+                f"Добавьте раздел «{section['name']}» с отдельным заголовком.",
+                "Структура документа",
+                "critical",
+            ))
     return errors
 
 
 def _check_references_count(full_text):
     errors = []
-    heading_pattern = r"список использованных источников|список литературы|библиограф"
+    heading_pattern = r"список используемых источников"
     matches = list(re.finditer(heading_pattern, full_text, re.IGNORECASE))
     if not matches:
         return errors
@@ -111,18 +129,27 @@ def _check_references_count(full_text):
     if count == 0:
         count = len(re.findall(r"^\s*\d+\s+\S", section_text, re.MULTILINE))
     if count < CRITICAL_REFERENCES_THRESHOLD:
-        errors.append({
-            "severity": "critical",
-            "page": None,
-            "message": f"Список источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников "
-                       f"(найдено: {count}). Требуется не менее {MIN_REFERENCES}.",
-        })
+        errors.append(_make_error(
+            "critical",
+            None,
+            f"Список используемых источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников.",
+            f"В разделе «Список используемых источников» должно быть не менее {MIN_REFERENCES} источников.",
+            f"Найдено источников: {count}.",
+            "Добавьте недостающие источники и оформите каждый пункт отдельной пронумерованной строкой.",
+            "Раздел «Список используемых источников»",
+            "critical",
+        ))
     elif count < MIN_REFERENCES:
-        errors.append({
-            "severity": "warning",
-            "page": None,
-            "message": f"Рекомендуется не менее {MIN_REFERENCES} источников (найдено: {count}).",
-        })
+        errors.append(_make_error(
+            "warning",
+            None,
+            f"Рекомендуется не менее {MIN_REFERENCES} источников.",
+            f"В разделе «Список используемых источников» рекомендуется не менее {MIN_REFERENCES} источников.",
+            f"Найдено источников: {count}.",
+            "Добавьте источники или уточните нумерацию списка.",
+            "Раздел «Список используемых источников»",
+            "warning",
+        ))
     return errors
 
 
@@ -144,12 +171,16 @@ def _check_simple_lists(full_text):
         if not last.endswith("."):
             violations += 1
         if violations > 0:
-            errors.append({
-                "severity": "minor",
-                "page": None,
-                "message": f"Оформление простого списка: промежуточные элементы должны заканчиваться «;», последний — «.» "
-                           f"(нарушено в {violations} из {len(lines)} элементов).",
-            })
+            errors.append(_make_error(
+                "minor",
+                None,
+                "Нарушено оформление простого списка.",
+                "Промежуточные элементы простого списка должны заканчиваться «;», последний элемент — «.».",
+                f"Нарушено в {violations} из {len(lines)} элементов.",
+                "Проверьте знаки препинания в конце пунктов списка.",
+                "Блок простого списка",
+                "warning",
+            ))
     return errors
 
 
@@ -175,12 +206,16 @@ def _check_numbered_lists(full_text):
             if text and not line.rstrip().endswith("."):
                 violations += 1
         if violations > 0:
-            errors.append({
-                "severity": "minor",
-                "page": None,
-                "message": f"Оформление нумерованного списка: каждый элемент должен заканчиваться точкой "
-                           f"(нарушено в {violations} из {len(lines)} элементах).",
-            })
+            errors.append(_make_error(
+                "minor",
+                None,
+                "Нарушено оформление нумерованного списка.",
+                "Каждый элемент нумерованного списка должен заканчиваться точкой.",
+                f"Нарушено в {violations} из {len(lines)} элементах.",
+                "Поставьте точку в конце каждого пункта нумерованного списка.",
+                "Блок нумерованного списка",
+                "warning",
+            ))
     return errors
 
 
@@ -196,11 +231,16 @@ def _check_figures(full_text):
     missing_refs = caption_nums - ref_nums
     if missing_refs:
         nums = ", ".join(sorted(missing_refs))
-        errors.append({
-            "severity": "minor",
-            "page": None,
-            "message": f"Рисунки {nums}: есть подпись, но нет ссылки в тексте (например, «см. рис. N»).",
-        })
+        errors.append(_make_error(
+            "minor",
+            None,
+            f"Для рисунков {nums} есть подпись, но нет ссылки в тексте.",
+            "На каждый рисунок должна быть ссылка в тексте работы.",
+            f"Нет ссылок на рисунки: {nums}.",
+            "Добавьте ссылку в тексте, например «см. рис. N».",
+            "Подписи и ссылки на рисунки",
+            "warning",
+        ))
     return errors
 
 
@@ -234,12 +274,16 @@ def _check_student_id(full_text):
         specialities = resp.json()
         known_codes = {_normalize_code(s.get("code", "")) for s in specialities if s.get("code")}
         if specialty_code not in known_codes:
-            errors.append({
-                "severity": "major",
-                "page": 1,
-                "message": f"Код специальности «{specialty_raw}» не найден в реестре специальностей БГУИР. "
-                           f"Проверьте правильность номера студента.",
-            })
+            errors.append(_make_error(
+                "major",
+                1,
+                f"Код специальности «{specialty_raw}» не найден в реестре специальностей БГУИР.",
+                "Код специальности в обозначении работы должен существовать в реестре БГУИР.",
+                f"Найден код: {specialty_raw}.",
+                "Проверьте правильность номера студента и кода специальности на титульном листе.",
+                "Страница 1, обозначение работы",
+                "major",
+            ))
     except Exception as e:
         print(f"[ANALYZER] BSUIR API недоступен: {e}")
     return errors
@@ -249,20 +293,30 @@ def _check_minsk_year(first_page_text):
     errors = []
     match = re.search(r"минск[^\n]*?(\d{4})|(\d{4})[^\n]*?минск", first_page_text, re.IGNORECASE)
     if not match:
-        errors.append({
-            "severity": "minor",
-            "page": 1,
-            "message": "На титульном листе не найден год рядом со словом «Минск».",
-        })
+        errors.append(_make_error(
+            "minor",
+            1,
+            "На титульном листе не найден год рядом со словом «Минск».",
+            "На титульном листе должен быть указан город Минск и год выполнения работы.",
+            "Год рядом со словом «Минск» не обнаружен.",
+            "Добавьте строку вида «Минск 2026» на титульный лист.",
+            "Страница 1, нижняя часть титульного листа",
+            "warning",
+        ))
         return errors
     year = int(match.group(1) or match.group(2))
     current_year = datetime.now().year
     if abs(year - current_year) > 1:
-        errors.append({
-            "severity": "minor",
-            "page": 1,
-            "message": f"На титульном листе указан год {year}, ожидается {current_year}.",
-        })
+        errors.append(_make_error(
+            "minor",
+            1,
+            f"На титульном листе указан год {year}, ожидается {current_year}.",
+            "Год на титульном листе должен соответствовать текущему учебному периоду.",
+            f"Найден год: {year}.",
+            f"Проверьте год и при необходимости замените его на {current_year}.",
+            "Страница 1, строка с городом и годом",
+            "warning",
+        ))
     return errors
 
 
@@ -276,17 +330,49 @@ def _check_margins(page, page_num):
     ys  = [c["top"]    for c in chars]
     y1s = [c["bottom"] for c in chars]
     if min(xs)  < MARGIN_LEFT   - MARGIN_TOLERANCE:
-        errors.append({"severity": "minor", "page": page_num,
-            "message": f"Нарушено левое поле: текст начинается с x={min(xs):.0f}pt, норма ≥{MARGIN_LEFT:.0f}pt (3 см)."})
+        errors.append(_make_error(
+            "minor",
+            page_num,
+            "Нарушено левое поле страницы.",
+            "Левое поле должно быть 3 см.",
+            f"Текст начинается с x={min(xs):.0f}pt, норма ≥{MARGIN_LEFT:.0f}pt.",
+            r"В LaTeX проверьте \geometry{left=3cm}; в Word настройте левое поле 3 см.",
+            f"Страница {page_num}, левый край текста",
+            "warning",
+        ))
     if max(x1s) > MARGIN_RIGHT  + MARGIN_TOLERANCE:
-        errors.append({"severity": "minor", "page": page_num,
-            "message": f"Нарушено правое поле: текст уходит до x={max(x1s):.0f}pt, норма ≤{MARGIN_RIGHT:.0f}pt (1.5 см)."})
+        errors.append(_make_error(
+            "minor",
+            page_num,
+            "Нарушено правое поле страницы.",
+            "Правое поле должно быть 1.5 см.",
+            f"Текст уходит до x={max(x1s):.0f}pt, норма ≤{MARGIN_RIGHT:.0f}pt.",
+            r"В LaTeX проверьте \geometry{right=1.5cm}; в Word настройте правое поле 1.5 см.",
+            f"Страница {page_num}, правый край текста",
+            "warning",
+        ))
     if min(ys)  < MARGIN_TOP    - MARGIN_TOLERANCE:
-        errors.append({"severity": "minor", "page": page_num,
-            "message": f"Нарушено верхнее поле: текст начинается с y={min(ys):.0f}pt, норма ≥{MARGIN_TOP:.0f}pt (2 см)."})
+        errors.append(_make_error(
+            "minor",
+            page_num,
+            "Нарушено верхнее поле страницы.",
+            "Верхнее поле должно быть 2 см.",
+            f"Текст начинается с y={min(ys):.0f}pt, норма ≥{MARGIN_TOP:.0f}pt.",
+            r"В LaTeX проверьте \geometry{top=2cm}; в Word настройте верхнее поле 2 см.",
+            f"Страница {page_num}, верхний край текста",
+            "warning",
+        ))
     if max(y1s) > MARGIN_BOTTOM + MARGIN_TOLERANCE:
-        errors.append({"severity": "minor", "page": page_num,
-            "message": f"Нарушено нижнее поле: текст уходит до y={max(y1s):.0f}pt, норма ≤{MARGIN_BOTTOM:.0f}pt (2.7 см)."})
+        errors.append(_make_error(
+            "minor",
+            page_num,
+            "Нарушено нижнее поле страницы.",
+            "Нижнее поле должно быть 2.7 см.",
+            f"Текст уходит до y={max(y1s):.0f}pt, норма ≤{MARGIN_BOTTOM:.0f}pt.",
+            r"В LaTeX проверьте \geometry{bottom=2.7cm}; в Word настройте нижнее поле 2.7 см.",
+            f"Страница {page_num}, нижний край текста",
+            "warning",
+        ))
     return errors
 
 
@@ -297,7 +383,16 @@ def analyze_pdf(path: str) -> dict:
         with pdfplumber.open(path) as pdf:
             if not pdf.pages:
                 return {"status": "FAIL", "errors": [
-                    {"severity": "critical", "page": None, "message": "Документ пустой."}
+                    _make_error(
+                        "critical",
+                        None,
+                        "Документ пустой.",
+                        "PDF должен содержать страницы с текстовым слоем.",
+                        "Страницы не найдены.",
+                        "Экспортируйте работу в PDF повторно и убедитесь, что файл не пустой.",
+                        "Документ",
+                        "critical",
+                    )
                 ]}
 
             all_chars = []
@@ -338,8 +433,16 @@ def analyze_pdf(path: str) -> dict:
 
             if not all_chars:
                 return {"status": "FAIL", "errors": [
-                    {"severity": "critical", "page": None,
-                     "message": "Документ не содержит текста. Возможно, это отсканированный PDF без текстового слоя."}
+                    _make_error(
+                        "critical",
+                        None,
+                        "Документ не содержит текста.",
+                        "PDF должен содержать текстовый слой для автоматической проверки.",
+                        "Текстовый слой не обнаружен; возможно, это скан.",
+                        "Экспортируйте документ как текстовый PDF, а не как изображение или скан.",
+                        "Документ",
+                        "critical",
+                    )
                 ]}
 
             errors = []
@@ -354,13 +457,17 @@ def analyze_pdf(path: str) -> dict:
                 page_range = _pages_to_range(pages_with_size_err)
                 severity = "major" if size_err_pct > FONT_SIZE_MAJOR_THRESHOLD_PCT else "minor"
                 errors.append({
-                    "severity": severity,
-                    "page": page_range,
-                    "message": (
-                        f"Размер основного шрифта {dominant_size}pt вне допустимого диапазона "
-                        f"{FONT_SIZE_MIN:g}–{FONT_SIZE_MAX:g}pt "
-                        f"(затронуто {len(pages_with_size_err)} стр. — {size_err_pct:.0f}%: стр. {page_range})."
-                    ),
+                    **_make_error(
+                        severity,
+                        page_range,
+                        "Размер основного шрифта вне допустимого диапазона.",
+                        f"Основной шрифт должен быть от {FONT_SIZE_MIN:g} до {FONT_SIZE_MAX:g} pt.",
+                        f"Доминирующий размер: {dominant_size}pt; затронуто {len(pages_with_size_err)} стр. "
+                        f"({size_err_pct:.0f}%): {page_range}.",
+                        "Измените размер основного текста на 14 pt или значение в допустимом диапазоне 13-15 pt.",
+                        f"Страницы: {page_range}",
+                        severity,
+                    )
                 })
 
             # 2b. Семейство шрифта
@@ -370,13 +477,16 @@ def analyze_pdf(path: str) -> dict:
                 page_range = _pages_to_range(pages_with_font_family_err)
                 severity = "major" if font_err_pct > FONT_FAMILY_VIOLATION_THRESHOLD else "warning"
                 errors.append({
-                    "severity": severity,
-                    "page": page_range,
-                    "message": (
-                        f"Основное семейство шрифта «{dominant_font}» не входит в допустимые семейства "
-                        f"({', '.join(ALLOWED_FONT_FAMILIES)}). Проверяется семейство, а не конкретное начертание "
-                        f"(стр. {page_range})."
-                    ),
+                    **_make_error(
+                        severity,
+                        page_range,
+                        "Основное семейство шрифта не соответствует требованию.",
+                        f"Правильное семейство шрифта PDF-документа: «{', '.join(ALLOWED_FONT_FAMILIES)}».",
+                        f"Обнаружено: «{dominant_font}» на страницах {page_range}.",
+                        "Экспортируйте PDF с требуемым шрифтом и проверьте, что он встроен в документ.",
+                        f"Страницы: {page_range}",
+                        severity,
+                    )
                 })
 
             # 3. Поля страниц — группируем если много
@@ -385,21 +495,31 @@ def analyze_pdf(path: str) -> dict:
                 if len(margin_pages) <= 3:
                     errors.extend(page_margin_errors)
                 else:
-                    errors.append({
-                        "severity": "minor",
-                        "page": _pages_to_range(margin_pages),
-                        "message": f"Нарушение полей страницы на {len(margin_pages)} стр.: {_pages_to_range(margin_pages)}.",
-                    })
+                    page_range = _pages_to_range(margin_pages)
+                    errors.append(_make_error(
+                        "minor",
+                        page_range,
+                        "Нарушены поля страниц.",
+                        "Поля должны соответствовать нормам: левое 3 см, правое 1.5 см, верхнее 2 см, нижнее 2.7 см.",
+                        f"Нарушение найдено на {len(margin_pages)} страницах: {page_range}.",
+                        r"Проверьте настройки полей: \geometry{left=3cm,right=1.5cm,top=2cm,bottom=2.7cm}.",
+                        f"Страницы: {page_range}",
+                        "warning",
+                    ))
 
             # 4. Нумерация страниц
             checkable = max(0, total_pages - 2)
             if checkable > PAGE_NUMBER_MIN_CHECKABLE_PAGES and pages_with_page_num < checkable * PAGE_NUMBER_MIN_COVERAGE:
-                errors.append({
-                    "severity": "minor",
-                    "page": None,
-                    "message": f"Номера страниц не обнаружены или расположены не в нижнем правом углу "
-                               f"(найдено на {pages_with_page_num} из {checkable} проверяемых страниц).",
-                })
+                errors.append(_make_error(
+                    "minor",
+                    None,
+                    "Номера страниц не обнаружены или расположены не в нижнем правом углу.",
+                    "Нумерация должна находиться в нижнем правом углу, начиная с проверяемых страниц.",
+                    f"Найдено на {pages_with_page_num} из {checkable} проверяемых страниц.",
+                    "Проверьте колонтитулы и расположение номера страницы.",
+                    "Нижний правый угол страниц 3+",
+                    "warning",
+                ))
 
             # 5. Список источников
             errors.extend(_check_references_count(full_text))
@@ -426,11 +546,29 @@ def analyze_pdf(path: str) -> dict:
 
     except FileNotFoundError:
         return {"status": "FAIL", "errors": [
-            {"severity": "critical", "page": None, "message": f"Файл не найден: {path}"}
+            _make_error(
+                "critical",
+                None,
+                f"Файл не найден: {path}",
+                "Файл должен быть доступен анализатору по переданному пути.",
+                f"Путь недоступен: {path}.",
+                "Повторите загрузку файла или проверьте хранилище.",
+                "Файловое хранилище",
+                "critical",
+            )
         ]}
     except Exception as e:
         return {"status": "FAIL", "errors": [
-            {"severity": "critical", "page": None, "message": f"Ошибка при анализе: {str(e)}"}
+            _make_error(
+                "critical",
+                None,
+                f"Ошибка при анализе: {str(e)}",
+                "Анализатор должен корректно прочитать PDF и извлечь текстовые данные.",
+                str(e),
+                "Проверьте, что PDF не повреждён, и попробуйте экспортировать его заново.",
+                "Анализ PDF",
+                "critical",
+            )
         ]}
 
 

@@ -15,13 +15,9 @@ MARGIN_TOLERANCE = 10.0
 FONT_SIZE_MIN = 13.0
 FONT_SIZE_MAX = 15.0
 
-# Match font families, not exact PDF font resource names or style suffixes.
+# Match the expected PDF font family. PDF exporters may add subset prefixes.
 ALLOWED_FONT_FAMILIES = (
-    "times",
-    "timesnewroman",
-    "times-roman",
-    "liberationserif",
-    "dejavuserif",
+    "VOAZZS+SFRM1440",
 )
 FONT_FAMILY_VIOLATION_THRESHOLD = 0.30
 
@@ -44,7 +40,7 @@ REQUIRED_SECTIONS = {
     "intro": {"patterns": [r"введение"], "name": "Введение"},
     "conclusion": {"patterns": [r"заключение"], "name": "Заключение"},
     "references": {
-        "patterns": [r"список использованных", r"список литературы", r"библиограф"],
-        "name": "Список источников",
+        "patterns": [r"список используемых источников"],
+        "name": "Список используемых источников",
     },
 }

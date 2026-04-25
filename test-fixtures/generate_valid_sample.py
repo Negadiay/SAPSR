@@ -8,7 +8,7 @@ from reportlab.pdfgen import canvas
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "valid-format-sample.pdf"
-FONT_NAME = "SAPSRTestSerif"
+FONT_NAME = "VOAZZS+SFRM1440"
 FONT_CANDIDATES = (
     Path("C:/Windows/Fonts/times.ttf"),
     Path("C:/Windows/Fonts/timesbd.ttf"),
@@ -62,7 +62,7 @@ def main():
         "1 Анализ предметной области ...................... 4",
         "2 Проектирование системы ......................... 8",
         "ЗАКЛЮЧЕНИЕ ...................................... 15",
-        "СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ ............... 16",
+        "СПИСОК ИСПОЛЬЗУЕМЫХ ИСТОЧНИКОВ ................. 16",
         "",
         "ВВЕДЕНИЕ",
         "Цель работы состоит в создании удобной системы",
@@ -78,7 +78,7 @@ def main():
         "который используется для проверки функционала SAPSR.",
         "Структура документа включает обязательные разделы.",
         "",
-        "СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ",
+        "СПИСОК ИСПОЛЬЗУЕМЫХ ИСТОЧНИКОВ",
         "1 Иванов И.И. Основы программной инженерии.",
         "2 Петров П.П. Проектирование информационных систем.",
         "3 Сидоров С.С. Тестирование программного обеспечения.",
@@ -91,6 +91,12 @@ def main():
         "10 Новиков Р.Р. Практика нормоконтроля.",
     ], leading=22)
     pdf.save()
+    # ReportLab keeps the source TTF internal name in the PDF. For this test
+    # fixture we normalize the embedded font resource name to the configured
+    # family used by the analyzer.
+    data = OUTPUT.read_bytes()
+    data = data.replace(b"AAAAAA+TimesNewRomanPSMT", b"AAAAAA+VOAZZS+SFRM1440XX")
+    OUTPUT.write_bytes(data)
     print(OUTPUT)
 
 
