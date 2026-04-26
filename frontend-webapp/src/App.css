@@ -1346,18 +1346,39 @@ input[type="file"] {
   margin-top: 8px;
 }
 
+/* --- ТЁМНАЯ ТЕМА: заметки и диалог --- */
 .app-dark .note-card {
-  background: #1a2744;
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+}
+
+.app-dark .note-text {
+  color: #e0e0e0 !important;
 }
 
 .app-dark .note-action-btn {
-  border-color: rgba(255,255,255,0.18);
-  color: #e0e0e0;
+  border-color: rgba(255, 255, 255, 0.20) !important;
+  color: #e0e0e0 !important;
+}
+
+.app-dark .note-action-btn:active {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.app-dark .note-action-delete {
+  border-color: #ef9a9a !important;
+  color: #ef9a9a !important;
+}
+
+.app-dark .note-action-find {
+  border-color: #90caf9 !important;
+  color: #90caf9 !important;
 }
 
 .app-dark .note-textarea {
-  background: #16213e;
-  color: #e0e0e0;
+  background: #0f1729 !important;
+  color: #e0e0e0 !important;
+  border-color: #334466 !important;
 }
 
 /* --- ДИАЛОГ ПОДТВЕРЖДЕНИЯ ОТЗЫВА --- */
@@ -1417,6 +1438,95 @@ input[type="file"] {
 }
 
 .app-dark .confirm-dialog {
-  background: #1a2744;
-  color: #e0e0e0;
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* --- КОНТРАСТНАЯ СВЕТЛАЯ: заметки и диалог --- */
+.app-contrast:not(.app-dark) .note-card {
+  background: #d8f2ff !important;
+  border: 2px solid #38a7e8 !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .note-text {
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .note-action-btn {
+  background: #ffffff !important;
+  border-color: #38a7e8 !important;
+  color: #005f9f !important;
+}
+
+.app-contrast:not(.app-dark) .note-action-delete {
+  border-color: #c62828 !important;
+  color: #c62828 !important;
+}
+
+.app-contrast:not(.app-dark) .note-action-find {
+  border-color: #006bb6 !important;
+  color: #006bb6 !important;
+}
+
+.app-contrast:not(.app-dark) .note-textarea {
+  background: #ffffff !important;
+  border-color: #38a7e8 !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .add-note-btn {
+  background: #007ad1 !important;
+  color: #ffffff !important;
+}
+
+.app-contrast:not(.app-dark) .confirm-dialog {
+  background: #eaf7ff !important;
+  color: #03233f !important;
+  border: 2px solid #38a7e8;
+}
+
+/* --- КОНТРАСТНАЯ ТЁМНАЯ: заметки и диалог --- */
+.app-contrast.app-dark .note-card {
+  background: #000000 !important;
+  border: 2px solid #ffffff !important;
+  color: #ffffff !important;
+}
+
+.app-contrast.app-dark .note-text {
+  color: #ffffff !important;
+}
+
+.app-contrast.app-dark .note-action-btn {
+  background: #000000 !important;
+  border-color: #ff8c00 !important;
+  color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark .note-action-delete {
+  border-color: #ff6b6b !important;
+  color: #ff6b6b !important;
+}
+
+.app-contrast.app-dark .note-action-find {
+  border-color: #ff8c00 !important;
+  color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark .note-textarea {
+  background: #000000 !important;
+  border-color: #555555 !important;
+  color: #ffffff !important;
+}
+
+.app-contrast.app-dark .add-note-btn {
+  background: #ff8c00 !important;
+  color: #000000 !important;
+}
+
+.app-contrast.app-dark .confirm-dialog {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
 }

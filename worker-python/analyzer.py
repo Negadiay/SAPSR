@@ -41,6 +41,22 @@ def _make_error(severity, page, message, rule, found, fix, location=None, catego
     }
 
 
+def _clean_text(raw: str) -> str:
+    """Нормализует текст, извлечённый pdfplumber из LaTeX-PDF.
+
+    pdfplumber сохраняет исходный layout: мягкие переносы (U+00AD),
+    дефисы в конце строк и разрывы внутри заголовков. Это мешает
+    поиску фраз целиком. Функция удаляет мягкие переносы и объединяет
+    слова, разбитые дефисом на конце строки, оставляя остальные пробелы
+    нетронутыми — так что нумерация страниц и цифровые паттерны не ломаются.
+    """
+    # Мягкий перенос U+00AD — просто убираем
+    text = raw.replace('­', '')
+    # «слово-\n» → «слово» (жёсткий дефис-перенос LaTeX)
+    text = re.sub(r'-[ \t]*\n[ \t]*', '', text)
+    return text
+
+
 def _dominant_size(chars):
     size_counts = Counter()
     for c in chars:
@@ -127,7 +143,7 @@ def _check_structure(full_text):
 
 def _check_references_count(full_text):
     errors = []
-    heading_pattern = r"список использованных источников"
+    heading_pattern = r"список\s+использованных\s+источников"
     matches = list(re.finditer(heading_pattern, full_text, re.IGNORECASE))
     if not matches:
         return errors
@@ -232,13 +248,47 @@ def _check_numbered_lists(full_text):
 def _check_figures(full_text):
     """Проверяет наличие ссылок на рисунки в тексте."""
     errors = []
-    caption_nums = set(re.findall(
-        r"(?:Рис(?:унок)?\.?\s*)(\d+[\.\d]*)", full_text, re.IGNORECASE
-    ))
-    ref_nums = set(re.findall(
-        r"(?:на\s+)?(?:рис(?:унке?|\.)\s*)(\d+[\.\d]*)", full_text, re.IGNORECASE
-    ))
-    missing_refs = caption_nums - ref_nums
+
+    # Захватываем номер рисунка: «2.2», «2 .2», «10» — из подписей и ссылок.
+    # Паттерн намеренно широкий: учитывает все падежные формы слова «рисунок»
+    # и сокращение «рис.», оба употребляются и в подписях, и в ссылках.
+    NUM = r"(\d+(?:[\s.]\d+)*)"
+    fig_pattern = re.compile(
+        r"рис(?:унок[еуаи]?|унке?)?\.?\s*" + NUM,
+        re.IGNORECASE,
+    )
+
+    def _norm_num(n):
+        """'2 . 2'  →  '2.2'"""
+        return re.sub(r"\s", "", n)
+
+    all_nums = {_norm_num(m) for m in fig_pattern.findall(full_text)}
+
+    # Подписи содержат слово «Рисунок» (с заглавной) + двухчастный номер вида N.N
+    caption_pattern = re.compile(
+        r"рисунок\s*" + NUM,
+        re.IGNORECASE,
+    )
+    caption_nums = {_norm_num(m) for m in caption_pattern.findall(full_text)}
+
+    # Ссылки — всё остальное (все вхождения минус подписи)
+    # Если одно и то же число найдено хотя бы дважды — считаем, что ссылка есть.
+    from collections import Counter
+    all_matches = [_norm_num(m) for m in fig_pattern.findall(full_text)]
+    count = Counter(all_matches)
+
+    # Номер без ссылки: есть подпись, но встречается ровно один раз
+    # (само название рисунка) и нет отдельного упоминания через «рис.»
+    ref_pattern = re.compile(
+        r"рис(?:унок[еуаи]?|унке?)?\.?\s*" + NUM,
+        re.IGNORECASE,
+    )
+    ref_nums = {_norm_num(m) for m in ref_pattern.findall(full_text) if True}
+
+    # Подпись попадает в ref_nums сама по себе. Считаем «ссылку найденной»,
+    # если число встречается более одного раза (подпись + хотя бы одна ссылка)
+    missing_refs = {n for n in caption_nums if count.get(n, 0) < 2}
+
     if missing_refs:
         nums = ", ".join(sorted(missing_refs))
         errors.append(_make_error(
@@ -247,7 +297,7 @@ def _check_figures(full_text):
             f"Для рисунков {nums} есть подпись, но нет ссылки в тексте.",
             "На каждый рисунок должна быть ссылка в тексте работы.",
             f"Нет ссылок на рисунки: {nums}.",
-            "Добавьте ссылку в тексте, например «см. рис. N».",
+            "Добавьте ссылку в тексте, например «см. рис. N» или «рисунок N».",
             "Подписи и ссылки на рисунки",
             "warning",
         ))
@@ -457,8 +507,11 @@ def analyze_pdf(path: str) -> dict:
 
             errors = []
 
+            # Нормализованная версия текста для всех pattern-based проверок
+            clean_text = _clean_text(full_text)
+
             # 1. Обязательные разделы
-            errors.extend(_check_structure(full_text))
+            errors.extend(_check_structure(clean_text))
 
             # 2. Размер шрифта
             size_err_pct = len(pages_with_size_err) / total_pages * 100 if total_pages else 0
@@ -532,19 +585,19 @@ def analyze_pdf(path: str) -> dict:
                 ))
 
             # 5. Список источников
-            errors.extend(_check_references_count(full_text))
+            errors.extend(_check_references_count(clean_text))
 
             # 6. Оформление простых списков
-            errors.extend(_check_simple_lists(full_text))
+            errors.extend(_check_simple_lists(clean_text))
 
             # 7. Оформление нумерованных списков
-            errors.extend(_check_numbered_lists(full_text))
+            errors.extend(_check_numbered_lists(clean_text))
 
             # 8. Подписи к рисункам
-            errors.extend(_check_figures(full_text))
+            errors.extend(_check_figures(clean_text))
 
             # 9. Студенческий номер / специальность
-            errors.extend(_check_student_id(full_text))
+            errors.extend(_check_student_id(clean_text))
 
             # 10. Год на титульном листе
             errors.extend(_check_minsk_year(first_page_text))
