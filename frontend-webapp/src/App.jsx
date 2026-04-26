@@ -125,6 +125,14 @@ function App() {
   const [teacherSearch, setTeacherSearch] = useState('');
   const [verdictLoading, setVerdictLoading] = useState(false);
 
+  // Заметки преподавателя
+  const [teacherNotes, setTeacherNotes]     = useState([]);
+  const [noteInput, setNoteInput]           = useState('');
+  const [editingNoteId, setEditingNoteId]   = useState(null);
+
+  // Отзыв работы студентом
+  const [withdrawing, setWithdrawing]       = useState(null);
+
   // Настройки
   const [theme, setTheme]       = useState(() => localStorage.getItem('sapsr_theme') || 'auto');
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
@@ -153,7 +161,7 @@ function App() {
     if (role === 'teacher') {
       if (refKey === 'teacherSearch') return 0;
       if (refKey === 'submissions') return 0;
-      if (refKey === 'navSettings') return 1;
+      if (refKey === 'navSettings') return 2;
       return null;
     }
 
@@ -194,6 +202,57 @@ function App() {
       ? commentTemplates.map(t => t.text === text ? { ...t, count: t.count + 1, lastUsed: now } : t)
       : [...commentTemplates, { text, count: 1, lastUsed: now }];
     saveCommentTemplates(next);
+  };
+
+  // --- Заметки ---
+  const getNotesKey = () => `sapsr_notes_${currentUserId || 'teacher'}`;
+
+  const loadNotes = () => {
+    try { return JSON.parse(localStorage.getItem(getNotesKey()) || '[]'); } catch { return []; }
+  };
+
+  const saveNotes = (notes) => {
+    setTeacherNotes(notes);
+    localStorage.setItem(getNotesKey(), JSON.stringify(notes));
+  };
+
+  const handleSaveNote = () => {
+    const text = noteInput.trim();
+    if (!text) return;
+    saveNotes([...teacherNotes, { id: Date.now(), text }]);
+    setNoteInput('');
+    setEditingNoteId(null);
+  };
+
+  const handleUpdateNote = (id) => {
+    const text = noteInput.trim();
+    if (!text) return;
+    saveNotes(teacherNotes.map(n => n.id === id ? { ...n, text } : n));
+    setNoteInput('');
+    setEditingNoteId(null);
+  };
+
+  const handleDeleteNote = (id) => {
+    saveNotes(teacherNotes.filter(n => n.id !== id));
+  };
+
+  const handleFindFromNote = (text) => {
+    const groupMatch = text.match(/\d{6}/);
+    const nameMatch  = text.match(/[А-ЯЁ][а-яё]+/);
+    const query = [nameMatch?.[0], groupMatch?.[0]].filter(Boolean).join(' ');
+    setTeacherSearch(query);
+    setDirection(-1);
+    setActiveTab(0);
+  };
+
+  // --- Отзыв работы ---
+  const handleWithdrawWork = async (submissionId) => {
+    if (!confirm('Отозвать работу? Она исчезнет у преподавателя.')) return;
+    setWithdrawing(submissionId);
+    try {
+      await fetch(`${API_BASE}/submissions/${submissionId}`, { method: 'DELETE', headers: apiHeaders() });
+      fetchSubmissions();
+    } finally { setWithdrawing(null); }
   };
 
   const revisionSuggestions = sortTemplates(commentTemplates)
@@ -258,6 +317,7 @@ function App() {
   useEffect(() => {
     if (userRole !== 'teacher') {
       setCommentTemplates([]);
+      setTeacherNotes([]);
       return;
     }
 
@@ -267,6 +327,8 @@ function App() {
     } catch {
       setCommentTemplates([]);
     }
+
+    setTeacherNotes(loadNotes());
     // Storage key is derived only from these two values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userRole, currentUserId]);
@@ -372,7 +434,9 @@ function App() {
     e.preventDefault();
     setRegError('');
     const match = regInput.trim().match(/^(.+),\s*(\d{6})$/);
-    if (!match) { setRegError('Формат: Иванов И.И., 123456'); return; }
+    if (!match) { setRegError('Формат: Фамилия И.О., 123456'); return; }
+    if (/[a-zA-Z]/.test(match[1])) { setRegError('Имя должно быть на кириллице'); return; }
+    if (/\d/.test(match[1])) { setRegError('Имя не должно содержать цифры'); return; }
     const fullName = match[1].trim() + ' (гр. ' + match[2] + ')';
     setRegistering(true);
     try {
@@ -569,6 +633,7 @@ function App() {
   ];
   const teacherTabs = [
     { icon: '📋', label: 'Работы' },
+    { icon: '📝', label: 'Заметки' },
     { icon: '⚙️', label: 'Настройки', ref: refs.navSettings },
   ];
   const tabs = userRole === 'teacher' ? teacherTabs : studentTabs;
@@ -627,9 +692,9 @@ function App() {
           <MotionDiv key="reg-student" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Введите ФИО и номер группы</p>
             <form onSubmit={handleRegisterStudent} className="register-form">
-              <input type="text" className="reg-input" placeholder="Иванов И.И., 123456"
+              <input type="text" className="reg-input" placeholder="Иванов И.О., 321702"
                 value={regInput} onChange={(e) => setRegInput(e.target.value)} autoFocus />
-              <p className="reg-hint">Формат: ФИО, номер группы (6 цифр)</p>
+              <p className="reg-hint">Формат: Фамилия И.О., номер группы (6 цифр)</p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering}>
@@ -759,9 +824,17 @@ function App() {
                             )}
                             {s.teacher_comment && <div className="notif-comment">💬 {s.teacher_comment}</div>}
                           </div>
-                          {s.status !== 'PROCESSING' && (
-                            <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
-                          )}
+                          <div className="notif-btn-group">
+                            {s.status !== 'PROCESSING' && (
+                              <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
+                            )}
+                            {s.status === 'SUCCESS' && !s.teacher_verdict && (
+                              <button className="withdraw-btn" disabled={withdrawing === s.id}
+                                onClick={() => handleWithdrawWork(s.id)}>
+                                {withdrawing === s.id ? '⏳' : '↩ Отозвать'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -775,10 +848,6 @@ function App() {
               <div className="tab-view">
                 <h2 className="view-title">Работы студентов</h2>
                 <button className="refresh-btn" onClick={fetchTeacherSubmissions}>🔄 Обновить</button>
-                <input className="teacher-search" type="search"
-                  placeholder="Поиск по группе, студенту или файлу..."
-                  ref={refs.teacherSearch}
-                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
                 <div className="notif-window" ref={refs.submissions}>
                   {teacherSubmissions.length === 0 && <p className="notif-empty">Нет работ, ожидающих проверки</p>}
                   {teacherSubmissions.length > 0 && filteredTeacherSubmissions.length === 0 && (
@@ -842,11 +911,64 @@ function App() {
                     );
                   })}
                 </div>
+                <input className="teacher-search" type="search"
+                  placeholder="Поиск по группе, студенту или файлу..."
+                  ref={refs.teacherSearch}
+                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
+              </div>
+            )}
+
+            {/* ===== ПРЕПОДАВАТЕЛЬ: заметки ===== */}
+            {userRole === 'teacher' && activeTab === 1 && (
+              <div className="tab-view">
+                <h2 className="view-title">Заметки</h2>
+                <button className="add-note-btn" onClick={() => { setNoteInput(''); setEditingNoteId('new'); }}>
+                  + Новая заметка
+                </button>
+                {editingNoteId === 'new' && (
+                  <div className="note-editor">
+                    <textarea className="note-textarea" value={noteInput}
+                      onChange={e => setNoteInput(e.target.value)}
+                      placeholder="Введите заметку..." autoFocus />
+                    <div className="note-editor-btns">
+                      <button className="submit-btn" onClick={handleSaveNote}>Сохранить</button>
+                      <button className="secondary-btn" onClick={() => setEditingNoteId(null)}>Отмена</button>
+                    </div>
+                  </div>
+                )}
+                <div className="notes-list">
+                  {teacherNotes.map(note => (
+                    <div key={note.id} className="note-card">
+                      {editingNoteId === note.id ? (
+                        <div className="note-editor">
+                          <textarea className="note-textarea" value={noteInput}
+                            onChange={e => setNoteInput(e.target.value)} autoFocus />
+                          <div className="note-editor-btns">
+                            <button className="submit-btn" onClick={() => handleUpdateNote(note.id)}>Сохранить</button>
+                            <button className="secondary-btn" onClick={() => setEditingNoteId(null)}>Отмена</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="note-text">{note.text}</p>
+                          <div className="note-actions">
+                            <button className="note-action-btn" onClick={() => { setEditingNoteId(note.id); setNoteInput(note.text); }}>✏️ Изменить</button>
+                            <button className="note-action-btn note-action-delete" onClick={() => handleDeleteNote(note.id)}>🗑 Удалить</button>
+                            <button className="note-action-btn note-action-find" onClick={() => handleFindFromNote(note.text)}>🔍 Найти</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  {teacherNotes.length === 0 && !editingNoteId && (
+                    <p className="notif-empty">Нет заметок. Нажмите «+ Новая заметка»</p>
+                  )}
+                </div>
               </div>
             )}
 
             {/* ===== НАСТРОЙКИ (общие) ===== */}
-            {activeTab === (userRole === 'teacher' ? 1 : 2) && (
+            {activeTab === 2 && (
               <div className="tab-view">
                 <h2 className="view-title">Настройки</h2>
 

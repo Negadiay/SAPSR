@@ -55,8 +55,12 @@ public class ResultListenerService {
             if ("SUCCESS".equals(status) && submission.getTeacher() != null) {
                 String studentName = submission.getStudent() != null
                         ? submission.getStudent().getFullName() : "Студент";
-                bot.notifyUser(submission.getTeacher().getTelegramId(),
+                Integer msgId = bot.notifyUser(submission.getTeacher().getTelegramId(),
                         "📄 " + studentName + " прислал(а) работу на проверку.\nОткройте кабинет для просмотра и вынесения вердикта.");
+                if (msgId != null) {
+                    submission.setTeacherMessageId(msgId);
+                    submissionRepository.save(submission);
+                }
             }
 
         } catch (Exception e) {

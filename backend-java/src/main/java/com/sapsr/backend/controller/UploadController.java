@@ -7,6 +7,7 @@ import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.BaseFont;
 import com.lowagie.text.pdf.PdfWriter;
+import com.sapsr.backend.SapsrTelegramBot;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
@@ -45,6 +46,7 @@ public class UploadController {
     private final UserRepository userRepository;
     private final EmailVerificationService emailVerificationService;
     private final BsuirApiService bsuirApiService;
+    private final SapsrTelegramBot bot;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
@@ -53,12 +55,14 @@ public class UploadController {
                             SubmissionRepository submissionRepository,
                             UserRepository userRepository,
                             EmailVerificationService emailVerificationService,
-                            BsuirApiService bsuirApiService) {
+                            BsuirApiService bsuirApiService,
+                            SapsrTelegramBot bot) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.emailVerificationService = emailVerificationService;
         this.bsuirApiService = bsuirApiService;
+        this.bot = bot;
     }
 
     @GetMapping("/me")
@@ -170,6 +174,30 @@ public class UploadController {
         }
 
         return ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/submissions/{id}")
+    public ResponseEntity<?> withdrawSubmission(@PathVariable Integer id, HttpServletRequest request) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+
+        Optional<Submission> opt = submissionRepository.findById(id);
+        if (opt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Submission s = opt.get();
+        if (s.getStudent() == null || !s.getStudent().getTelegramId().equals(telegramId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Нет доступа"));
+        }
+        if (!"SUCCESS".equals(s.getStatus()) || s.getTeacherVerdict() != null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Работу нельзя отозвать на этом этапе"));
+        }
+
+        if (s.getTeacher() != null && s.getTeacherMessageId() != null) {
+            bot.deleteMessage(s.getTeacher().getTelegramId(), s.getTeacherMessageId());
+        }
+
+        submissionRepository.deleteById(id);
+        return ResponseEntity.ok(Map.of("status", "OK"));
     }
 
     @GetMapping("/submissions/{id}/report")

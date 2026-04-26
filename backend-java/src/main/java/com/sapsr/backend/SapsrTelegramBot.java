@@ -6,6 +6,7 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -77,13 +78,26 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
         }
     }
 
-    public void notifyUser(Long chatId, String text) {
+    public Integer notifyUser(Long chatId, String text) {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
                 .build();
         try {
-            telegramClient.execute(message);
+            return telegramClient.execute(message).getMessageId();
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public void deleteMessage(Long chatId, Integer messageId) {
+        if (chatId == null || messageId == null) return;
+        try {
+            telegramClient.execute(DeleteMessage.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .build());
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
