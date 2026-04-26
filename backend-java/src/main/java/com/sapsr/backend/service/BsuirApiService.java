@@ -16,8 +16,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class BsuirApiService {
 
-    private static final String SCHEDULE_URL = "https://iis.bsuir.by/api/v1/schedule/student-group/";
+    private static final String SCHEDULE_URL      = "https://iis.bsuir.by/api/v1/schedule?studentGroup=";
     private static final String STUDENT_GROUPS_URL = "https://iis.bsuir.by/api/v1/student-groups";
+    private static final String EMPLOYEES_URL      = "https://iis.bsuir.by/api/v1/employees/all";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -28,6 +29,8 @@ public class BsuirApiService {
     // Кэш: номер группы → набор email преподавателей (@bsuir.by)
     private final Map<String, Set<String>> emailCache = new ConcurrentHashMap<>();
     private final Set<String> knownGroupsCache = ConcurrentHashMap.newKeySet();
+    // Кэш: email → ФИО (из /employees/all)
+    private volatile Map<String, String> employeesByEmail = null;
 
     public Set<String> getTeachersForGroup(String groupNumber) {
         return cache.computeIfAbsent(groupNumber, this::fetchFromApi);
@@ -35,6 +38,51 @@ public class BsuirApiService {
 
     public Set<String> getTeacherEmailsForGroup(String groupNumber) {
         return emailCache.computeIfAbsent(groupNumber, this::fetchEmailsFromApi);
+    }
+
+    public String findTeacherNameByEmail(String email) {
+        if (email == null) return null;
+        Map<String, String> map = getEmployeesByEmail();
+        return map.get(email.trim().toLowerCase());
+    }
+
+    private Map<String, String> getEmployeesByEmail() {
+        if (employeesByEmail != null) return employeesByEmail;
+        synchronized (this) {
+            if (employeesByEmail != null) return employeesByEmail;
+            employeesByEmail = fetchAllEmployees();
+        }
+        return employeesByEmail;
+    }
+
+    private Map<String, String> fetchAllEmployees() {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(EMPLOYEES_URL))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return Map.of();
+
+            JsonNode arr = objectMapper.readTree(response.body());
+            if (!arr.isArray()) return Map.of();
+
+            Map<String, String> result = new java.util.HashMap<>();
+            for (JsonNode emp : arr) {
+                String empEmail = text(emp, "email");
+                if (empEmail == null) continue;
+                String fio = text(emp, "fio");
+                if (fio == null) fio = buildFio(emp);
+                if (fio != null) result.put(empEmail.toLowerCase(), fio);
+            }
+            System.out.println("[BSUIR API] Загружено " + result.size() + " сотрудников");
+            return result;
+        } catch (Exception e) {
+            System.err.println("[BSUIR API] Ошибка загрузки сотрудников: " + e.getMessage());
+            return Map.of();
+        }
     }
 
     public boolean groupExists(String groupNumber) {
@@ -186,6 +234,7 @@ public class BsuirApiService {
         cache.clear();
         emailCache.clear();
         knownGroupsCache.clear();
-        System.out.println("[BSUIR API] Кэш расписаний очищен");
+        employeesByEmail = null;
+        System.out.println("[BSUIR API] Кэш расписаний и сотрудников очищен");
     }
 }

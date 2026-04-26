@@ -125,6 +125,20 @@ public class UploadController {
             if (!emailVerificationService.verifyCode(email, code)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
             }
+
+            // Проверка дубликата: та же почта у другого пользователя
+            Optional<User> byEmail = userRepository.findByEmail(email);
+            if (byEmail.isPresent() && !byEmail.get().getTelegramId().equals(telegramId)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована в системе"));
+            }
+
+            // Автозаполнение ФИО из IIS
+            String iisName = bsuirApiService.findTeacherNameByEmail(email);
+            if (iisName != null && !iisName.isBlank()) {
+                fullName = iisName;
+            } else if (fullName.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Преподаватель с почтой " + email + " не найден в IIS БГУИР"));
+            }
         }
 
         Optional<User> existing = userRepository.findById(telegramId);
