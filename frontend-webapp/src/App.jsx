@@ -156,6 +156,24 @@ function App() {
     teacherSearch: useRef(null),
   };
 
+  // Свайп-навигация
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+
+  const handleTouchStart = (e) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    const dx = e.changedTouches[0].clientX - swipeStartX.current;
+    const dy = e.changedTouches[0].clientY - swipeStartY.current;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const maxTab = tabs.length - 1;
+    if (dx < 0 && activeTab < maxTab) handleTabChange(activeTab + 1);
+    if (dx > 0 && activeTab > 0)      handleTabChange(activeTab - 1);
+  };
+
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
   const apiHeaders = (extra = {}) => ({ 'Authorization': initData, ...extra });
@@ -473,7 +491,6 @@ function App() {
   const handleTeacherSendCode = async (e) => {
     e.preventDefault();
     setRegError('');
-    if (!teacherFullName.trim()) { setRegError('Введите ФИО'); return; }
     if (!teacherEmail.trim()) { setRegError('Введите email'); return; }
     setSendingCode(true);
     try {
@@ -500,7 +517,7 @@ function App() {
       const res = await fetch(`${API_BASE}/register`, {
         method: 'POST',
         headers: apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ role: 'TEACHER', full_name: teacherFullName.trim(), email: teacherEmail.trim(), code: regCode.trim() }),
+        body: JSON.stringify({ role: 'TEACHER', full_name: '', email: teacherEmail.trim(), code: regCode.trim() }),
       });
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred('success');
@@ -734,11 +751,9 @@ function App() {
           <MotionDiv key="reg-teacher" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Регистрация преподавателя</p>
             <form onSubmit={handleTeacherSendCode} className="register-form">
-              <input type="text" className="reg-input" placeholder="Иванов Иван Иванович"
-                value={teacherFullName} onChange={(e) => setTeacherFullName(e.target.value)} autoFocus />
               <input type="email" className="reg-input" placeholder="ivanov@bsuir.by"
-                value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} style={{ marginTop: 10 }} />
-              <p className="reg-hint">Код подтверждения будет отправлен на указанный email</p>
+                value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} autoFocus />
+              <p className="reg-hint">Введите корпоративную почту @bsuir.by. ФИО будет заполнено автоматически из IIS.</p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={sendingCode}>
@@ -775,6 +790,8 @@ function App() {
             initial="enter" animate="center" exit="exit"
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="screen main-content"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
           >
             {/* ===== СТУДЕНТ: загрузка ===== */}
             {userRole === 'student' && activeTab === 0 && (
