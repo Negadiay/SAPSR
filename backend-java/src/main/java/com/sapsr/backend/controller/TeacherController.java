@@ -33,39 +33,36 @@ public class TeacherController {
         // Пытаемся получить группу студента из его fullName: "Иванов И.И. (гр. 321702)"
         String groupNumber = extractGroupNumber(request);
 
-        List<User> filtered = allTeachers;
+        // null = ещё не определено; в конце: если null → показать всех (IIS недоступен)
+        List<User> filtered = null;
         if (groupNumber != null && !groupNumber.isBlank()) {
-            // Приоритет: совпадение по email (более надёжно)
             Set<String> iisEmails = bsuirApiService.getTeacherEmailsForGroup(groupNumber);
-            if (!iisEmails.isEmpty()) {
-                List<User> byEmail = allTeachers.stream()
-                        .filter(t -> t.getEmail() != null && iisEmails.contains(t.getEmail().toLowerCase()))
-                        .toList();
-                if (!byEmail.isEmpty()) {
-                    filtered = byEmail;
-                } else {
-                    // Резерв: совпадение по нормализованному ФИО
-                    Set<String> groupTeachers = bsuirApiService.getTeachersForGroup(groupNumber);
-                    if (!groupTeachers.isEmpty()) {
-                        List<User> byName = allTeachers.stream()
-                                .filter(t -> t.getFullName() != null
-                                        && groupTeachers.contains(BsuirApiService.normalize(t.getFullName())))
-                                .toList();
-                        if (!byName.isEmpty()) filtered = byName;
-                    }
+            Set<String> iisNames  = bsuirApiService.getTeachersForGroup(groupNumber);
+            boolean iisHasData = !iisEmails.isEmpty() || !iisNames.isEmpty();
+
+            if (iisHasData) {
+                // 1. Совпадение по email
+                if (!iisEmails.isEmpty()) {
+                    List<User> byEmail = allTeachers.stream()
+                            .filter(t -> t.getEmail() != null && iisEmails.contains(t.getEmail().toLowerCase()))
+                            .toList();
+                    if (!byEmail.isEmpty()) filtered = byEmail;
                 }
-            } else {
-                // IIS не вернул email — пробуем по имени
-                Set<String> groupTeachers = bsuirApiService.getTeachersForGroup(groupNumber);
-                if (!groupTeachers.isEmpty()) {
+                // 2. Совпадение по нормализованному ФИО
+                if (filtered == null && !iisNames.isEmpty()) {
                     List<User> byName = allTeachers.stream()
                             .filter(t -> t.getFullName() != null
-                                    && groupTeachers.contains(BsuirApiService.normalize(t.getFullName())))
+                                    && iisNames.contains(BsuirApiService.normalize(t.getFullName())))
                             .toList();
                     if (!byName.isEmpty()) filtered = byName;
                 }
+                // 3. IIS вернул данные, но ни один зарегистрированный преподаватель не совпал —
+                //    показываем пустой список, чтобы не допустить выбор чужого преподавателя
+                if (filtered == null) filtered = Collections.emptyList();
             }
+            // Если iisHasData == false: IIS не ответил — filtered остаётся null → ниже вернём всех
         }
+        if (filtered == null) filtered = allTeachers;
 
         List<Map<String, Object>> result = filtered.stream()
                 .map(t -> Map.<String, Object>of(

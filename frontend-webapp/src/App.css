@@ -1359,3 +1359,64 @@ input[type="file"] {
   background: #16213e;
   color: #e0e0e0;
 }
+
+/* --- ДИАЛОГ ПОДТВЕРЖДЕНИЯ ОТЗЫВА --- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  border-radius: 16px;
+  padding: 24px 20px 18px;
+  max-width: 300px;
+  width: 88vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.confirm-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.confirm-body {
+  margin: 0 0 20px;
+  font-size: 14px;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+.confirm-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.withdraw-confirm-btn {
+  background: #e53935;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.withdraw-confirm-btn:active {
+  opacity: 0.8;
+}
+
+.app-dark .confirm-dialog {
+  background: #1a2744;
+  color: #e0e0e0;
+}

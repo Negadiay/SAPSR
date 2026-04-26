@@ -29,8 +29,9 @@ const STUDENT_STEPS = [
 ];
 const TEACHER_STEPS = [
   { refKey: null,           text: 'Добро пожаловать! Здесь вы проверяете курсовые работы студентов.' },
-  { refKey: 'teacherSearch', text: 'Используйте поиск, чтобы быстро отфильтровать работы по группе, студенту или названию файла.' },
   { refKey: 'submissions',  text: 'Здесь появляются работы, прошедшие автоматическую проверку оформления. Нажмите на карточку чтобы раскрыть действия.' },
+  { refKey: 'teacherSearch', text: 'Поиск под списком работ фильтрует по имени, группе или файлу. Можно вводить сразу несколько слов — например «Жерко 321702».' },
+  { refKey: 'navNotes',     text: 'Во вкладке «Заметки» можно записать напоминание. Кнопка «Найти» автоматически найдёт работы студента, упомянутого в заметке.' },
   { refKey: null,           text: 'Вы получите уведомление в Telegram, когда студент пришлёт работу на проверку.' },
   { refKey: 'navSettings',  text: 'В настройках можно изменить тему, размер шрифта и включить контрастный режим.' },
 ];
@@ -132,6 +133,7 @@ function App() {
 
   // Отзыв работы студентом
   const [withdrawing, setWithdrawing]       = useState(null);
+  const [withdrawConfirmId, setWithdrawConfirmId] = useState(null);
 
   // Настройки
   const [theme, setTheme]       = useState(() => localStorage.getItem('sapsr_theme') || 'auto');
@@ -144,12 +146,13 @@ function App() {
 
   // Refs для туториала
   const refs = {
-    teacherSel:  useRef(null),
-    fileUpload:  useRef(null),
-    submitBtn:   useRef(null),
-    navNotif:    useRef(null),
-    navSettings: useRef(null),
-    submissions: useRef(null),
+    teacherSel:   useRef(null),
+    fileUpload:   useRef(null),
+    submitBtn:    useRef(null),
+    navNotif:     useRef(null),
+    navSettings:  useRef(null),
+    navNotes:     useRef(null),
+    submissions:  useRef(null),
     teacherSearch: useRef(null),
   };
 
@@ -161,6 +164,7 @@ function App() {
     if (role === 'teacher') {
       if (refKey === 'teacherSearch') return 0;
       if (refKey === 'submissions') return 0;
+      if (refKey === 'navNotes') return 1;
       if (refKey === 'navSettings') return 2;
       return null;
     }
@@ -238,19 +242,24 @@ function App() {
 
   const handleFindFromNote = (text) => {
     const groupMatch = text.match(/\d{6}/);
-    const nameMatch  = text.match(/[А-ЯЁ][а-яё]+/);
-    const query = [nameMatch?.[0], groupMatch?.[0]].filter(Boolean).join(' ');
+    // Пропускаем слова, похожие на глаголы-инфинитивы (оканчивающиеся на -ть, -чь, -ться)
+    const capitalWords = [...text.matchAll(/[А-ЯЁ][а-яё]+/g)].map(m => m[0]);
+    const surname = capitalWords.find(w => !/[тТ][ьЬ]([сС][яЯ])?$|[чЧ][ьЬ]$/.test(w));
+    const query = [surname, groupMatch?.[0]].filter(Boolean).join(' ');
     setTeacherSearch(query);
     setDirection(-1);
     setActiveTab(0);
   };
 
   // --- Отзыв работы ---
-  const handleWithdrawWork = async (submissionId) => {
-    if (!confirm('Отозвать работу? Она исчезнет у преподавателя.')) return;
-    setWithdrawing(submissionId);
+  const handleWithdrawWork = (submissionId) => setWithdrawConfirmId(submissionId);
+
+  const confirmWithdraw = async () => {
+    const id = withdrawConfirmId;
+    setWithdrawConfirmId(null);
+    setWithdrawing(id);
     try {
-      await fetch(`${API_BASE}/submissions/${submissionId}`, { method: 'DELETE', headers: apiHeaders() });
+      await fetch(`${API_BASE}/submissions/${id}`, { method: 'DELETE', headers: apiHeaders() });
       fetchSubmissions();
     } finally { setWithdrawing(null); }
   };
@@ -292,9 +301,10 @@ function App() {
   const filteredTeacherSubmissions = teacherSubmissions.filter((s) => {
     const query = teacherSearch.trim().toLowerCase();
     if (!query) return true;
-    return [s.student_name, s.file_name, s.created_at]
-      .filter(Boolean)
-      .some(value => String(value).toLowerCase().includes(query));
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const haystack = [s.student_name, s.file_name, s.created_at]
+      .filter(Boolean).map(v => String(v).toLowerCase()).join(' ');
+    return tokens.every(token => haystack.includes(token));
   });
 
   useEffect(() => {
@@ -633,13 +643,27 @@ function App() {
   ];
   const teacherTabs = [
     { icon: '📋', label: 'Работы' },
-    { icon: '📝', label: 'Заметки' },
+    { icon: '📝', label: 'Заметки', ref: refs.navNotes },
     { icon: '⚙️', label: 'Настройки', ref: refs.navSettings },
   ];
   const tabs = userRole === 'teacher' ? teacherTabs : studentTabs;
 
   return (
     <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''}`}>
+
+      {/* Диалог подтверждения отзыва работы */}
+      {withdrawConfirmId !== null && (
+        <div className="confirm-overlay" onClick={() => setWithdrawConfirmId(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <p className="confirm-title">Отозвать работу?</p>
+            <p className="confirm-body">Работа исчезнет из списка преподавателя, а уведомление в Telegram будет удалено.</p>
+            <div className="confirm-btns">
+              <button className="secondary-btn" onClick={() => setWithdrawConfirmId(null)}>Отмена</button>
+              <button className="withdraw-confirm-btn" onClick={confirmWithdraw}>Отозвать</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Кнопка туториала */}
       {step === 'main' && (
