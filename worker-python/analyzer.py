@@ -1,15 +1,31 @@
+"""SAPSR PDF Analyzer — интеллектуальный анализ пояснительной записки БГУИР.
+
+Принципы:
+  · Все regex компилируются один раз при загрузке модуля.
+  · Текст строится через join(), не через +=.
+  · Пороги мягкие — правильно оформленный LaTeX-документ должен проходить.
+  · Специальности БГУИР кэшируются в памяти процесса (TTL 1 час).
+  · Поля измеряются только по основному тексту (без колонтитулов).
+  · Номера страниц определяются группировкой символов (работает для стр. 10+).
+  · Новые проверки: межстрочный интервал, абзацный отступ, таблицы,
+    нумерация разделов, формат библиографии, тип документа.
+"""
+
 import re
 import sys
 import json
-from collections import Counter
+import time
+from collections import Counter, defaultdict
 from datetime import datetime
+from typing import Optional
+
 import pdfplumber
 import requests
+
 from check_config import (
     ALLOWED_FONT_FAMILIES,
     BSUIR_SPECIALITIES_URL,
     CRITICAL_REFERENCES_THRESHOLD,
-    FONT_FAMILY_VIOLATION_THRESHOLD,
     FONT_SIZE_MAJOR_THRESHOLD_PCT,
     FONT_SIZE_MAX,
     FONT_SIZE_MIN,
@@ -26,79 +42,159 @@ from check_config import (
     REQUIRED_SECTIONS,
 )
 
-# --- Утилиты ---
+# ---------------------------------------------------------------------------
+# Предкомпилированные regex (один раз при старте процесса)
+# ---------------------------------------------------------------------------
 
-def _make_error(severity, page, message, rule, found, fix, location=None, category=None):
+_RE_NON_ALNUM   = re.compile(r"[^a-zа-яё0-9]")
+_RE_SOFT_HYPHEN = re.compile(r"­")
+_RE_HARD_BREAK  = re.compile(r"-[ \t]*\n[ \t]*")
+
+_RE_TOC_DOTS  = re.compile(r"\.{4,}")
+_RE_TOC_TRAIL = re.compile(r".*\s{3,}\d+\s*$")
+
+# Нумерованные заголовки (раздел / подраздел)
+_RE_SECTION_NUM = re.compile(r"^\s*(\d+(?:\.\d+)?)\s+\S", re.MULTILINE)
+
+# Список источников
+_RE_REF_HEADING = re.compile(
+    r"список\s+(?:использованных\s+источников|литературы)", re.IGNORECASE
+)
+_RE_REF_ENTRY_A = re.compile(r"^\s*\[?\d+\]?[\.\)]?\s+\S", re.MULTILINE)
+_RE_REF_ENTRY_B = re.compile(r"^\s*\d+\s+\S", re.MULTILINE)
+_RE_REF_YEAR    = re.compile(r"\b(19|20)\d{2}\b")
+_RE_REF_URL     = re.compile(r"https?://")
+
+# Рисунки — все падежные формы + сокращение «рис.»
+_NUM_PAT = r"(\d+(?:[\s.]\d+)*)"
+
+_RE_FIG_CAPTION = re.compile(r"рисунок\s*" + _NUM_PAT, re.IGNORECASE)
+_RE_FIG_ANY     = re.compile(
+    r"рис(?:ун(?:ок|ка|ку|ке|ком|ки|ков))?\.?\s*" + _NUM_PAT,
+    re.IGNORECASE,
+)
+
+# Таблицы — все падежные формы + сокращение «табл.»
+_RE_TBL_CAPTION = re.compile(r"таблица\s*" + _NUM_PAT, re.IGNORECASE)
+_RE_TBL_REF     = re.compile(
+    r"(?:таблиц[ауеы]?|табл\.?)\s*" + _NUM_PAT,
+    re.IGNORECASE,
+)
+
+# Простые и нумерованные списки
+_RE_SIMPLE_LIST   = re.compile(r"((?:^[ \t]*[—–\-]\s+.{10,}\n?){3,})", re.MULTILINE)
+_RE_NUMBERED_LIST = re.compile(
+    r"((?:^[ \t]*\d+[\.\)]?\s+[а-яёА-ЯЁa-zA-Z].{5,}\n?){3,})",
+    re.MULTILINE,
+)
+
+# Титульный лист
+_RE_MINSK_YEAR = re.compile(
+    r"минск[^\n]*?(\d{4})|(\d{4})[^\n]*?минск", re.IGNORECASE
+)
+_RE_BSUIR_ID  = re.compile(
+    r"БГУИР\s+КП\d+\s+((?:\d[\d\s\-]{3,20}\d))\s+(\d{3})\b"
+)
+_RE_BSUIR_FB  = re.compile(
+    r"(\d-\d{2}[\s\-]\d{4}-\d{2}|\d-\d{2}[\s\-]\d{2}[\s\-]\d{2})\s+(\d{3})\b"
+)
+
+# Тип документа
+_RE_DTYPE_EXPLANATORY = re.compile(r"пояснительная\s+записка", re.IGNORECASE)
+_RE_DTYPE_COURSEWORK  = re.compile(r"курсов(?:ой|ого|ому|ым|ом)", re.IGNORECASE)
+_RE_DTYPE_THESIS      = re.compile(r"дипломн|выпускной|квалификацион", re.IGNORECASE)
+
+# Предкомпилированные паттерны разделов из конфига
+_COMPILED_SECTIONS = {
+    key: [re.compile(p, re.IGNORECASE) for p in data["patterns"]]
+    for key, data in REQUIRED_SECTIONS.items()
+}
+
+# ---------------------------------------------------------------------------
+# Преднормализованные семейства шрифтов — O(1) поиск
+# ---------------------------------------------------------------------------
+
+_ALLOWED_FONTS_NORMALIZED: frozenset[str] = frozenset(
+    _RE_NON_ALNUM.sub("", f.lower()) for f in ALLOWED_FONT_FAMILIES
+)
+
+# ---------------------------------------------------------------------------
+# Кэш специальностей (уровень процесса, TTL 1 час)
+# ---------------------------------------------------------------------------
+
+_specialties_cache: Optional[frozenset] = None
+_specialties_cache_ts: float            = 0.0
+_SPECIALTIES_TTL: float                 = 3600.0
+
+
+def _get_known_specialties() -> Optional[frozenset]:
+    global _specialties_cache, _specialties_cache_ts
+    now = time.monotonic()
+    if _specialties_cache is not None and (now - _specialties_cache_ts) < _SPECIALTIES_TTL:
+        return _specialties_cache
+    try:
+        resp = requests.get(BSUIR_SPECIALITIES_URL, timeout=8)
+        if resp.status_code == 200:
+            codes = frozenset(
+                _normalize_code(s.get("code", ""))
+                for s in resp.json()
+                if s.get("code")
+            )
+            _specialties_cache    = codes
+            _specialties_cache_ts = now
+            return codes
+    except Exception as exc:
+        print(f"[ANALYZER] BSUIR specialties API недоступен: {exc}")
+    return _specialties_cache  # устаревший кэш или None
+
+
+# ---------------------------------------------------------------------------
+# Утилиты
+# ---------------------------------------------------------------------------
+
+def _make_error(
+    severity: str,
+    page,
+    message: str,
+    rule: str,
+    found: str,
+    fix: str,
+    location: Optional[str] = None,
+    category: Optional[str] = None,
+) -> dict:
     return {
         "severity": severity,
         "category": category or severity,
-        "page": page,
+        "page":     page,
         "location": location or (f"Страница {page}" if page else "Документ"),
-        "message": message,
-        "rule": rule,
-        "found": found,
-        "fix": fix,
+        "message":  message,
+        "rule":     rule,
+        "found":    found,
+        "fix":      fix,
     }
 
 
 def _clean_text(raw: str) -> str:
-    """Нормализует текст, извлечённый pdfplumber из LaTeX-PDF.
-
-    pdfplumber сохраняет исходный layout: мягкие переносы (U+00AD),
-    дефисы в конце строк и разрывы внутри заголовков. Это мешает
-    поиску фраз целиком. Функция удаляет мягкие переносы и объединяет
-    слова, разбитые дефисом на конце строки, оставляя остальные пробелы
-    нетронутыми — так что нумерация страниц и цифровые паттерны не ломаются.
-    """
-    # Мягкий перенос U+00AD — просто убираем
-    text = raw.replace('­', '')
-    # «слово-\n» → «слово» (жёсткий дефис-перенос LaTeX)
-    text = re.sub(r'-[ \t]*\n[ \t]*', '', text)
+    """Убирает мягкие переносы и объединяет слова с жёстким дефисом-переносом."""
+    text = _RE_SOFT_HYPHEN.sub("", raw)
+    text = _RE_HARD_BREAK.sub("", text)
     return text
 
 
-def _dominant_size(chars):
-    size_counts = Counter()
-    for c in chars:
-        text = c.get("text", "").strip()
-        if text and text not in (" ", "\n"):
-            size_counts[round(c.get("size", 0), 1)] += 1
-    return size_counts.most_common(1)[0][0] if size_counts else 0.0
+def _normalize_code(s: str) -> str:
+    return re.sub(r"[\s\-]", "", (s or "")).lower()
 
 
-def _normalize_font_family(font_name):
-    name = (font_name or "").lower()
-    if "+" in name:
-        name = name.split("+", 1)[1]
-    return re.sub(r"[^a-zа-яё0-9]", "", name)
+def _norm_num(n: str) -> str:
+    """'2 . 2' → '2.2'"""
+    return re.sub(r"\s", "", n)
 
 
-def _is_allowed_font_family(font_name):
-    if not font_name:
-        return True
-    # LaTeX embeds all fonts as subsets with a random 6-letter uppercase prefix before "+".
-    # These are always properly embedded fonts — check only the base name after "+".
-    base = font_name
-    if "+" in font_name:
-        base = font_name.split("+", 1)[1]
-    normalized_base = re.sub(r"[^a-zа-яё0-9]", "", base.lower())
-    return any(
-        re.sub(r"[^a-zа-яё0-9]", "", family.lower()) in normalized_base
-        for family in ALLOWED_FONT_FAMILIES
-    )
+def _is_toc_line(line: str) -> bool:
+    return bool(_RE_TOC_DOTS.search(line)) or bool(_RE_TOC_TRAIL.match(line))
 
 
-def _dominant_font(chars):
-    font_counts = Counter()
-    for c in chars:
-        text = c.get("text", "").strip()
-        font_name = c.get("fontname")
-        if text and font_name:
-            font_counts[font_name] += 1
-    return font_counts.most_common(1)[0][0] if font_counts else ""
-
-
-def _pages_to_range(pages):
+def _pages_to_range(pages) -> str:
     if not pages:
         return ""
     pages = sorted(set(pages))
@@ -113,526 +209,732 @@ def _pages_to_range(pages):
     return ", ".join(ranges)
 
 
-def _normalize_code(s):
-    return re.sub(r"[\s\-]", "", (s or "")).lower()
+def _percentile(lst: list, pct: float) -> float:
+    """p-й процентиль отсортированного списка."""
+    if not lst:
+        return 0.0
+    s   = sorted(lst)
+    idx = max(0, min(int(len(s) * pct / 100), len(s) - 1))
+    return s[idx]
 
 
-def _is_toc_line(line):
-    """Строка выглядит как строка оглавления: много точек или заканчивается на цифры после пробелов."""
-    return bool(re.search(r"\.{4,}", line)) or bool(re.match(r".*\s{3,}\d+\s*$", line))
+def _dominant_size(chars: list) -> float:
+    counts = Counter(
+        round(c.get("size", 0), 1)
+        for c in chars
+        if c.get("text", "").strip()
+    )
+    return counts.most_common(1)[0][0] if counts else 0.0
 
 
-# --- Структурные проверки ---
+def _dominant_font(chars: list) -> str:
+    counts = Counter(
+        c.get("fontname")
+        for c in chars
+        if c.get("text", "").strip() and c.get("fontname")
+    )
+    return counts.most_common(1)[0][0] if counts else ""
 
-def _check_structure(full_text):
+
+def _is_allowed_font(font_name: str) -> bool:
+    """Проверяет семейство шрифта; всегда принимает встроенные LaTeX-шрифты."""
+    if not font_name:
+        return True
+    # LaTeX встраивает шрифты с 6-буквенным prefix до "+": отбрасываем его
+    base       = font_name.split("+", 1)[-1]
+    normalized = _RE_NON_ALNUM.sub("", base.lower())
+    return any(fam in normalized for fam in _ALLOWED_FONTS_NORMALIZED)
+
+
+def _body_chars(chars: list) -> list:
+    """Возвращает символы основного текста (без колонтитулов)."""
+    lo = MARGIN_TOP    - MARGIN_TOLERANCE
+    hi = MARGIN_BOTTOM + MARGIN_TOLERANCE
+    return [
+        c for c in chars
+        if c.get("text", "").strip()
+        and lo <= c.get("top", 0) <= hi
+    ]
+
+
+def _detect_page_number(chars: list) -> bool:
+    """Определяет наличие номера страницы, группируя соседние символы-цифры.
+
+    Исправляет баг исходной версии, где '.isdigit()' работал только для
+    однозначных чисел — для страниц 10+ символы разные и нужна группировка.
+    """
+    bottom = [
+        c for c in chars
+        if c.get("top", 0) >= PAGE_NUM_Y_MIN and c.get("text", "").strip()
+    ]
+    if not bottom:
+        return False
+
+    bottom.sort(key=lambda c: c.get("x0", 0))
+
+    # Группируем символы, находящиеся в пределах 3pt по x
+    groups: list[list] = []
+    current            = [bottom[0]]
+    for c in bottom[1:]:
+        gap = c.get("x0", 0) - current[-1].get("x1", current[-1].get("x0", 0))
+        if gap < 3.0:
+            current.append(c)
+        else:
+            groups.append(current)
+            current = [c]
+    groups.append(current)
+
+    for group in groups:
+        text = "".join(c.get("text", "") for c in group).strip()
+        if text.isdigit() and 1 <= int(text) <= 9999:
+            x0 = min(c.get("x0", 0) for c in group)
+            if x0 >= PAGE_NUM_X_MIN:
+                return True
+    return False
+
+
+def _detect_document_type(first_page_text: str) -> str:
+    if _RE_DTYPE_THESIS.search(first_page_text):
+        return "thesis"
+    if (
+        _RE_DTYPE_COURSEWORK.search(first_page_text)
+        or _RE_DTYPE_EXPLANATORY.search(first_page_text)
+    ):
+        return "coursework"
+    return "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Проверки
+# ---------------------------------------------------------------------------
+
+def _check_structure(full_text: str) -> list:
     errors = []
-    for key, section in REQUIRED_SECTIONS.items():
-        if not any(re.search(p, full_text, re.IGNORECASE) for p in section["patterns"]):
+    for key, patterns in _COMPILED_SECTIONS.items():
+        if not any(p.search(full_text) for p in patterns):
+            name = REQUIRED_SECTIONS[key]["name"]
             errors.append(_make_error(
-                "critical",
-                None,
-                f"Отсутствует обязательный раздел: «{section['name']}».",
-                f"В документе должен быть раздел «{section['name']}».",
+                "critical", None,
+                f"Отсутствует обязательный раздел: «{name}».",
+                f"В документе должен быть раздел «{name}».",
                 "Раздел не найден по ключевому заголовку.",
-                f"Добавьте раздел «{section['name']}» с отдельным заголовком.",
-                "Структура документа",
-                "critical",
+                f"Добавьте раздел «{name}» с отдельным заголовком.",
+                "Структура документа", "critical",
             ))
     return errors
 
 
-def _check_references_count(full_text):
-    errors = []
-    heading_pattern = r"список\s+использованных\s+источников"
-    matches = list(re.finditer(heading_pattern, full_text, re.IGNORECASE))
+def _check_section_numbering(full_text: str) -> list:
+    """Мягкая проверка: разделы нумеруются последовательно без пропусков."""
+    matches   = _RE_SECTION_NUM.findall(full_text)
+    top_level = sorted({
+        int(m.split(".")[0])
+        for m in matches
+        if m.split(".")[0].isdigit()
+    })
+    if len(top_level) < 2:
+        return []
+    gaps = [
+        top_level[i]
+        for i in range(1, len(top_level))
+        if top_level[i] != top_level[i - 1] + 1
+    ]
+    if not gaps:
+        return []
+    return [_make_error(
+        "minor", None,
+        "Нарушена последовательность номеров разделов.",
+        "Разделы должны нумероваться последовательно: 1, 2, 3...",
+        f"Пропуски перед разделами: {', '.join(map(str, gaps))}.",
+        "Проверьте нумерацию разделов в документе.",
+        "Нумерация разделов", "warning",
+    )]
+
+
+def _check_references_count(full_text: str) -> list:
+    errors  = []
+    matches = list(_RE_REF_HEADING.finditer(full_text))
     if not matches:
         return errors
-
-    # The same heading usually appears in the table of contents. Use the last
-    # occurrence to inspect the actual references section.
-    section_text = full_text[matches[-1].end():]
-    count = len(re.findall(r"^\s*\[?\d+\]?[\.\)]?\s+\S", section_text, re.MULTILINE))
+    # Последнее вхождение заголовка = фактический раздел (первое — в оглавлении)
+    section = full_text[matches[-1].end():]
+    count   = len(_RE_REF_ENTRY_A.findall(section))
     if count == 0:
-        count = len(re.findall(r"^\s*\d+\s+\S", section_text, re.MULTILINE))
+        count = len(_RE_REF_ENTRY_B.findall(section))
     if count < CRITICAL_REFERENCES_THRESHOLD:
         errors.append(_make_error(
-            "critical",
-            None,
-            f"Список использованных источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников.",
-            f"В разделе «Список использованных источников» должно быть не менее {MIN_REFERENCES} источников.",
-            f"Найдено источников: {count}.",
-            "Добавьте недостающие источники и оформите каждый пункт отдельной пронумерованной строкой.",
-            "Раздел «Список использованных источников»",
-            "critical",
+            "critical", None,
+            f"Список источников содержит менее {CRITICAL_REFERENCES_THRESHOLD} источников.",
+            f"Должно быть не менее {MIN_REFERENCES} источников.",
+            f"Найдено: {count}.",
+            "Добавьте источники и оформите каждый отдельной строкой.",
+            "Список использованных источников", "critical",
         ))
     elif count < MIN_REFERENCES:
         errors.append(_make_error(
-            "warning",
-            None,
+            "warning", None,
             f"Рекомендуется не менее {MIN_REFERENCES} источников.",
-            f"В разделе «Список использованных источников» рекомендуется не менее {MIN_REFERENCES} источников.",
-            f"Найдено источников: {count}.",
-            "Добавьте источники или уточните нумерацию списка.",
-            "Раздел «Список использованных источников»",
-            "warning",
+            f"Рекомендуется не менее {MIN_REFERENCES} источников.",
+            f"Найдено: {count}.",
+            "Добавьте недостающие источники.",
+            "Список использованных источников", "warning",
         ))
     return errors
 
 
-def _check_simple_lists(full_text):
-    """Проверяет оформление простых списков (тире + знаки препинания).
-    Только настоящие списки — минимум 3 элемента, не строки TOC."""
+def _check_bibliography_format(full_text: str) -> list:
+    """Мягкая проверка: каждый источник должен содержать год или URL."""
+    matches = list(_RE_REF_HEADING.finditer(full_text))
+    if not matches:
+        return []
+    section = full_text[matches[-1].end():]
+    lines   = [
+        l.strip()
+        for l in section.splitlines()
+        if _RE_REF_ENTRY_A.match(l) or _RE_REF_ENTRY_B.match(l)
+    ]
+    if not lines:
+        return []
+    suspicious = [
+        l for l in lines
+        if not _RE_REF_YEAR.search(l) and not _RE_REF_URL.search(l)
+    ]
+    if not suspicious:
+        return []
+    return [_make_error(
+        "minor", None,
+        f"{len(suspicious)} источник(ов) не содержат года или URL.",
+        "Каждый источник должен содержать год публикации или гиперссылку.",
+        f"Подозрительных строк: {len(suspicious)}.",
+        "Оформите источники по ГОСТ 7.0.5-2008.",
+        "Список использованных источников", "warning",
+    )]
+
+
+def _check_simple_lists(full_text: str) -> list:
+    """Знаки препинания в простых списках (тире)."""
     errors = []
-    blocks = re.findall(r"((?:^[ \t]*[—–\-]\s+.{10,}\n?){3,})", full_text, re.MULTILINE)
-    for block in blocks:
-        lines = [l.rstrip() for l in block.strip().splitlines()
-                 if l.strip() and not _is_toc_line(l)]
+    for block in _RE_SIMPLE_LIST.findall(full_text):
+        lines = [
+            l.rstrip()
+            for l in block.strip().splitlines()
+            if l.strip() and not _is_toc_line(l)
+        ]
         if len(lines) < 3:
             continue
-        violations = 0
-        for i, line in enumerate(lines[:-1]):
-            if not line.endswith(";"):
-                violations += 1
-        last = lines[-1]
-        if not last.endswith("."):
+        violations = sum(1 for l in lines[:-1] if not l.endswith(";"))
+        if not lines[-1].endswith("."):
             violations += 1
-        if violations > 0:
+        if violations:
             errors.append(_make_error(
-                "minor",
-                None,
+                "minor", None,
                 "Нарушено оформление простого списка.",
-                "Промежуточные элементы простого списка должны заканчиваться «;», последний элемент — «.».",
+                "Промежуточные элементы — «;», последний элемент — «.».",
                 f"Нарушено в {violations} из {len(lines)} элементов.",
                 "Проверьте знаки препинания в конце пунктов списка.",
-                "Блок простого списка",
-                "warning",
+                "Простой список", "warning",
             ))
     return errors
 
 
-def _check_numbered_lists(full_text):
-    """Проверяет оформление сложных нумерованных списков.
-    Исключает заголовки разделов (CAPS) и строки TOC."""
+def _check_numbered_lists(full_text: str) -> list:
+    """Знаки препинания в нумерованных списках."""
     errors = []
-    # Ищем блоки: строки вида "1 Текст..." или "1. Текст..." — минимум 3 подряд
-    blocks = re.findall(
-        r"((?:^[ \t]*\d+[\.\)]?\s+[а-яёА-ЯЁa-zA-Z].{5,}\n?){3,})",
-        full_text, re.MULTILINE
-    )
-    for block in blocks:
-        lines = [l.rstrip() for l in block.strip().splitlines()
-                 if l.strip() and not _is_toc_line(l)]
-        # Пропускаем если это скорее всего TOC или заголовки разделов
-        uppercase_count = sum(1 for l in lines if re.sub(r"^\s*\d+[\.\)]?\s+", "", l).isupper())
-        if uppercase_count > len(lines) / 2:
+    for block in _RE_NUMBERED_LIST.findall(full_text):
+        lines = [
+            l.rstrip()
+            for l in block.strip().splitlines()
+            if l.strip() and not _is_toc_line(l)
+        ]
+        if len(lines) < 3:
             continue
-        violations = 0
-        for line in lines:
-            text = re.sub(r"^\s*\d+[\.\)]?\s+", "", line)
-            if text and not line.rstrip().endswith("."):
-                violations += 1
-        if violations > 0:
+        stripped     = [re.sub(r"^\s*\d+[\.\)]?\s+", "", l) for l in lines]
+        upper_count  = sum(1 for s in stripped if s and s == s.upper())
+        if upper_count > len(lines) / 2:
+            continue  # скорее всего оглавление или заголовки разделов
+        violations = sum(1 for l in lines if not l.rstrip().endswith("."))
+        if violations:
             errors.append(_make_error(
-                "minor",
-                None,
+                "minor", None,
                 "Нарушено оформление нумерованного списка.",
                 "Каждый элемент нумерованного списка должен заканчиваться точкой.",
                 f"Нарушено в {violations} из {len(lines)} элементах.",
-                "Поставьте точку в конце каждого пункта нумерованного списка.",
-                "Блок нумерованного списка",
-                "warning",
+                "Поставьте точку в конце каждого пункта.",
+                "Нумерованный список", "warning",
             ))
     return errors
 
 
-def _check_figures(full_text):
-    """Проверяет наличие ссылок на рисунки в тексте."""
-    errors = []
+def _check_figures(full_text: str) -> list:
+    """Каждый рисунок с подписью должен иметь ссылку в тексте.
 
-    # Захватываем номер рисунка: «2.2», «2 .2», «10» — из подписей и ссылок.
-    # Паттерн намеренно широкий: учитывает все падежные формы слова «рисунок»
-    # и сокращение «рис.», оба употребляются и в подписях, и в ссылках.
-    NUM = r"(\d+(?:[\s.]\d+)*)"
-    fig_pattern = re.compile(
-        r"рис(?:унок[еуаи]?|унке?)?\.?\s*" + NUM,
-        re.IGNORECASE,
-    )
+    Логика: номер рисунка появляется в подписи («Рисунок 2.2 — ...»)
+    и должен встретиться ещё хотя бы раз в виде любой формы слова
+    «рисунок» или «рис.» перед тем же номером.
+    """
+    caption_nums = {_norm_num(m) for m in _RE_FIG_CAPTION.findall(full_text)}
+    if not caption_nums:
+        return []
 
-    def _norm_num(n):
-        """'2 . 2'  →  '2.2'"""
-        return re.sub(r"\s", "", n)
+    occurrence_count = Counter(_norm_num(m) for m in _RE_FIG_ANY.findall(full_text))
 
-    all_nums = {_norm_num(m) for m in fig_pattern.findall(full_text)}
+    # Считаем ссылку найденной, если число встречается ≥ 2 раз
+    # (1 раз — сама подпись, 2+ раза — есть хотя бы одна ссылка в тексте)
+    missing = {n for n in caption_nums if occurrence_count.get(n, 0) < 2}
+    if not missing:
+        return []
 
-    # Подписи содержат слово «Рисунок» (с заглавной) + двухчастный номер вида N.N
-    caption_pattern = re.compile(
-        r"рисунок\s*" + NUM,
-        re.IGNORECASE,
-    )
-    caption_nums = {_norm_num(m) for m in caption_pattern.findall(full_text)}
+    def _sort_key(n):
+        return [int(p) for p in n.split(".") if p.isdigit()]
 
-    # Ссылки — всё остальное (все вхождения минус подписи)
-    # Если одно и то же число найдено хотя бы дважды — считаем, что ссылка есть.
-    from collections import Counter
-    all_matches = [_norm_num(m) for m in fig_pattern.findall(full_text)]
-    count = Counter(all_matches)
-
-    # Номер без ссылки: есть подпись, но встречается ровно один раз
-    # (само название рисунка) и нет отдельного упоминания через «рис.»
-    ref_pattern = re.compile(
-        r"рис(?:унок[еуаи]?|унке?)?\.?\s*" + NUM,
-        re.IGNORECASE,
-    )
-    ref_nums = {_norm_num(m) for m in ref_pattern.findall(full_text) if True}
-
-    # Подпись попадает в ref_nums сама по себе. Считаем «ссылку найденной»,
-    # если число встречается более одного раза (подпись + хотя бы одна ссылка)
-    missing_refs = {n for n in caption_nums if count.get(n, 0) < 2}
-
-    if missing_refs:
-        nums = ", ".join(sorted(missing_refs))
-        errors.append(_make_error(
-            "minor",
-            None,
-            f"Для рисунков {nums} есть подпись, но нет ссылки в тексте.",
-            "На каждый рисунок должна быть ссылка в тексте работы.",
-            f"Нет ссылок на рисунки: {nums}.",
-            "Добавьте ссылку в тексте, например «см. рис. N» или «рисунок N».",
-            "Подписи и ссылки на рисунки",
-            "warning",
-        ))
-    return errors
+    nums = ", ".join(sorted(missing, key=_sort_key))
+    return [_make_error(
+        "minor", None,
+        f"Для рисунков {nums} нет ссылки в тексте.",
+        "На каждый рисунок должна быть ссылка в тексте работы.",
+        f"Не найдены ссылки: {nums}.",
+        "Добавьте ссылку «см. рис. N» или «рисунок N» в текст.",
+        "Ссылки на рисунки", "warning",
+    )]
 
 
-def _check_student_id(full_text):
-    """Проверяет код специальности в студенческом номере БГУИР.
-    Формат: БГУИР КП[N] [specialty_code] [student_num] ПЗ
-    Пример: БГУИР КП6 6-05-0611-03 039 ПЗ"""
-    errors = []
+def _check_tables(full_text: str) -> list:
+    """Каждая таблица с подписью должна иметь ссылку в тексте."""
+    caption_nums = {_norm_num(m) for m in _RE_TBL_CAPTION.findall(full_text)}
+    if not caption_nums:
+        return []
 
-    # Ищем блок "БГУИР КП[цифра] ..." чтобы корректно пропустить КП-префикс
-    bsuir_match = re.search(
-        r"БГУИР\s+КП\d+\s+((?:\d[\d\s\-]{3,20}\d))\s+(\d{3})\b",
-        full_text
-    )
-    if not bsuir_match:
-        # Fallback: общий паттерн (специальность типа X-XX-XXXX-XX)
-        bsuir_match = re.search(
-            r"(\d-\d{2}[\s\-]\d{4}-\d{2}|\d-\d{2}[\s\-]\d{2}[\s\-]\d{2})\s+(\d{3})\b",
-            full_text
-        )
-        if not bsuir_match:
-            return errors
+    occurrence_count = Counter(_norm_num(m) for m in _RE_TBL_REF.findall(full_text))
 
-    specialty_raw = bsuir_match.group(1).strip()
+    missing = {n for n in caption_nums if occurrence_count.get(n, 0) < 2}
+    if not missing:
+        return []
+
+    def _sort_key(n):
+        return [int(p) for p in n.split(".") if p.isdigit()]
+
+    nums = ", ".join(sorted(missing, key=_sort_key))
+    return [_make_error(
+        "minor", None,
+        f"Для таблиц {nums} нет ссылки в тексте.",
+        "На каждую таблицу должна быть ссылка в тексте работы.",
+        f"Не найдены ссылки: {nums}.",
+        "Добавьте ссылку «см. таблицу N» или «таблица N» в текст.",
+        "Ссылки на таблицы", "warning",
+    )]
+
+
+def _check_student_id(full_text: str) -> list:
+    """Проверяет код специальности через кэшированный реестр БГУИР."""
+    m = _RE_BSUIR_ID.search(full_text) or _RE_BSUIR_FB.search(full_text)
+    if not m:
+        return []
+    specialty_raw  = m.group(1).strip()
     specialty_code = _normalize_code(specialty_raw)
-
-    try:
-        resp = requests.get(BSUIR_SPECIALITIES_URL, timeout=8)
-        if resp.status_code != 200:
-            return errors
-        specialities = resp.json()
-        known_codes = {_normalize_code(s.get("code", "")) for s in specialities if s.get("code")}
-        if specialty_code not in known_codes:
-            errors.append(_make_error(
-                "warning",
-                1,
-                f"Код специальности «{specialty_raw}» не найден в реестре специальностей БГУИР.",
-                "Код специальности в обозначении работы должен существовать в реестре БГУИР.",
-                f"Найден код: {specialty_raw}.",
-                "Проверьте правильность кода специальности на титульном листе.",
-                "Страница 1, обозначение работы",
-                "warning",
-            ))
-    except Exception as e:
-        print(f"[ANALYZER] BSUIR API недоступен: {e}")
-    return errors
+    known          = _get_known_specialties()
+    if known is None:
+        return []   # API недоступен — не блокируем
+    if specialty_code not in known:
+        return [_make_error(
+            "warning", 1,
+            f"Код специальности «{specialty_raw}» не найден в реестре БГУИР.",
+            "Код специальности должен существовать в реестре БГУИР.",
+            f"Найден код: {specialty_raw}.",
+            "Проверьте код специальности на титульном листе.",
+            "Страница 1, обозначение работы", "warning",
+        )]
+    return []
 
 
-def _check_minsk_year(first_page_text):
-    errors = []
-    match = re.search(r"минск[^\n]*?(\d{4})|(\d{4})[^\n]*?минск", first_page_text, re.IGNORECASE)
-    if not match:
-        errors.append(_make_error(
-            "minor",
-            1,
+def _check_minsk_year(first_page_text: str) -> list:
+    m = _RE_MINSK_YEAR.search(first_page_text)
+    if not m:
+        return [_make_error(
+            "minor", 1,
             "На титульном листе не найден год рядом со словом «Минск».",
-            "На титульном листе должен быть указан город Минск и год выполнения работы.",
-            "Год рядом со словом «Минск» не обнаружен.",
-            "Добавьте строку вида «Минск 2026» на титульный лист.",
-            "Страница 1, нижняя часть титульного листа",
-            "warning",
-        ))
-        return errors
-    year = int(match.group(1) or match.group(2))
-    current_year = datetime.now().year
-    if abs(year - current_year) > 1:
-        errors.append(_make_error(
-            "minor",
-            1,
-            f"На титульном листе указан год {year}, ожидается {current_year}.",
-            "Год на титульном листе должен соответствовать текущему учебному периоду.",
-            f"Найден год: {year}.",
-            f"Проверьте год и при необходимости замените его на {current_year}.",
-            "Страница 1, строка с городом и годом",
-            "warning",
-        ))
-    return errors
+            "Должна быть строка вида «Минск 2026».",
+            "Не обнаружено.",
+            "Добавьте строку «Минск <год>» на титульный лист.",
+            "Страница 1", "warning",
+        )]
+    year = int(m.group(1) or m.group(2))
+    if abs(year - datetime.now().year) > 1:
+        return [_make_error(
+            "minor", 1,
+            f"На титульном листе указан год {year}.",
+            f"Ожидается {datetime.now().year} (допустимо ±1).",
+            f"Год: {year}.",
+            f"Исправьте год на {datetime.now().year}.",
+            "Страница 1", "warning",
+        )]
+    return []
 
 
-def _check_margins(page, page_num):
+def _check_margins(page, page_num: int) -> list:
+    """Проверяет поля страницы по основному тексту с фильтрацией выбросов.
+
+    Использует 2-й/98-й процентиль вместо min/max, чтобы единичные
+    декорации или выступающие элементы не давали ложных срабатываний.
+    Колонтитулы исключаются через _body_chars().
+    """
+    all_chars = [c for c in (page.chars or []) if c.get("text", "").strip()]
+    if not all_chars:
+        return []
+
+    chars = _body_chars(all_chars)
+    if len(chars) < 5:
+        return []   # слишком мало символов основного текста — не оцениваем
+
+    xs   = [c["x0"]     for c in chars]
+    x1s  = [c["x1"]     for c in chars]
+    ys   = [c["top"]    for c in chars]
+    y1s  = [c["bottom"] for c in chars]
+
+    left   = _percentile(xs,   2)
+    right  = _percentile(x1s, 98)
+    top    = _percentile(ys,   2)
+    bottom = _percentile(y1s, 98)
+
     errors = []
-    chars = [c for c in (page.chars or []) if c.get("text", "").strip()]
-    if not chars:
-        return errors
-    xs  = [c["x0"]     for c in chars]
-    x1s = [c["x1"]     for c in chars]
-    ys  = [c["top"]    for c in chars]
-    y1s = [c["bottom"] for c in chars]
-    if min(xs)  < MARGIN_LEFT   - MARGIN_TOLERANCE:
+    if left < MARGIN_LEFT - MARGIN_TOLERANCE:
         errors.append(_make_error(
-            "minor",
-            page_num,
+            "minor", page_num,
             "Нарушено левое поле страницы.",
             "Левое поле должно быть 3 см.",
-            f"Текст начинается с x={min(xs):.0f}pt, норма ≥{MARGIN_LEFT:.0f}pt.",
-            r"В LaTeX проверьте \geometry{left=3cm}; в Word настройте левое поле 3 см.",
-            f"Страница {page_num}, левый край текста",
-            "warning",
+            f"Текст начинается с x={left:.0f}pt, норма ≥{MARGIN_LEFT:.0f}pt.",
+            r"Проверьте \geometry{left=3cm} или поле в Word.",
+            f"Страница {page_num}", "warning",
         ))
-    if max(x1s) > MARGIN_RIGHT  + MARGIN_TOLERANCE:
+    if right > MARGIN_RIGHT + MARGIN_TOLERANCE:
         errors.append(_make_error(
-            "minor",
-            page_num,
+            "minor", page_num,
             "Нарушено правое поле страницы.",
             "Правое поле должно быть 1.5 см.",
-            f"Текст уходит до x={max(x1s):.0f}pt, норма ≤{MARGIN_RIGHT:.0f}pt.",
-            r"В LaTeX проверьте \geometry{right=1.5cm}; в Word настройте правое поле 1.5 см.",
-            f"Страница {page_num}, правый край текста",
-            "warning",
+            f"Текст уходит до x={right:.0f}pt, норма ≤{MARGIN_RIGHT:.0f}pt.",
+            r"Проверьте \geometry{right=1.5cm}.",
+            f"Страница {page_num}", "warning",
         ))
-    if min(ys)  < MARGIN_TOP    - MARGIN_TOLERANCE:
+    if top < MARGIN_TOP - MARGIN_TOLERANCE:
         errors.append(_make_error(
-            "minor",
-            page_num,
+            "minor", page_num,
             "Нарушено верхнее поле страницы.",
             "Верхнее поле должно быть 2 см.",
-            f"Текст начинается с y={min(ys):.0f}pt, норма ≥{MARGIN_TOP:.0f}pt.",
-            r"В LaTeX проверьте \geometry{top=2cm}; в Word настройте верхнее поле 2 см.",
-            f"Страница {page_num}, верхний край текста",
-            "warning",
+            f"Текст начинается с y={top:.0f}pt, норма ≥{MARGIN_TOP:.0f}pt.",
+            r"Проверьте \geometry{top=2cm}.",
+            f"Страница {page_num}", "warning",
         ))
-    if max(y1s) > MARGIN_BOTTOM + MARGIN_TOLERANCE:
+    if bottom > MARGIN_BOTTOM + MARGIN_TOLERANCE:
         errors.append(_make_error(
-            "minor",
-            page_num,
+            "minor", page_num,
             "Нарушено нижнее поле страницы.",
             "Нижнее поле должно быть 2.7 см.",
-            f"Текст уходит до y={max(y1s):.0f}pt, норма ≤{MARGIN_BOTTOM:.0f}pt.",
-            r"В LaTeX проверьте \geometry{bottom=2.7cm}; в Word настройте нижнее поле 2.7 см.",
-            f"Страница {page_num}, нижний край текста",
-            "warning",
+            f"Текст уходит до y={bottom:.0f}pt, норма ≤{MARGIN_BOTTOM:.0f}pt.",
+            r"Проверьте \geometry{bottom=2.7cm}.",
+            f"Страница {page_num}", "warning",
         ))
     return errors
 
 
-# --- Главная функция ---
+def _check_line_spacing(body_chars: list, dominant_size: float) -> list:
+    """Мягкая проверка межстрочного интервала.
+
+    Для LaTeX с \\linespread{1.5} и 14pt шрифтом типичный baseline-gap ≈ 25pt,
+    что даёт ratio ≈ 1.82 — хорошо укладывается в допустимый диапазон [1.1, 2.2].
+    """
+    if not body_chars or dominant_size < 8:
+        return []
+
+    # Группируем символы в строки по близким значениям top
+    lines: dict[int, int] = defaultdict(int)
+    for c in body_chars:
+        if abs(c.get("size", 0) - dominant_size) <= 1.5:
+            lines[round(c.get("top", 0))] += 1
+
+    baselines = sorted(lines)
+    if len(baselines) < 8:
+        return []
+
+    gaps = [baselines[i + 1] - baselines[i] for i in range(len(baselines) - 1)]
+
+    # Оставляем только «одинарные» межстрочные промежутки
+    lo = dominant_size * 1.1
+    hi = dominant_size * 2.5
+    plausible = sorted(g for g in gaps if lo <= g <= hi)
+    if len(plausible) < 5:
+        return []
+
+    median_gap = plausible[len(plausible) // 2]
+    ratio      = median_gap / dominant_size
+
+    if 1.1 <= ratio <= 2.2:
+        return []
+
+    return [_make_error(
+        "minor", None,
+        f"Межстрочный интервал (~{ratio:.2f}×) отличается от рекомендованного 1.5.",
+        "Основной текст должен быть набран с полуторным межстрочным интервалом.",
+        f"Медианный gap: {median_gap:.1f}pt при размере шрифта {dominant_size:.1f}pt.",
+        r"Установите \linespread{1.5} в LaTeX или интервал 1.5 в Word.",
+        "Межстрочный интервал", "warning",
+    )]
+
+
+def _check_paragraph_indent(body_chars: list, dominant_size: float) -> list:
+    """Мягкая проверка наличия красной строки.
+
+    Срабатывает только если в документе нет ни одной строки с отступом —
+    то есть у всех абзацев отступ полностью отсутствует.
+    """
+    if not body_chars or dominant_size < 8:
+        return []
+
+    by_line: dict[int, list] = defaultdict(list)
+    for c in body_chars:
+        if abs(c.get("size", 0) - dominant_size) <= 1.5:
+            by_line[round(c.get("top", 0))].append(c.get("x0", 0.0))
+
+    if len(by_line) < 10:
+        return []
+
+    line_starts = [min(xs) for xs in by_line.values()]
+    total       = len(line_starts)
+
+    # Отступ считается валидным, если первый символ строки правее MARGIN_LEFT на 15–60pt
+    indent_min = MARGIN_LEFT + 15
+    indent_max = MARGIN_LEFT + 60
+    indented   = sum(1 for x in line_starts if indent_min <= x <= indent_max)
+    flush      = sum(1 for x in line_starts if abs(x - MARGIN_LEFT) < 5)
+
+    # Предупреждаем только если отступов совсем нет
+    if indented < total * 0.03 and flush > total * 0.4:
+        return [_make_error(
+            "minor", None,
+            "Не обнаружены красные строки (отступ первого абзаца).",
+            "Первая строка каждого абзаца должна иметь отступ 1.25 см.",
+            f"Строк с отступом: {indented}/{total}.",
+            r"Добавьте \setlength{\parindent}{1.25cm} в LaTeX или настройте отступы в Word.",
+            "Абзацный отступ", "warning",
+        )]
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Главная функция
+# ---------------------------------------------------------------------------
 
 def analyze_pdf(path: str) -> dict:
     try:
         with pdfplumber.open(path) as pdf:
             if not pdf.pages:
-                return {"status": "FAIL", "errors": [
-                    _make_error(
-                        "critical",
-                        None,
-                        "Документ пустой.",
-                        "PDF должен содержать страницы с текстовым слоем.",
-                        "Страницы не найдены.",
-                        "Экспортируйте работу в PDF повторно и убедитесь, что файл не пустой.",
-                        "Документ",
-                        "critical",
-                    )
-                ]}
+                return {"status": "FAIL", "errors": [_make_error(
+                    "critical", None, "Документ пустой.",
+                    "PDF должен содержать страницы с текстовым слоем.",
+                    "Страниц не найдено.",
+                    "Экспортируйте работу в PDF повторно.",
+                    "Документ", "critical",
+                )]}
 
-            all_chars = []
-            page_margin_errors = []
-            full_text = ""
-            pages_with_size_err = []
-            pages_with_font_family_err = []
-            pages_with_page_num = 0
             total_pages = len(pdf.pages)
-            first_page_text = ""
 
-            for i, page in enumerate(pdf.pages, start=1):
-                chars = page.chars or []
-                all_chars.extend(chars)
-                page_text = page.extract_text() or ""
-                full_text += page_text + "\n"
-                if i == 1:
+            # ── Единственный проход по страницам ─────────────────────────
+            text_parts:          list[str] = []
+            first_page_text:     str       = ""
+            page_margin_errors:  list      = []
+            pages_with_size_err: list[int] = []
+            pages_with_font_err: list[int] = []
+            pages_with_page_num: int       = 0
+
+            # Счётчики для доминирующих размера/шрифта по документу
+            size_counter: Counter = Counter()
+            font_counter: Counter = Counter()
+
+            # Символы основного текста для проверок интервала и отступов
+            all_body_chars: list = []
+
+            for page_idx, page in enumerate(pdf.pages, start=1):
+                chars      = page.chars or []
+                body       = _body_chars(chars)
+                page_text  = page.extract_text() or ""
+
+                text_parts.append(page_text)
+                if page_idx == 1:
                     first_page_text = page_text
-                page_margin_errors.extend(_check_margins(page, i))
 
-                psize = _dominant_size(chars)
-                if psize and not (FONT_SIZE_MIN <= psize <= FONT_SIZE_MAX):
-                    pages_with_size_err.append(i)
+                page_margin_errors.extend(_check_margins(page, page_idx))
 
-                font_name = _dominant_font(chars)
-                if font_name and not _is_allowed_font_family(font_name):
-                    pages_with_font_family_err.append(i)
+                all_body_chars.extend(body)
 
-                # Ищем номер страницы в нижнем правом углу (со стр. 3+)
-                if i > 2 and chars:
-                    if any(
-                        c.get("text", "").strip().isdigit()
-                        and c.get("x0", 0) >= PAGE_NUM_X_MIN
-                        and c.get("top", 0) >= PAGE_NUM_Y_MIN
-                        for c in chars
-                    ):
+                # Шрифт и размер проверяем начиная со страницы 3
+                # (титул и оглавление имеют другие размеры — не являются нормой тела)
+                if page_idx > 2:
+                    effective = body if len(body) >= 5 else chars
+                    psize     = _dominant_size(effective)
+                    pfont     = _dominant_font(effective)
+
+                    if psize:
+                        size_counter[psize] += 1
+                    if pfont:
+                        font_counter[pfont] += 1
+
+                    if psize and not (FONT_SIZE_MIN <= psize <= FONT_SIZE_MAX):
+                        pages_with_size_err.append(page_idx)
+                    if pfont and not _is_allowed_font(pfont):
+                        pages_with_font_err.append(page_idx)
+
+                # Нумерация страниц: проверяем начиная с 3-й
+                if page_idx > 2 and chars:
+                    if _detect_page_number(chars):
                         pages_with_page_num += 1
 
-            if not all_chars:
-                return {"status": "FAIL", "errors": [
-                    _make_error(
-                        "critical",
-                        None,
-                        "Документ не содержит текста.",
-                        "PDF должен содержать текстовый слой для автоматической проверки.",
-                        "Текстовый слой не обнаружен; возможно, это скан.",
-                        "Экспортируйте документ как текстовый PDF, а не как изображение или скан.",
-                        "Документ",
-                        "critical",
-                    )
-                ]}
+            if not any(text_parts):
+                return {"status": "FAIL", "errors": [_make_error(
+                    "critical", None, "Документ не содержит текста.",
+                    "PDF должен иметь текстовый слой для автоматической проверки.",
+                    "Текстовый слой не обнаружен — возможно, это скан.",
+                    "Экспортируйте документ как текстовый PDF.",
+                    "Документ", "critical",
+                )]}
 
-            errors = []
-
-            # Нормализованная версия текста для всех pattern-based проверок
+            # Строим full_text через join — O(n), а не O(n²)
+            full_text  = "\n".join(text_parts)
             clean_text = _clean_text(full_text)
+
+            dominant_size = (
+                size_counter.most_common(1)[0][0] if size_counter else 0.0
+            )
+            dominant_font = (
+                font_counter.most_common(1)[0][0] if font_counter else ""
+            )
+            doc_type = _detect_document_type(first_page_text)
+
+            print(
+                f"[ANALYZER] Тип: {doc_type} | Стр: {total_pages} | "
+                f"Шрифт: {dominant_font} | Размер: {dominant_size}pt"
+            )
+
+            errors: list = []
 
             # 1. Обязательные разделы
             errors.extend(_check_structure(clean_text))
 
-            # 2. Размер шрифта
-            size_err_pct = len(pages_with_size_err) / total_pages * 100 if total_pages else 0
+            # 2. Нумерация разделов
+            errors.extend(_check_section_numbering(clean_text))
+
+            # 3. Размер основного шрифта
             if pages_with_size_err:
-                dominant_size = _dominant_size(all_chars)
-                page_range = _pages_to_range(pages_with_size_err)
-                severity = "major" if size_err_pct > FONT_SIZE_MAJOR_THRESHOLD_PCT else "minor"
-                errors.append({
-                    **_make_error(
-                        severity,
-                        page_range,
-                        "Размер основного шрифта вне допустимого диапазона.",
-                        f"Основной шрифт должен быть от {FONT_SIZE_MIN:g} до {FONT_SIZE_MAX:g} pt.",
-                        f"Доминирующий размер: {dominant_size}pt; затронуто {len(pages_with_size_err)} стр. "
-                        f"({size_err_pct:.0f}%): {page_range}.",
-                        "Измените размер основного текста на 14 pt или значение в допустимом диапазоне 13-15 pt.",
-                        f"Страницы: {page_range}",
-                        severity,
-                    )
-                })
-
-            # 2b. Семейство шрифта (никогда не блокирует — только предупреждение)
-            if pages_with_font_family_err:
-                font_err_pct = len(pages_with_font_family_err) / total_pages
-                dominant_font = _dominant_font(all_chars)
-                page_range = _pages_to_range(pages_with_font_family_err)
-                severity = "warning"
-                errors.append({
-                    **_make_error(
-                        severity,
-                        page_range,
-                        "Обнаружен нестандартный шрифт в документе.",
-                        "Рекомендуется Times New Roman 14 pt. Для LaTeX-документов допустимы Computer Modern и Latin Modern.",
-                        f"Обнаружен шрифт: «{dominant_font}» на {len(pages_with_font_family_err)} стр. ({font_err_pct:.0%}).",
-                        "Убедитесь, что шрифт встроен в PDF и соответствует требованиям кафедры.",
-                        f"Страницы: {page_range}",
-                        severity,
-                    )
-                })
-
-            # 3. Поля страниц — группируем если много
-            if page_margin_errors:
-                margin_pages = sorted(set(e["page"] for e in page_margin_errors if e["page"]))
-                if len(margin_pages) <= 3:
-                    errors.extend(page_margin_errors)
-                else:
-                    page_range = _pages_to_range(margin_pages)
-                    errors.append(_make_error(
-                        "minor",
-                        page_range,
-                        "Нарушены поля страниц.",
-                        "Поля должны соответствовать нормам: левое 3 см, правое 1.5 см, верхнее 2 см, нижнее 2.7 см.",
-                        f"Нарушение найдено на {len(margin_pages)} страницах: {page_range}.",
-                        r"Проверьте настройки полей: \geometry{left=3cm,right=1.5cm,top=2cm,bottom=2.7cm}.",
-                        f"Страницы: {page_range}",
-                        "warning",
-                    ))
-
-            # 4. Нумерация страниц
-            checkable = max(0, total_pages - 2)
-            if checkable > PAGE_NUMBER_MIN_CHECKABLE_PAGES and pages_with_page_num < checkable * PAGE_NUMBER_MIN_COVERAGE:
+                pct      = len(pages_with_size_err) / total_pages * 100
+                severity = "major" if pct > FONT_SIZE_MAJOR_THRESHOLD_PCT else "minor"
+                p_range  = _pages_to_range(pages_with_size_err)
                 errors.append(_make_error(
-                    "minor",
-                    None,
-                    "Номера страниц не обнаружены или расположены не в нижнем правом углу.",
-                    "Нумерация должна находиться в нижнем правом углу, начиная с проверяемых страниц.",
-                    f"Найдено на {pages_with_page_num} из {checkable} проверяемых страниц.",
-                    "Проверьте колонтитулы и расположение номера страницы.",
-                    "Нижний правый угол страниц 3+",
-                    "warning",
+                    severity, p_range,
+                    "Размер основного шрифта вне допустимого диапазона.",
+                    f"Допустимый диапазон: {FONT_SIZE_MIN:g}–{FONT_SIZE_MAX:g} pt.",
+                    (
+                        f"Доминирующий размер: {dominant_size}pt; "
+                        f"затронуто {len(pages_with_size_err)} стр. ({pct:.0f}%)."
+                    ),
+                    "Измените размер основного текста на 14 pt.",
+                    f"Страницы: {p_range}", severity,
                 ))
 
-            # 5. Список источников
+            # 4. Семейство шрифта (только предупреждение, не блокирует)
+            if pages_with_font_err:
+                pct     = len(pages_with_font_err) / total_pages
+                p_range = _pages_to_range(pages_with_font_err)
+                errors.append(_make_error(
+                    "warning", p_range,
+                    "Обнаружен нестандартный шрифт.",
+                    "Рекомендуется Times New Roman 14 pt (или Computer Modern для LaTeX).",
+                    (
+                        f"Шрифт «{dominant_font}» на "
+                        f"{len(pages_with_font_err)} стр. ({pct:.0%})."
+                    ),
+                    "Убедитесь, что шрифт встроен и соответствует требованиям кафедры.",
+                    f"Страницы: {p_range}", "warning",
+                ))
+
+            # 5. Поля страниц — группируем если нарушений много
+            if page_margin_errors:
+                m_pages = sorted({e["page"] for e in page_margin_errors if e["page"]})
+                if len(m_pages) <= 3:
+                    errors.extend(page_margin_errors)
+                else:
+                    p_range = _pages_to_range(m_pages)
+                    errors.append(_make_error(
+                        "minor", p_range,
+                        "Нарушены поля страниц.",
+                        "Нормы: левое 3 см, правое 1.5 см, верхнее 2 см, нижнее 2.7 см.",
+                        f"Нарушение на {len(m_pages)} страницах.",
+                        r"Проверьте \geometry{left=3cm,right=1.5cm,top=2cm,bottom=2.7cm}.",
+                        f"Страницы: {p_range}", "warning",
+                    ))
+
+            # 6. Нумерация страниц
+            checkable = max(0, total_pages - 2)
+            if (
+                checkable > PAGE_NUMBER_MIN_CHECKABLE_PAGES
+                and pages_with_page_num < checkable * PAGE_NUMBER_MIN_COVERAGE
+            ):
+                errors.append(_make_error(
+                    "minor", None,
+                    "Номера страниц не обнаружены.",
+                    "Нумерация должна быть в нижней части страниц начиная со стр. 3.",
+                    f"Найдено на {pages_with_page_num} из {checkable} проверяемых страниц.",
+                    "Проверьте настройки колонтитулов.",
+                    "Нижний колонтитул страниц 3+", "warning",
+                ))
+
+            # 7. Межстрочный интервал
+            errors.extend(_check_line_spacing(all_body_chars, dominant_size))
+
+            # 8. Абзацный отступ (красная строка)
+            errors.extend(_check_paragraph_indent(all_body_chars, dominant_size))
+
+            # 9. Количество источников
             errors.extend(_check_references_count(clean_text))
 
-            # 6. Оформление простых списков
+            # 10. Формат библиографии
+            errors.extend(_check_bibliography_format(clean_text))
+
+            # 11. Оформление простых списков
             errors.extend(_check_simple_lists(clean_text))
 
-            # 7. Оформление нумерованных списков
+            # 12. Оформление нумерованных списков
             errors.extend(_check_numbered_lists(clean_text))
 
-            # 8. Подписи к рисункам
+            # 13. Ссылки на рисунки
             errors.extend(_check_figures(clean_text))
 
-            # 9. Студенческий номер / специальность
+            # 14. Ссылки на таблицы
+            errors.extend(_check_tables(clean_text))
+
+            # 15. Код специальности (использует кэш)
             errors.extend(_check_student_id(clean_text))
 
-            # 10. Год на титульном листе
+            # 16. Год на титульном листе
             errors.extend(_check_minsk_year(first_page_text))
 
             has_blocking = any(e["severity"] in ("critical", "major") for e in errors)
-            status = "FAIL" if has_blocking else "SUCCESS"
-            print(f"[ANALYZER] {path}: status={status}, errors={len(errors)}")
+            status       = "FAIL" if has_blocking else "SUCCESS"
+            print(f"[ANALYZER] {path}: {status}, ошибок: {len(errors)}")
             return {"status": status, "errors": errors}
 
     except FileNotFoundError:
-        return {"status": "FAIL", "errors": [
-            _make_error(
-                "critical",
-                None,
-                f"Файл не найден: {path}",
-                "Файл должен быть доступен анализатору по переданному пути.",
-                f"Путь недоступен: {path}.",
-                "Повторите загрузку файла или проверьте хранилище.",
-                "Файловое хранилище",
-                "critical",
-            )
-        ]}
-    except Exception as e:
-        return {"status": "FAIL", "errors": [
-            _make_error(
-                "critical",
-                None,
-                f"Ошибка при анализе: {str(e)}",
-                "Анализатор должен корректно прочитать PDF и извлечь текстовые данные.",
-                str(e),
-                "Проверьте, что PDF не повреждён, и попробуйте экспортировать его заново.",
-                "Анализ PDF",
-                "critical",
-            )
-        ]}
+        return {"status": "FAIL", "errors": [_make_error(
+            "critical", None, f"Файл не найден: {path}",
+            "Файл должен быть доступен анализатору по переданному пути.",
+            f"Путь: {path}.",
+            "Повторите загрузку файла.",
+            "Файловое хранилище", "critical",
+        )]}
+    except Exception as exc:
+        return {"status": "FAIL", "errors": [_make_error(
+            "critical", None, f"Ошибка при анализе: {exc}",
+            "Анализатор должен корректно обработать PDF.",
+            str(exc),
+            "Проверьте, что PDF не повреждён, и экспортируйте заново.",
+            "Анализ PDF", "critical",
+        )]}
 
 
 if __name__ == "__main__":
