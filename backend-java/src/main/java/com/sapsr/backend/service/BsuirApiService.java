@@ -16,9 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class BsuirApiService {
 
-    private static final String SCHEDULE_URL      = "https://iis.bsuir.by/api/v1/schedule?studentGroup=";
-    private static final String STUDENT_GROUPS_URL = "https://iis.bsuir.by/api/v1/student-groups";
-    private static final String EMPLOYEES_URL      = "https://iis.bsuir.by/api/v1/employees/all";
+    private static final String SCHEDULE_URL        = "https://iis.bsuir.by/api/v1/schedule?studentGroup=";
+    private static final String STUDENT_GROUPS_URL  = "https://iis.bsuir.by/api/v1/student-groups";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -29,9 +28,6 @@ public class BsuirApiService {
     // Кэш: номер группы → набор email преподавателей (@bsuir.by)
     private final Map<String, Set<String>> emailCache = new ConcurrentHashMap<>();
     private final Set<String> knownGroupsCache = ConcurrentHashMap.newKeySet();
-    // Кэш: email → ФИО (из /employees/all)
-    private volatile Map<String, String> employeesByEmail = null;
-
     public Set<String> getTeachersForGroup(String groupNumber) {
         return cache.computeIfAbsent(groupNumber, this::fetchFromApi);
     }
@@ -40,48 +36,52 @@ public class BsuirApiService {
         return emailCache.computeIfAbsent(groupNumber, this::fetchEmailsFromApi);
     }
 
+    private static final String EMPLOYEE_SCHEDULE_URL = "https://iis.bsuir.by/api/v1/employees/schedule/";
+
+    /**
+     * Ищет ФИО преподавателя в IIS БГУИР по корпоративной почте.
+     *
+     * Алгоритм (O(1) HTTP-запросов):
+     *  1. Из email берётся urlId = часть до '@' (напр. "n.zotov").
+     *  2. Вызывается GET /employees/schedule/{urlId}.
+     *  3. В ответе сравнивается employee.email с переданной почтой.
+     *  4. При совпадении возвращается ФИО; при несовпадении — null.
+     *
+     * Примечание: у БГУИР urlId всегда совпадает с логином email,
+     * поэтому один запрос покрывает 100% реальных случаев.
+     */
     public String findTeacherNameByEmail(String email) {
         if (email == null) return null;
-        Map<String, String> map = getEmployeesByEmail();
-        return map.get(email.trim().toLowerCase());
-    }
-
-    private Map<String, String> getEmployeesByEmail() {
-        if (employeesByEmail != null) return employeesByEmail;
-        synchronized (this) {
-            if (employeesByEmail != null) return employeesByEmail;
-            employeesByEmail = fetchAllEmployees();
-        }
-        return employeesByEmail;
-    }
-
-    private Map<String, String> fetchAllEmployees() {
+        String normalized = email.trim().toLowerCase();
+        String urlId      = normalized.contains("@") ? normalized.split("@")[0] : normalized;
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(EMPLOYEES_URL))
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(EMPLOYEE_SCHEDULE_URL + urlId))
                     .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(Duration.ofSeconds(8))
                     .GET()
                     .build();
-            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) return Map.of();
-
-            JsonNode arr = objectMapper.readTree(response.body());
-            if (!arr.isArray()) return Map.of();
-
-            Map<String, String> result = new java.util.HashMap<>();
-            for (JsonNode emp : arr) {
-                String empEmail = text(emp, "email");
-                if (empEmail == null) continue;
-                String fio = text(emp, "fio");
-                if (fio == null) fio = buildFio(emp);
-                if (fio != null) result.put(empEmail.toLowerCase(), fio);
+            HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                System.err.println("[BSUIR API] /employees/schedule/" + urlId + " → HTTP " + resp.statusCode());
+                return null;
             }
-            System.out.println("[BSUIR API] Загружено " + result.size() + " сотрудников");
-            return result;
+            JsonNode root     = objectMapper.readTree(resp.body());
+            JsonNode employee = root.get("employee");
+            if (employee == null || employee.isNull()) return null;
+
+            String iisEmail = text(employee, "email");
+            if (iisEmail == null || !iisEmail.trim().equalsIgnoreCase(normalized)) {
+                System.err.println("[BSUIR API] Email не совпал: IIS=" + iisEmail + ", введено=" + normalized);
+                return null;
+            }
+            String fio = text(employee, "fio");
+            if (fio == null) fio = buildFio(employee);
+            System.out.println("[BSUIR API] Найден преподаватель: " + fio + " (" + iisEmail + ")");
+            return fio;
         } catch (Exception e) {
-            System.err.println("[BSUIR API] Ошибка загрузки сотрудников: " + e.getMessage());
-            return Map.of();
+            System.err.println("[BSUIR API] Ошибка поиска по email: " + e.getMessage());
+            return null;
         }
     }
 
@@ -113,7 +113,18 @@ public class BsuirApiService {
         }
     }
 
-    private Set<String> fetchFromApi(String groupNumber) {
+    /**
+     * Извлекает преподавателей (нормализованные ФИО и email) из расписания группы.
+     * BSUIR API может возвращать уроки в трёх структурах:
+     *   A) schedules.{day}[].employees[]            — урок прямо в массиве дня
+     *   B) schedules.{day}[].lessons[]              — уроки во вложенном массиве
+     *   C) schedules.{day}[].lessons.{type}[].      — уроки сгруппированы по типу
+     */
+    private record GroupScheduleData(Set<String> names, Set<String> emails) {}
+
+    private GroupScheduleData fetchGroupSchedule(String groupNumber) {
+        Set<String> names  = new HashSet<>();
+        Set<String> emails = new HashSet<>();
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(SCHEDULE_URL + groupNumber))
@@ -121,90 +132,65 @@ public class BsuirApiService {
                     .timeout(Duration.ofSeconds(8))
                     .GET()
                     .build();
-
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) return Collections.emptySet();
+            if (response.statusCode() != 200) return new GroupScheduleData(names, emails);
 
-            JsonNode root = objectMapper.readTree(response.body());
-            Set<String> teachers = new HashSet<>();
-
+            JsonNode root      = objectMapper.readTree(response.body());
             JsonNode schedules = root.get("schedules");
-            if (schedules == null || !schedules.isObject()) return Collections.emptySet();
+            if (schedules == null || !schedules.isObject()) return new GroupScheduleData(names, emails);
 
-            schedules.fields().forEachRemaining(entry -> {
-                JsonNode days = entry.getValue();
-                if (days.isArray()) {
-                    for (JsonNode day : days) {
-                        JsonNode lessonsList = day.get("lessons");
-                        if (lessonsList != null && lessonsList.isArray()) {
-                            for (JsonNode lesson : lessonsList) {
-                                JsonNode employees = lesson.get("employees");
-                                if (employees != null && employees.isArray()) {
-                                    for (JsonNode emp : employees) {
-                                        String fio = buildFio(emp);
-                                        if (fio != null) teachers.add(normalize(fio));
-                                    }
+            for (var dayEntry : schedules.properties()) {
+                JsonNode daySlots = dayEntry.getValue();
+                if (!daySlots.isArray()) continue;
+                for (JsonNode slot : daySlots) {
+                    // Структура A: employees прямо в слоте
+                    extractEmployees(slot.get("employees"), names, emails);
+
+                    JsonNode lessons = slot.get("lessons");
+                    if (lessons == null) continue;
+
+                    if (lessons.isArray()) {
+                        // Структура B: lessons — массив уроков
+                        for (JsonNode lesson : lessons) {
+                            extractEmployees(lesson.get("employees"), names, emails);
+                        }
+                    } else if (lessons.isObject()) {
+                        // Структура C: lessons — объект { "ЛК": [...], "ПЗ": [...] }
+                        for (var typeEntry : lessons.properties()) {
+                            JsonNode lessonList = typeEntry.getValue();
+                            if (lessonList.isArray()) {
+                                for (JsonNode lesson : lessonList) {
+                                    extractEmployees(lesson.get("employees"), names, emails);
                                 }
                             }
                         }
                     }
                 }
-            });
-
-            System.out.println("[BSUIR API] Группа " + groupNumber + ": найдено " + teachers.size() + " преподавателей");
-            return teachers;
+            }
+            System.out.printf("[BSUIR API] Группа %s: %d преподавателей, %d email(ов)%n",
+                    groupNumber, names.size(), emails.size());
         } catch (Exception e) {
-            System.err.println("[BSUIR API] Ошибка для группы " + groupNumber + ": " + e.getMessage());
-            return Collections.emptySet();
+            System.err.println("[BSUIR API] Ошибка расписания для группы " + groupNumber + ": " + e.getMessage());
+        }
+        return new GroupScheduleData(names, emails);
+    }
+
+    private void extractEmployees(JsonNode employees, Set<String> names, Set<String> emails) {
+        if (employees == null || !employees.isArray()) return;
+        for (JsonNode emp : employees) {
+            String fio = buildFio(emp);
+            if (fio != null) names.add(normalize(fio));
+            String email = text(emp, "email");
+            if (email != null && email.contains("@")) emails.add(email.toLowerCase());
         }
     }
 
+    private Set<String> fetchFromApi(String groupNumber) {
+        return fetchGroupSchedule(groupNumber).names();
+    }
+
     private Set<String> fetchEmailsFromApi(String groupNumber) {
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(SCHEDULE_URL + groupNumber))
-                    .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(8))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) return Collections.emptySet();
-
-            JsonNode root = objectMapper.readTree(response.body());
-            Set<String> emails = new HashSet<>();
-
-            JsonNode schedules = root.get("schedules");
-            if (schedules == null || !schedules.isObject()) return Collections.emptySet();
-
-            schedules.fields().forEachRemaining(entry -> {
-                JsonNode days = entry.getValue();
-                if (days.isArray()) {
-                    for (JsonNode day : days) {
-                        JsonNode lessonsList = day.get("lessons");
-                        if (lessonsList != null && lessonsList.isArray()) {
-                            for (JsonNode lesson : lessonsList) {
-                                JsonNode employees = lesson.get("employees");
-                                if (employees != null && employees.isArray()) {
-                                    for (JsonNode emp : employees) {
-                                        String email = text(emp, "email");
-                                        if (email != null && email.contains("@")) {
-                                            emails.add(email.toLowerCase());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            System.out.println("[BSUIR API] Группа " + groupNumber + ": найдено " + emails.size() + " email(ов)");
-            return emails;
-        } catch (Exception e) {
-            System.err.println("[BSUIR API] Ошибка email для группы " + groupNumber + ": " + e.getMessage());
-            return Collections.emptySet();
-        }
+        return fetchGroupSchedule(groupNumber).emails();
     }
 
     private String buildFio(JsonNode emp) {
@@ -234,7 +220,6 @@ public class BsuirApiService {
         cache.clear();
         emailCache.clear();
         knownGroupsCache.clear();
-        employeesByEmail = null;
-        System.out.println("[BSUIR API] Кэш расписаний и сотрудников очищен");
+        System.out.println("[BSUIR API] Кэш расписаний очищен");
     }
 }

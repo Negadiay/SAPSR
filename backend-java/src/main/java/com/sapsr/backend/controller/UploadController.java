@@ -248,54 +248,171 @@ public class UploadController {
         PdfWriter.getInstance(doc, baos);
         doc.open();
 
-        BaseFont bf = loadCyrillicFont();
-        Font fontTitle = new Font(bf, 16, Font.BOLD);
-        Font fontHeader = new Font(bf, 11, Font.BOLD);
-        Font fontNormal = new Font(bf, 10, Font.NORMAL);
-        Font fontOk = new Font(bf, 10, Font.NORMAL, new Color(56, 142, 60));
-        Font fontWarn = new Font(bf, 10, Font.NORMAL, new Color(230, 81, 0));
-        Font fontErr = new Font(bf, 10, Font.NORMAL, new Color(211, 47, 47));
+        BaseFont bf    = loadCyrillicFont();
+        BaseFont bfMono = bf; // fallback to same font for snippet blocks
 
+        Font fontTitle    = new Font(bf, 16, Font.BOLD);
+        Font fontSection  = new Font(bf, 12, Font.BOLD);
+        Font fontHeader   = new Font(bf, 11, Font.BOLD);
+        Font fontNormal   = new Font(bf, 10, Font.NORMAL);
+        Font fontSmall    = new Font(bf, 9,  Font.NORMAL,  new Color(80, 80, 80));
+        Font fontSnippet  = new Font(bfMono, 9, Font.NORMAL, new Color(30, 30, 30));
+        Font fontLabel    = new Font(bf, 9,  Font.BOLD,   new Color(80, 80, 80));
+        Font fontOk       = new Font(bf, 10, Font.NORMAL,  new Color(56, 142, 60));
+        Font fontWarn     = new Font(bf, 10, Font.BOLD,    new Color(230, 81, 0));
+        Font fontErr      = new Font(bf, 10, Font.BOLD,    new Color(211, 47, 47));
+        Font fontCrit     = new Font(bf, 10, Font.BOLD,    new Color(180, 0, 0));
+        Font fontPageBadge = new Font(bf, 9, Font.BOLD,   new Color(255, 255, 255));
+
+        // ── Заголовок отчёта ──────────────────────────────────────────────
         doc.add(new Paragraph("SAPSR — отчёт о проверке оформления", fontTitle));
-        doc.add(new Paragraph("----------------------------------------", fontNormal));
-        doc.add(Chunk.NEWLINE);
 
         String studentName = (s.getStudent() != null && s.getStudent().getFullName() != null)
-                ? s.getStudent().getFullName() : "-";
+                ? s.getStudent().getFullName() : "—";
         String fp = s.getFilePath();
         String fileName = fp != null
                 ? (fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp)
                 : "file.pdf";
         if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
 
-        doc.add(new Paragraph("Студент:  " + studentName, fontHeader));
-        doc.add(new Paragraph("Файл:     " + fileName, fontNormal));
-        doc.add(new Paragraph("Дата:     " + (s.getCreatedAt() != null ? s.getCreatedAt().toString() : "-"), fontNormal));
-        doc.add(new Paragraph("Статус:   " + ("SUCCESS".equals(s.getStatus()) ? "оформление соответствует требованиям" : "есть нарушения"), fontNormal));
-        doc.add(Chunk.NEWLINE);
+        boolean isSuccess = "SUCCESS".equals(s.getStatus());
 
+        Paragraph meta = new Paragraph();
+        meta.add(new Chunk("Студент: ", fontLabel));
+        meta.add(new Chunk(studentName + "\n", fontNormal));
+        meta.add(new Chunk("Файл: ",    fontLabel));
+        meta.add(new Chunk(fileName + "\n", fontNormal));
+        meta.add(new Chunk("Дата: ",    fontLabel));
+        meta.add(new Chunk((s.getCreatedAt() != null ? s.getCreatedAt().toString() : "—") + "\n", fontNormal));
+        meta.add(new Chunk("Итог: ",    fontLabel));
+        meta.add(new Chunk(
+                isSuccess ? "Оформление соответствует требованиям ✓" : "Обнаружены нарушения оформления",
+                isSuccess ? fontOk : fontErr
+        ));
+        meta.setSpacingBefore(6);
+        meta.setSpacingAfter(6);
+        doc.add(meta);
+
+        // Разделительная линия
+        doc.add(new Paragraph("─────────────────────────────────────────────────────────────", fontSmall));
+
+        // ── Тело отчёта ───────────────────────────────────────────────────
         String errorsJson = s.getFormatErrors();
         if (errorsJson == null || errorsJson.equals("[]") || errorsJson.equals("null")) {
-            doc.add(new Paragraph("Ошибок не найдено. Документ соответствует требованиям оформления.", fontOk));
+            Paragraph ok = new Paragraph("Ошибок не найдено. Документ соответствует требованиям оформления.", fontOk);
+            ok.setSpacingBefore(10);
+            doc.add(ok);
         } else {
-            doc.add(new Paragraph("Найденные нарушения:", fontHeader));
-            doc.add(Chunk.NEWLINE);
             try {
-                ObjectMapper om = new ObjectMapper();
-                JsonNode arr = om.readTree(errorsJson);
-                for (JsonNode err : arr) {
-                    String severity = getJsonText(err, "severity", "error");
-                    Font f = fontForSeverity(severity, fontErr, fontWarn);
-                    String location = getJsonText(err, "location", "");
-                    String page = getJsonText(err, "page", "");
-                    if (location.isBlank() && !page.isBlank()) location = "Страница " + page;
+                ObjectMapper om  = new ObjectMapper();
+                JsonNode     arr = om.readTree(errorsJson);
 
-                    doc.add(new Paragraph("[" + severityLabel(severity) + "] " + getJsonText(err, "message", err.toString()), f));
-                    if (!location.isBlank()) doc.add(new Paragraph("Где: " + location, fontNormal));
-                    doc.add(new Paragraph("Правило: " + getJsonText(err, "rule", "Правило не указано."), fontNormal));
-                    doc.add(new Paragraph("Обнаружено: " + getJsonText(err, "found", "Нет дополнительных данных."), fontNormal));
-                    doc.add(new Paragraph("Как исправить: " + getJsonText(err, "fix", "Проверьте оформление указанного фрагмента."), fontNormal));
-                    doc.add(Chunk.NEWLINE);
+                // Счётчики для краткой сводки в начале
+                long critical = 0, major = 0, warn = 0;
+                for (JsonNode e : arr) {
+                    String sev = getJsonText(e, "severity", "");
+                    if ("critical".equals(sev)) critical++;
+                    else if ("major".equals(sev))    major++;
+                    else                              warn++;
+                }
+
+                Paragraph summary = new Paragraph();
+                summary.setSpacingBefore(4);
+                summary.setSpacingAfter(8);
+                summary.add(new Chunk("Сводка: ", fontLabel));
+                if (critical > 0)
+                    summary.add(new Chunk("● " + critical + " критических  ", fontCrit));
+                if (major > 0)
+                    summary.add(new Chunk("● " + major + " серьёзных  ", fontErr));
+                if (warn > 0)
+                    summary.add(new Chunk("● " + warn + " предупреждений", fontWarn));
+                doc.add(summary);
+
+                int idx = 0;
+                for (JsonNode err : arr) {
+                    idx++;
+                    String severity = getJsonText(err, "severity", "warning");
+                    String location = getJsonText(err, "location", "");
+                    String page     = getJsonText(err, "page",     "");
+                    String message  = getJsonText(err, "message",  err.toString());
+                    String rule     = getJsonText(err, "rule",     "");
+                    String found    = getJsonText(err, "found",    "");
+                    String fix      = getJsonText(err, "fix",      "");
+                    String context  = getJsonText(err, "context",  "");
+
+                    Font fSev = switch (severity) {
+                        case "critical" -> fontCrit;
+                        case "major"    -> fontErr;
+                        default         -> fontWarn;
+                    };
+                    String sevLabel = severityLabel(severity).toUpperCase();
+
+                    // Заголовок нарушения
+                    Paragraph errHead = new Paragraph();
+                    errHead.setSpacingBefore(10);
+                    errHead.add(new Chunk("[" + idx + "] ", fontSmall));
+                    errHead.add(new Chunk("[" + sevLabel + "] ", fSev));
+                    errHead.add(new Chunk(message, fontHeader));
+                    doc.add(errHead);
+
+                    // Местоположение / номер страницы
+                    String loc = location.isBlank() ? (page.isBlank() ? "" : "Страница " + page) : location;
+                    if (!loc.isBlank()) {
+                        Paragraph locP = new Paragraph();
+                        locP.add(new Chunk("📍 Место: ", fontLabel));
+                        locP.add(new Chunk(loc, fontNormal));
+                        locP.setSpacingBefore(2);
+                        doc.add(locP);
+                    }
+
+                    // Блок с фрагментом текста (context)
+                    if (!context.isBlank()) {
+                        Paragraph ctxLabel = new Paragraph();
+                        ctxLabel.add(new Chunk("Фрагмент из документа:", fontLabel));
+                        ctxLabel.setSpacingBefore(3);
+                        doc.add(ctxLabel);
+
+                        // Рамка-блок для сниппета
+                        com.lowagie.text.Rectangle box = new com.lowagie.text.Rectangle(
+                                doc.left(), 0, doc.right(), 0
+                        );
+                        Paragraph snippet = new Paragraph("    " + context.replace("\n", " ↵ "), fontSnippet);
+                        snippet.setBackground(new Color(245, 245, 245));
+                        snippet.setBorder(com.lowagie.text.Rectangle.BOX);
+                        snippet.setBorderColor(new Color(200, 200, 200));
+                        snippet.setPadding(4);
+                        snippet.setSpacingBefore(1);
+                        snippet.setSpacingAfter(2);
+                        doc.add(snippet);
+                    }
+
+                    // Что обнаружено
+                    if (!found.isBlank()) {
+                        Paragraph foundP = new Paragraph();
+                        foundP.add(new Chunk("Обнаружено: ", fontLabel));
+                        foundP.add(new Chunk(found, fontNormal));
+                        foundP.setSpacingBefore(2);
+                        doc.add(foundP);
+                    }
+
+                    // Правило
+                    if (!rule.isBlank()) {
+                        Paragraph ruleP = new Paragraph();
+                        ruleP.add(new Chunk("Правило: ", fontLabel));
+                        ruleP.add(new Chunk(rule, fontSmall));
+                        doc.add(ruleP);
+                    }
+
+                    // Рекомендация
+                    if (!fix.isBlank()) {
+                        Paragraph fixP = new Paragraph();
+                        fixP.add(new Chunk("✔ Как исправить: ", fontLabel));
+                        fixP.add(new Chunk(fix, fontNormal));
+                        fixP.setSpacingBefore(2);
+                        doc.add(fixP);
+                    }
+
+                    doc.add(new Paragraph("· · · · · · · · · · · · · · · · · · · · · · · · · · · ·", fontSmall));
                 }
             } catch (Exception ex) {
                 doc.add(new Paragraph(errorsJson, fontNormal));
