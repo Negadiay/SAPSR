@@ -5,7 +5,11 @@ import com.lowagie.text.Document;
 import com.lowagie.text.Font;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.sapsr.backend.SapsrTelegramBot;
 import com.sapsr.backend.entity.Submission;
@@ -373,16 +377,20 @@ public class UploadController {
                         doc.add(ctxLabel);
 
                         // Рамка-блок для сниппета
-                        com.lowagie.text.Rectangle box = new com.lowagie.text.Rectangle(
-                                doc.left(), 0, doc.right(), 0
-                        );
-                        Paragraph snippet = new Paragraph("    " + context.replace("\n", " ↵ "), fontSnippet);
-                        snippet.setBackground(new Color(245, 245, 245));
-                        snippet.setBorder(com.lowagie.text.Rectangle.BOX);
-                        snippet.setBorderColor(new Color(200, 200, 200));
-                        snippet.setPadding(4);
+                        PdfPTable snippet = new PdfPTable(1);
+                        snippet.setWidthPercentage(100);
                         snippet.setSpacingBefore(1);
                         snippet.setSpacingAfter(2);
+
+                        PdfPCell snippetCell = new PdfPCell(
+                                new Phrase("    " + context.replace("\n", " ↵ "), fontSnippet)
+                        );
+                        snippetCell.setBackgroundColor(new Color(245, 245, 245));
+                        snippetCell.setBorder(Rectangle.BOX);
+                        snippetCell.setBorderColor(new Color(200, 200, 200));
+                        snippetCell.setPadding(4);
+
+                        snippet.addCell(snippetCell);
                         doc.add(snippet);
                     }
 
