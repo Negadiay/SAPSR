@@ -59,13 +59,15 @@ _RE_SECTION_NUM = re.compile(r"^\s*(\d+(?:\.\d+)?)\s+\S", re.MULTILINE)
 
 # Список источников
 _RE_REF_HEADING = re.compile(
-    r"(?:с|c)писок\s+(?:использованных\s+источников|литературы)",
+    r"(?:с|c)писок\s+(?:(?:использованн(?:ых|ой)|используемых)\s+(?:источников|литературы)|литературы)",
     re.IGNORECASE,
 )
 _RE_REF_ENTRY_A = re.compile(r"^\s*\[?\d+\]?[\.\)]?\s+\S", re.MULTILINE)
 _RE_REF_ENTRY_B = re.compile(r"^\s*\d+\s+\S", re.MULTILINE)
+_RE_REF_ENTRY_INLINE = re.compile(r"(?=(?:^|\s)(?:\[\d{1,3}\]|\d{1,3}[\.\)])\s+\S)")
 _RE_REF_YEAR    = re.compile(r"\b(19|20)\d{2}\b")
 _RE_REF_URL     = re.compile(r"https?://")
+_RE_AFTER_REFS_HEADING = re.compile(r"^\s*(?:приложени[ея]|appendix)\b", re.IGNORECASE | re.MULTILINE)
 
 # Рисунки — все падежные формы + сокращение «рис.»
 _NUM_PAT = r"(\d+(?:[\s.]\d+)*)"
@@ -303,6 +305,17 @@ def _is_allowed_font(font_name: str) -> bool:
     return any(fam in normalized for fam in _ALLOWED_FONTS_NORMALIZED)
 
 
+def _font_key(font_name: str) -> str:
+    """Нормализует имя шрифта для сравнения участков одного документа."""
+    if not font_name:
+        return ""
+    base = font_name.split("+", 1)[-1]
+    normalized = _RE_NON_ALNUM.sub("", base.lower())
+    for suffix in ("regular", "roman", "normal", "psmt", "mt", "bold", "italic", "oblique"):
+        normalized = normalized.replace(suffix, "")
+    return normalized
+
+
 def _body_chars(chars: list) -> list:
     """Возвращает символы основного текста (без колонтитулов)."""
     lo = MARGIN_TOP    - MARGIN_TOLERANCE
@@ -408,16 +421,90 @@ def _check_section_numbering(full_text: str) -> list:
     )]
 
 
-def _check_references_count(full_text: str) -> list:
-    errors  = []
+def _extract_reference_section(full_text: str) -> str:
+    """Возвращает текст фактического раздела источников, без оглавления."""
     matches = list(_RE_REF_HEADING.finditer(full_text))
     if not matches:
-        return errors
-    # Последнее вхождение заголовка = фактический раздел (первое — в оглавлении)
+        return ""
+
     section = full_text[matches[-1].end():]
-    count   = len(_RE_REF_ENTRY_A.findall(section))
-    if count == 0:
-        count = len(_RE_REF_ENTRY_B.findall(section))
+    next_heading = _RE_AFTER_REFS_HEADING.search(section)
+    if next_heading:
+        section = section[:next_heading.start()]
+    return section
+
+
+def _extract_reference_entries(full_text: str) -> list[str]:
+    """Собирает источники целиком, включая строки-продолжения."""
+    section = _extract_reference_section(full_text)
+    if not section:
+        return []
+
+    entries: list[str] = []
+    current: list[str] = []
+    for raw_line in section.splitlines():
+        line = raw_line.strip()
+        if not line or _is_toc_line(line):
+            continue
+
+        if _RE_REF_ENTRY_A.match(line) or _RE_REF_ENTRY_B.match(line):
+            if current:
+                entries.append(" ".join(current))
+            current = [line]
+        elif current:
+            current.append(line)
+
+    if current:
+        entries.append(" ".join(current))
+
+    # Некоторые PDF извлекаются одной длинной строкой: пробуем разделить по маркерам.
+    if len(entries) <= 1:
+        one_line = re.sub(r"\s+", " ", section).strip()
+        split_entries = [
+            part.strip()
+            for part in _RE_REF_ENTRY_INLINE.split(one_line)
+            if part.strip() and (_RE_REF_ENTRY_A.match(part) or _RE_REF_ENTRY_B.match(part))
+        ]
+        if len(split_entries) > len(entries):
+            entries = split_entries
+
+    return entries
+
+
+def _find_reference_start_page(page_texts: list[str]) -> Optional[int]:
+    """Находит страницу реального списка источников; первое вхождение часто в оглавлении."""
+    start_page = None
+    for page_num, page_text in enumerate(page_texts, start=1):
+        if _RE_REF_HEADING.search(_clean_text(page_text or "")):
+            start_page = page_num
+    return start_page
+
+
+def _check_reference_font(reference_chars: list, main_font: str, pages: list[int]) -> list:
+    if not reference_chars or not main_font:
+        return []
+
+    ref_font = _dominant_font(reference_chars)
+    if not ref_font or _font_key(ref_font) == _font_key(main_font):
+        return []
+
+    p_range = _pages_to_range(pages)
+    return [_make_error(
+        "minor", p_range,
+        "Шрифт списка использованных источников отличается от основного текста.",
+        "Список источников должен быть оформлен тем же основным шрифтом, что и документ.",
+        f"Основной шрифт: «{main_font}»; в списке источников: «{ref_font}».",
+        "Приведите список источников к общему стилю документа.",
+        f"Страницы: {p_range}", "warning",
+    )]
+
+
+def _check_references_count(full_text: str) -> list:
+    errors  = []
+    entries = _extract_reference_entries(full_text)
+    if not entries and not _extract_reference_section(full_text):
+        return errors
+    count = len(entries)
     if count < CRITICAL_REFERENCES_THRESHOLD:
         errors.append(_make_error(
             "critical", None,
@@ -441,20 +528,12 @@ def _check_references_count(full_text: str) -> list:
 
 def _check_bibliography_format(full_text: str) -> list:
     """Мягкая проверка: каждый источник должен содержать год или URL."""
-    matches = list(_RE_REF_HEADING.finditer(full_text))
-    if not matches:
-        return []
-    section = full_text[matches[-1].end():]
-    lines   = [
-        l.strip()
-        for l in section.splitlines()
-        if _RE_REF_ENTRY_A.match(l) or _RE_REF_ENTRY_B.match(l)
-    ]
-    if not lines:
+    entries = _extract_reference_entries(full_text)
+    if not entries:
         return []
     suspicious = [
-        l for l in lines
-        if not _RE_REF_YEAR.search(l) and not _RE_REF_URL.search(l)
+        entry for entry in entries
+        if not _RE_REF_YEAR.search(entry) and not _RE_REF_URL.search(entry)
     ]
     if not suspicious:
         return []
@@ -813,13 +892,12 @@ def analyze_pdf(path: str) -> dict:
             pages_with_size_err: list[int] = []
             pages_with_font_err: list[int] = []
             pages_with_page_num: int       = 0
+            page_font_metrics:   list[dict] = []
+            body_chars_by_page:  list[tuple[int, list]] = []
 
             # Счётчики для доминирующих размера/шрифта по документу
             size_counter: Counter = Counter()
             font_counter: Counter = Counter()
-
-            # Символы основного текста для проверок интервала и отступов
-            all_body_chars: list = []
 
             for page_idx, page in enumerate(pdf.pages, start=1):
                 chars      = page.chars or []
@@ -832,7 +910,7 @@ def analyze_pdf(path: str) -> dict:
 
                 page_margin_errors.extend(_check_margins(page, page_idx))
 
-                all_body_chars.extend(body)
+                body_chars_by_page.append((page_idx, body))
 
                 # Шрифт и размер проверяем начиная со страницы 3
                 # (титул и оглавление имеют другие размеры — не являются нормой тела)
@@ -840,16 +918,11 @@ def analyze_pdf(path: str) -> dict:
                     effective = body if len(body) >= 5 else chars
                     psize     = _dominant_size(effective)
                     pfont     = _dominant_font(effective)
-
-                    if psize:
-                        size_counter[psize] += 1
-                    if pfont:
-                        font_counter[pfont] += 1
-
-                    if psize and not (FONT_SIZE_MIN <= psize <= FONT_SIZE_MAX):
-                        pages_with_size_err.append(page_idx)
-                    if pfont and not _is_allowed_font(pfont):
-                        pages_with_font_err.append(page_idx)
+                    page_font_metrics.append({
+                        "page": page_idx,
+                        "size": psize,
+                        "font": pfont,
+                    })
 
                 # Нумерация страниц: проверяем начиная с 3-й
                 if page_idx > 2 and chars:
@@ -868,6 +941,51 @@ def analyze_pdf(path: str) -> dict:
             # Строим full_text через join — O(n), а не O(n²)
             full_text  = "\n".join(text_parts)
             clean_text = _clean_text(full_text)
+
+            reference_start_page = _find_reference_start_page(text_parts)
+            reference_pages = (
+                set(range(reference_start_page, total_pages + 1))
+                if reference_start_page else set()
+            )
+
+            main_metrics = [
+                m for m in page_font_metrics
+                if m["page"] not in reference_pages
+            ] or page_font_metrics
+            reference_metrics = [
+                m for m in page_font_metrics
+                if m["page"] in reference_pages
+            ]
+
+            for metric in main_metrics:
+                psize = metric["size"]
+                pfont = metric["font"]
+                if psize:
+                    size_counter[psize] += 1
+                if pfont:
+                    font_counter[pfont] += 1
+
+                if psize and not (FONT_SIZE_MIN <= psize <= FONT_SIZE_MAX):
+                    pages_with_size_err.append(metric["page"])
+                if pfont and not _is_allowed_font(pfont):
+                    pages_with_font_err.append(metric["page"])
+
+            main_body_chars = [
+                c
+                for page_num, page_chars in body_chars_by_page
+                if page_num not in reference_pages
+                for c in page_chars
+            ] or [
+                c
+                for _, page_chars in body_chars_by_page
+                for c in page_chars
+            ]
+            reference_chars = [
+                c
+                for page_num, page_chars in body_chars_by_page
+                if page_num in reference_pages
+                for c in page_chars
+            ]
 
             dominant_size = (
                 size_counter.most_common(1)[0][0] if size_counter else 0.0
@@ -889,7 +1007,8 @@ def analyze_pdf(path: str) -> dict:
 
             # 3. Размер основного шрифта
             if pages_with_size_err:
-                pct      = len(pages_with_size_err) / total_pages * 100
+                check_pages = max(1, len(main_metrics))
+                pct      = len(pages_with_size_err) / check_pages * 100
                 severity = "major" if pct > FONT_SIZE_MAJOR_THRESHOLD_PCT else "minor"
                 p_range  = _pages_to_range(pages_with_size_err)
                 errors.append(_make_error(
@@ -906,7 +1025,8 @@ def analyze_pdf(path: str) -> dict:
 
             # 4. Семейство шрифта (только предупреждение, не блокирует)
             if pages_with_font_err:
-                pct     = len(pages_with_font_err) / total_pages
+                check_pages = max(1, len(main_metrics))
+                pct     = len(pages_with_font_err) / check_pages
                 p_range = _pages_to_range(pages_with_font_err)
                 errors.append(_make_error(
                     "warning", p_range,
@@ -919,6 +1039,10 @@ def analyze_pdf(path: str) -> dict:
                     "Убедитесь, что шрифт встроен и соответствует требованиям кафедры.",
                     f"Страницы: {p_range}", "warning",
                 ))
+
+            if reference_metrics:
+                ref_pages = [m["page"] for m in reference_metrics]
+                errors.extend(_check_reference_font(reference_chars, dominant_font, ref_pages))
 
             # 5. Поля страниц — группируем если нарушений много
             if page_margin_errors:
@@ -952,10 +1076,10 @@ def analyze_pdf(path: str) -> dict:
                 ))
 
             # 7. Межстрочный интервал
-            errors.extend(_check_line_spacing(all_body_chars, dominant_size))
+            errors.extend(_check_line_spacing(main_body_chars, dominant_size))
 
             # 8. Абзацный отступ (красная строка)
-            errors.extend(_check_paragraph_indent(all_body_chars, dominant_size))
+            errors.extend(_check_paragraph_indent(main_body_chars, dominant_size))
 
             # 9. Количество источников
             errors.extend(_check_references_count(clean_text))
