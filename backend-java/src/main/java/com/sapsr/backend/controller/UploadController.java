@@ -274,9 +274,8 @@ public class UploadController {
         String studentName = (s.getStudent() != null && s.getStudent().getFullName() != null)
                 ? s.getStudent().getFullName() : "—";
         String fp = s.getFilePath();
-        String fileName = fp != null
-                ? (fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp)
-                : "file.pdf";
+        String fileName = fp != null ? fp.replace('\\', '/') : "file.pdf";
+        fileName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
         if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
 
         boolean isSuccess = "SUCCESS".equals(s.getStatus());

@@ -893,9 +893,9 @@ function App() {
                               <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
                             )}
                             {s.status === 'SUCCESS' && !s.teacher_verdict && (
-                              <button className="withdraw-btn" disabled={withdrawing === s.id}
+                              <button className="withdraw-btn" aria-label="Отозвать работу" title="Отозвать работу" disabled={withdrawing === s.id}
                                 onClick={() => handleWithdrawWork(s.id)}>
-                                {withdrawing === s.id ? '⏳' : '↩ Отозвать'}
+                                {withdrawing === s.id ? '⏳' : '↩'}
                               </button>
                             )}
                           </div>
