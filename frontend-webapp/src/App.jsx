@@ -175,12 +175,9 @@ function App() {
       const dy = e.changedTouches[0].clientY - swipeStartY.current;
       if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       // Используем функциональное обновление через ref чтобы избежать stale closure
-      setActiveTab(prev => {
-        const n = tabs.length;
-        const next = dx < 0 ? (prev + 1) % n : (prev - 1 + n) % n;
-        setDirection(dx < 0 ? 1 : -1);
-        return next;
-      });
+      const tabCount = userRole === 'teacher' ? 3 : 3;
+      setDirection(dx < 0 ? 1 : -1);
+      setActiveTab(prev => dx < 0 ? (prev + 1) % tabCount : (prev - 1 + tabCount) % tabCount);
     };
     document.addEventListener('touchstart', onStart, { passive: true });
     document.addEventListener('touchend', onEnd, { passive: true });
@@ -189,7 +186,7 @@ function App() {
       document.removeEventListener('touchend', onEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, tabs.length]);
+  }, [step, userRole]);
 
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
