@@ -96,7 +96,9 @@ public class UploadController {
         if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Роль должна быть STUDENT или TEACHER"));
         }
-        if (fullName.isEmpty()) {
+
+        // Для студента имя обязательно (для преподавателя подтягивается из IIS)
+        if ("STUDENT".equals(role) && fullName.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
         }
 

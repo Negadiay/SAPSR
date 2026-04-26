@@ -58,8 +58,18 @@ def _normalize_font_family(font_name):
 
 
 def _is_allowed_font_family(font_name):
-    normalized = _normalize_font_family(font_name)
-    return any(_normalize_font_family(family) in normalized for family in ALLOWED_FONT_FAMILIES)
+    if not font_name:
+        return True
+    # LaTeX embeds all fonts as subsets with a random 6-letter uppercase prefix before "+".
+    # These are always properly embedded fonts — check only the base name after "+".
+    base = font_name
+    if "+" in font_name:
+        base = font_name.split("+", 1)[1]
+    normalized_base = re.sub(r"[^a-zа-яё0-9]", "", base.lower())
+    return any(
+        re.sub(r"[^a-zа-яё0-9]", "", family.lower()) in normalized_base
+        for family in ALLOWED_FONT_FAMILIES
+    )
 
 
 def _dominant_font(chars):
@@ -275,14 +285,14 @@ def _check_student_id(full_text):
         known_codes = {_normalize_code(s.get("code", "")) for s in specialities if s.get("code")}
         if specialty_code not in known_codes:
             errors.append(_make_error(
-                "major",
+                "warning",
                 1,
                 f"Код специальности «{specialty_raw}» не найден в реестре специальностей БГУИР.",
                 "Код специальности в обозначении работы должен существовать в реестре БГУИР.",
                 f"Найден код: {specialty_raw}.",
-                "Проверьте правильность номера студента и кода специальности на титульном листе.",
+                "Проверьте правильность кода специальности на титульном листе.",
                 "Страница 1, обозначение работы",
-                "major",
+                "warning",
             ))
     except Exception as e:
         print(f"[ANALYZER] BSUIR API недоступен: {e}")
@@ -470,20 +480,20 @@ def analyze_pdf(path: str) -> dict:
                     )
                 })
 
-            # 2b. Семейство шрифта
+            # 2b. Семейство шрифта (никогда не блокирует — только предупреждение)
             if pages_with_font_family_err:
                 font_err_pct = len(pages_with_font_family_err) / total_pages
                 dominant_font = _dominant_font(all_chars)
                 page_range = _pages_to_range(pages_with_font_family_err)
-                severity = "major" if font_err_pct > FONT_FAMILY_VIOLATION_THRESHOLD else "warning"
+                severity = "warning"
                 errors.append({
                     **_make_error(
                         severity,
                         page_range,
-                        "Основное семейство шрифта не соответствует требованию.",
-                        f"Правильное семейство шрифта PDF-документа: «{', '.join(ALLOWED_FONT_FAMILIES)}».",
-                        f"Обнаружено: «{dominant_font}» на страницах {page_range}.",
-                        "Экспортируйте PDF с требуемым шрифтом и проверьте, что он встроен в документ.",
+                        "Обнаружен нестандартный шрифт в документе.",
+                        "Рекомендуется Times New Roman 14 pt. Для LaTeX-документов допустимы Computer Modern и Latin Modern.",
+                        f"Обнаружен шрифт: «{dominant_font}» на {len(pages_with_font_family_err)} стр. ({font_err_pct:.0%}).",
+                        "Убедитесь, что шрифт встроен в PDF и соответствует требованиям кафедры.",
                         f"Страницы: {page_range}",
                         severity,
                     )
