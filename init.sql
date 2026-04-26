@@ -22,6 +22,8 @@ INSERT INTO users (telegram_id, role, full_name, email)
 VALUES (1816771555, 'TEACHER', 'Гракова Н.В.', 'grakova@bsuir.by')
 ON CONFLICT (telegram_id) DO NOTHING;
 
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS teacher_message_id INTEGER;
+
 CREATE TABLE email_verifications (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,

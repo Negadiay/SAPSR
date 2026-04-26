@@ -366,7 +366,8 @@ input[type="file"] {
 .teacher-search {
   width: 90vw;
   max-width: 340px;
-  margin-bottom: 10px;
+  margin-top: 10px;
+  margin-bottom: 4px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--tg-theme-button-color, #2481cc);
@@ -1209,6 +1210,152 @@ input[type="file"] {
 }
 
 .app-dark .comment-suggestion {
+  background: #16213e;
+  color: #e0e0e0;
+}
+
+/* --- КНОПКА ОТОЗВАТЬ --- */
+.notif-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.withdraw-btn {
+  background: none;
+  border: 1px solid #e53935;
+  color: #e53935;
+  padding: 0 10px;
+  height: 38px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.withdraw-btn:active {
+  background: #e53935;
+  color: #fff;
+}
+
+.withdraw-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- ЗАМЕТКИ ПРЕПОДАВАТЕЛЯ --- */
+.add-note-btn {
+  background: var(--tg-theme-button-color, #2481cc);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: opacity 0.15s;
+}
+
+.add-note-btn:active {
+  opacity: 0.8;
+}
+
+.notes-list {
+  width: 90vw;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.note-card {
+  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.note-text {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--tg-theme-text-color, #000);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.note-action-btn {
+  background: none;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--tg-theme-text-color, #000);
+  transition: background 0.15s;
+}
+
+.note-action-btn:active {
+  background: rgba(0,0,0,0.08);
+}
+
+.note-action-delete {
+  border-color: #e53935;
+  color: #e53935;
+}
+
+.note-action-find {
+  border-color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2481cc);
+}
+
+.note-editor {
+  width: 90vw;
+  max-width: 340px;
+  margin-bottom: 12px;
+}
+
+.note-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.note-editor-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.app-dark .note-card {
+  background: #1a2744;
+}
+
+.app-dark .note-action-btn {
+  border-color: rgba(255,255,255,0.18);
+  color: #e0e0e0;
+}
+
+.app-dark .note-textarea {
   background: #16213e;
   color: #e0e0e0;
 }

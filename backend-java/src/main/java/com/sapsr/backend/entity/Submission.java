@@ -41,6 +41,9 @@ public class Submission {
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "teacher_message_id")
+    private Integer teacherMessageId;
+
     public Submission() {}
 
     public Integer getId() { return id; }
@@ -61,4 +64,6 @@ public class Submission {
     public void setTeacherComment(String teacherComment) { this.teacherComment = teacherComment; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Integer getTeacherMessageId() { return teacherMessageId; }
+    public void setTeacherMessageId(Integer teacherMessageId) { this.teacherMessageId = teacherMessageId; }
 }

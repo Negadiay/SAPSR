@@ -35,14 +35,35 @@ public class TeacherController {
 
         List<User> filtered = allTeachers;
         if (groupNumber != null && !groupNumber.isBlank()) {
-            Set<String> groupTeachers = bsuirApiService.getTeachersForGroup(groupNumber);
-            if (!groupTeachers.isEmpty()) {
-                filtered = allTeachers.stream()
-                        .filter(t -> t.getFullName() != null
-                                && groupTeachers.contains(BsuirApiService.normalize(t.getFullName())))
+            // Приоритет: совпадение по email (более надёжно)
+            Set<String> iisEmails = bsuirApiService.getTeacherEmailsForGroup(groupNumber);
+            if (!iisEmails.isEmpty()) {
+                List<User> byEmail = allTeachers.stream()
+                        .filter(t -> t.getEmail() != null && iisEmails.contains(t.getEmail().toLowerCase()))
                         .toList();
-                // Fallback: если никто из зарегистрированных не совпал — вернуть всех
-                if (filtered.isEmpty()) filtered = allTeachers;
+                if (!byEmail.isEmpty()) {
+                    filtered = byEmail;
+                } else {
+                    // Резерв: совпадение по нормализованному ФИО
+                    Set<String> groupTeachers = bsuirApiService.getTeachersForGroup(groupNumber);
+                    if (!groupTeachers.isEmpty()) {
+                        List<User> byName = allTeachers.stream()
+                                .filter(t -> t.getFullName() != null
+                                        && groupTeachers.contains(BsuirApiService.normalize(t.getFullName())))
+                                .toList();
+                        if (!byName.isEmpty()) filtered = byName;
+                    }
+                }
+            } else {
+                // IIS не вернул email — пробуем по имени
+                Set<String> groupTeachers = bsuirApiService.getTeachersForGroup(groupNumber);
+                if (!groupTeachers.isEmpty()) {
+                    List<User> byName = allTeachers.stream()
+                            .filter(t -> t.getFullName() != null
+                                    && groupTeachers.contains(BsuirApiService.normalize(t.getFullName())))
+                            .toList();
+                    if (!byName.isEmpty()) filtered = byName;
+                }
             }
         }
 
