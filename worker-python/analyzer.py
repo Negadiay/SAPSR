@@ -15,6 +15,7 @@ import re
 import sys
 import json
 import time
+import unicodedata
 from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Optional
@@ -58,7 +59,8 @@ _RE_SECTION_NUM = re.compile(r"^\s*(\d+(?:\.\d+)?)\s+\S", re.MULTILINE)
 
 # Список источников
 _RE_REF_HEADING = re.compile(
-    r"список\s+(?:использованных\s+источников|литературы)", re.IGNORECASE
+    r"(?:с|c)писок\s+(?:использованных\s+источников|литературы)",
+    re.IGNORECASE,
 )
 _RE_REF_ENTRY_A = re.compile(r"^\s*\[?\d+\]?[\.\)]?\s+\S", re.MULTILINE)
 _RE_REF_ENTRY_B = re.compile(r"^\s*\d+\s+\S", re.MULTILINE)
@@ -161,6 +163,7 @@ def _make_error(
     fix: str,
     location: Optional[str] = None,
     category: Optional[str] = None,
+    context: str = "",
 ) -> dict:
     return {
         "severity": severity,
@@ -171,12 +174,66 @@ def _make_error(
         "rule":     rule,
         "found":    found,
         "fix":      fix,
+        "context":  context,
     }
 
 
+def _extract_context(text: str, pattern: re.Pattern, max_len: int = 120) -> str:
+    """Извлекает ~max_len символов вокруг первого совпадения паттерна в тексте.
+
+    Возвращает строку вида «...предшествующий текст [СОВПАДЕНИЕ] следующий...»
+    """
+    m = pattern.search(text)
+    if not m:
+        return ""
+    start = max(0, m.start() - 40)
+    end   = min(len(text), m.end() + 60)
+    snippet = text[start:end].strip().replace("\n", " ")
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(text):
+        snippet = snippet + "..."
+    return snippet[:max_len]
+
+
+# Таблица замены: визуально схожие латинские символы → кириллические.
+# pdfplumber при парсинге LaTeX иногда возвращает latin C вместо кирилл. С и т.п.
+_LATIN_TO_CYR = str.maketrans({
+    'A': 'А', 'B': 'В', 'C': 'С', 'E': 'Е', 'H': 'Н', 'I': 'І',
+    'K': 'К', 'M': 'М', 'O': 'О', 'P': 'Р', 'T': 'Т', 'X': 'Х',
+    'a': 'а', 'c': 'с', 'e': 'е', 'i': 'і', 'o': 'о', 'p': 'р',
+    'x': 'х', 'y': 'у',
+})
+
+
+def _fix_lookalikes(text: str) -> str:
+    """Заменяет Latin-буквы, визуально идентичные кириллическим, на настоящие
+    кириллические.  Применяется только к словам, которые целиком написаны
+    кириллицей ± эти «ложные» латиницы (иначе обычный Latin текст не трогаем).
+    """
+    # Заменяем только в словах, где все символы кириллические или похожие Latin
+    _CYR_OR_LOOKALIKE = re.compile(
+        r"[А-ЯЁа-яёACBEHIKMOPTXaceiopyxАВСЕНІКМОРТХасеіорх]+"
+    )
+    def _replace(m):
+        word = m.group()
+        # Если в слове есть хотя бы одна настоящая кириллица — заменяем lookalikes
+        if re.search(r'[А-ЯЁа-яё]', word):
+            return word.translate(_LATIN_TO_CYR)
+        return word
+    return _CYR_OR_LOOKALIKE.sub(_replace, text)
+
+
 def _clean_text(raw: str) -> str:
-    """Убирает мягкие переносы и объединяет слова с жёстким дефисом-переносом."""
-    text = _RE_SOFT_HYPHEN.sub("", raw)
+    """Нормализует текст, извлечённый pdfplumber из LaTeX-PDF:
+    1. Unicode NFC нормализация
+    2. Замена lookalike латинских символов на кириллицу
+    3. Удаление мягких переносов
+    4. Объединение слов с жёстким дефисом-переносом
+    """
+    text = unicodedata.normalize("NFC", raw)
+    text = _fix_lookalikes(text)
+    text = _RE_SOFT_HYPHEN.sub("", text)
     text = _RE_HARD_BREAK.sub("", text)
     return text
 
@@ -401,6 +458,7 @@ def _check_bibliography_format(full_text: str) -> list:
     ]
     if not suspicious:
         return []
+    snippet = " | ".join(s[:60] for s in suspicious[:2])
     return [_make_error(
         "minor", None,
         f"{len(suspicious)} источник(ов) не содержат года или URL.",
@@ -408,6 +466,7 @@ def _check_bibliography_format(full_text: str) -> list:
         f"Подозрительных строк: {len(suspicious)}.",
         "Оформите источники по ГОСТ 7.0.5-2008.",
         "Список использованных источников", "warning",
+        context=snippet,
     )]
 
 
@@ -426,6 +485,7 @@ def _check_simple_lists(full_text: str) -> list:
         if not lines[-1].endswith("."):
             violations += 1
         if violations:
+            snippet = " / ".join(l.strip()[:50] for l in lines[:3])
             errors.append(_make_error(
                 "minor", None,
                 "Нарушено оформление простого списка.",
@@ -433,6 +493,7 @@ def _check_simple_lists(full_text: str) -> list:
                 f"Нарушено в {violations} из {len(lines)} элементов.",
                 "Проверьте знаки препинания в конце пунктов списка.",
                 "Простой список", "warning",
+                context=snippet,
             ))
     return errors
 
@@ -454,6 +515,7 @@ def _check_numbered_lists(full_text: str) -> list:
             continue  # скорее всего оглавление или заголовки разделов
         violations = sum(1 for l in lines if not l.rstrip().endswith("."))
         if violations:
+            snippet = " / ".join(l.strip()[:50] for l in lines[:3])
             errors.append(_make_error(
                 "minor", None,
                 "Нарушено оформление нумерованного списка.",
@@ -461,6 +523,7 @@ def _check_numbered_lists(full_text: str) -> list:
                 f"Нарушено в {violations} из {len(lines)} элементах.",
                 "Поставьте точку в конце каждого пункта.",
                 "Нумерованный список", "warning",
+                context=snippet,
             ))
     return errors
 
@@ -488,6 +551,10 @@ def _check_figures(full_text: str) -> list:
         return [int(p) for p in n.split(".") if p.isdigit()]
 
     nums = ", ".join(sorted(missing, key=_sort_key))
+    # Показываем подпись первого «беспризорного» рисунка как контекст
+    first_miss = sorted(missing, key=_sort_key)[0]
+    ctx_pat    = re.compile(r"рисунок\s*" + re.escape(first_miss), re.IGNORECASE)
+    ctx        = _extract_context(full_text, ctx_pat)
     return [_make_error(
         "minor", None,
         f"Для рисунков {nums} нет ссылки в тексте.",
@@ -495,6 +562,7 @@ def _check_figures(full_text: str) -> list:
         f"Не найдены ссылки: {nums}.",
         "Добавьте ссылку «см. рис. N» или «рисунок N» в текст.",
         "Ссылки на рисунки", "warning",
+        context=ctx,
     )]
 
 
@@ -535,6 +603,7 @@ def _check_student_id(full_text: str) -> list:
     if known is None:
         return []   # API недоступен — не блокируем
     if specialty_code not in known:
+        ctx = _extract_context(full_text, _RE_BSUIR_ID if _RE_BSUIR_ID.search(full_text) else _RE_BSUIR_FB)
         return [_make_error(
             "warning", 1,
             f"Код специальности «{specialty_raw}» не найден в реестре БГУИР.",
@@ -542,6 +611,7 @@ def _check_student_id(full_text: str) -> list:
             f"Найден код: {specialty_raw}.",
             "Проверьте код специальности на титульном листе.",
             "Страница 1, обозначение работы", "warning",
+            context=ctx,
         )]
     return []
 
@@ -816,9 +886,6 @@ def analyze_pdf(path: str) -> dict:
 
             # 1. Обязательные разделы
             errors.extend(_check_structure(clean_text))
-
-            # 2. Нумерация разделов
-            errors.extend(_check_section_numbering(clean_text))
 
             # 3. Размер основного шрифта
             if pages_with_size_err:
