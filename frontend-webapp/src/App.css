@@ -317,6 +317,7 @@ input[type="file"] {
   font-size: 16px;
   font-weight: 500;
   color: var(--tg-theme-text-color);
+  margin-top: 3px;
   max-width: 100%;
   margin-top: 3px;
   overflow: hidden;
@@ -1223,7 +1224,8 @@ input[type="file"] {
 /* --- КНОПКА ОТОЗВАТЬ --- */
 .notif-btn-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 6px;
   flex-shrink: 0;
 }
@@ -1232,13 +1234,15 @@ input[type="file"] {
   background: none;
   border: 1px solid #e53935;
   color: #e53935;
-  padding: 0 10px;
+  width: 38px;
   height: 38px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.15s, color 0.15s;
   flex-shrink: 0;
 }
