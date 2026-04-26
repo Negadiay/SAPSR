@@ -156,23 +156,40 @@ function App() {
     teacherSearch: useRef(null),
   };
 
-  // Свайп-навигация
+  // Свайп-навигация (document-level, чтобы работало на всей площади экрана)
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
+  const swipeActive = useRef(false);
 
-  const handleTouchStart = (e) => {
-    swipeStartX.current = e.touches[0].clientX;
-    swipeStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e) => {
-    const dx = e.changedTouches[0].clientX - swipeStartX.current;
-    const dy = e.changedTouches[0].clientY - swipeStartY.current;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    const maxTab = tabs.length - 1;
-    if (dx < 0 && activeTab < maxTab) handleTabChange(activeTab + 1);
-    if (dx > 0 && activeTab > 0)      handleTabChange(activeTab - 1);
-  };
+  useEffect(() => {
+    if (step !== 'main') return;
+    const onStart = (e) => {
+      swipeStartX.current = e.touches[0].clientX;
+      swipeStartY.current = e.touches[0].clientY;
+      swipeActive.current = true;
+    };
+    const onEnd = (e) => {
+      if (!swipeActive.current) return;
+      swipeActive.current = false;
+      const dx = e.changedTouches[0].clientX - swipeStartX.current;
+      const dy = e.changedTouches[0].clientY - swipeStartY.current;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      // Используем функциональное обновление через ref чтобы избежать stale closure
+      setActiveTab(prev => {
+        const n = tabs.length;
+        const next = dx < 0 ? (prev + 1) % n : (prev - 1 + n) % n;
+        setDirection(dx < 0 ? 1 : -1);
+        return next;
+      });
+    };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchend', onEnd);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, tabs.length]);
 
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
@@ -597,11 +614,22 @@ function App() {
         fetchSubmissions();
         tg?.showPopup({ title: 'Готово!', message: 'Файл отправлен на проверку.', buttons: [{ type: 'ok' }] });
       } else {
-        const err = await res.json().catch(() => ({}));
-        setStatus(`❌ Ошибка: ${err.error || res.statusText}`);
         tg?.HapticFeedback?.notificationOccurred('error');
+        if (res.status === 413) {
+          setStatus('❌ Файл слишком большой. Максимальный размер — 50 МБ.');
+        } else if (res.status === 415 || res.status === 400) {
+          const err = await res.json().catch(() => ({}));
+          setStatus(`❌ ${err.error || 'Недопустимый формат файла. Загрузите PDF.'}`);
+        } else if (res.status === 401 || res.status === 403) {
+          setStatus('❌ Ошибка авторизации. Перезапустите приложение.');
+        } else if (res.status >= 500) {
+          setStatus('❌ Ошибка сервера. Попробуйте чуть позже.');
+        } else {
+          const err = await res.json().catch(() => ({}));
+          setStatus(`❌ ${err.error || `Ошибка ${res.status}`}`);
+        }
       }
-    } catch { setStatus('❌ Сервер недоступен'); }
+    } catch { setStatus('❌ Нет соединения с сервером. Проверьте интернет.'); }
     finally { setUploading(false); }
   };
 
@@ -790,8 +818,6 @@ function App() {
             initial="enter" animate="center" exit="exit"
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="screen main-content"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
           >
             {/* ===== СТУДЕНТ: загрузка ===== */}
             {userRole === 'student' && activeTab === 0 && (
