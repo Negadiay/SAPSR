@@ -13,6 +13,8 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+//проверочный пуш
+
 @Service
 public class BsuirApiService {
 
