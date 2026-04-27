@@ -548,6 +548,18 @@ function App() {
   };
 
   // --- Скачивание ---
+  // Открывает файл на скачивание. На мобильных Telegram-устройствах
+  // programmatic click по blob-URL не работает — используем tg.downloadFile
+  // (Bot API 7.x+) или window.open() с auth в query-параметре.
+  const openDownloadUrl = (apiPath, filename) => {
+    const url = `${API_BASE}${apiPath}?tg_auth=${encodeURIComponent(initData)}`;
+    if (tg?.downloadFile) {
+      tg.downloadFile({ url, file_name: filename });
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -557,17 +569,28 @@ function App() {
   };
 
   const handleDownloadReport = async (id) => {
-    try {
-      const res = await fetch(`${API_BASE}/submissions/${id}/report`, { headers: apiHeaders() });
-      if (res.ok) downloadBlob(await res.blob(), `report_${id}.pdf`);
-    } catch (err) { console.error(err); }
+    // На мобильном — открываем URL напрямую, на десктопе — через fetch+blob
+    if (tg?.platform && tg.platform !== 'unknown') {
+      openDownloadUrl(`/submissions/${id}/report`, `report_${id}.pdf`);
+    } else {
+      try {
+        const res = await fetch(`${API_BASE}/submissions/${id}/report`, { headers: apiHeaders() });
+        if (res.ok) downloadBlob(await res.blob(), `report_${id}.pdf`);
+        else openDownloadUrl(`/submissions/${id}/report`, `report_${id}.pdf`);
+      } catch { openDownloadUrl(`/submissions/${id}/report`, `report_${id}.pdf`); }
+    }
   };
 
   const handleDownloadPdf = async (id) => {
-    try {
-      const res = await fetch(`${API_BASE}/teacher/submissions/${id}/pdf`, { headers: apiHeaders() });
-      if (res.ok) downloadBlob(await res.blob(), `submission_${id}.pdf`);
-    } catch (err) { console.error(err); }
+    if (tg?.platform && tg.platform !== 'unknown') {
+      openDownloadUrl(`/teacher/submissions/${id}/pdf`, `submission_${id}.pdf`);
+    } else {
+      try {
+        const res = await fetch(`${API_BASE}/teacher/submissions/${id}/pdf`, { headers: apiHeaders() });
+        if (res.ok) downloadBlob(await res.blob(), `submission_${id}.pdf`);
+        else openDownloadUrl(`/teacher/submissions/${id}/pdf`, `submission_${id}.pdf`);
+      } catch { openDownloadUrl(`/teacher/submissions/${id}/pdf`, `submission_${id}.pdf`); }
+    }
   };
 
   // --- Вердикт ---
@@ -838,7 +861,8 @@ function App() {
                         </select>
                       </div>
                     )}
-                    <label htmlFor="file-upload" className="custom-file-upload" ref={refs.fileUpload}>
+                    <label htmlFor="file-upload" className="custom-file-upload" ref={refs.fileUpload}
+                      title={file ? file.name : 'Нажмите, чтобы выбрать файл (.pdf)'}>
                       <span style={{ fontSize: 'calc(var(--app-font-size) * 2.15)' }}>📁</span>
                       <span>{file ? file.name : 'Нажмите, чтобы выбрать файл (.pdf)'}</span>
                     </label>

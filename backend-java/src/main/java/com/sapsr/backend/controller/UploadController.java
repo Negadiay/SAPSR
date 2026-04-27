@@ -117,7 +117,8 @@ public class UploadController {
             }
         }
 
-        String email = null;
+        String email        = null;
+        String urlIdToSave  = null;
         if ("TEACHER".equals(role)) {
             email = body.getOrDefault("email", "").trim().toLowerCase();
             String code = body.getOrDefault("code", "").trim();
@@ -126,7 +127,7 @@ public class UploadController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Для преподавателя требуются email и код подтверждения"));
             }
             if (!emailVerificationService.isAllowedDomain(email)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Требуется почта @bsuir.by"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Требуется корпоративная почта @bsuir.by"));
             }
             if (!emailVerificationService.verifyCode(email, code)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
@@ -138,12 +139,18 @@ public class UploadController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована в системе"));
             }
 
-            // Автозаполнение ФИО из IIS
-            String iisName = bsuirApiService.findTeacherNameByEmail(email);
-            if (iisName != null && !iisName.isBlank()) {
-                fullName = iisName;
-            } else if (fullName.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Преподаватель с почтой " + email + " не найден в IIS БГУИР"));
+            // Поиск преподавателя в IIS и автозаполнение ФИО + urlId
+            try {
+                Optional<BsuirApiService.TeacherInfo> info = bsuirApiService.findTeacherByEmail(email);
+                if (info.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of("error",
+                            "Преподаватель с почтой " + email + " не найден в IIS БГУИР. Проверьте правильность адреса."));
+                }
+                fullName   = info.get().fio();
+                urlIdToSave = info.get().urlId();
+            } catch (BsuirApiService.IisUnavailableException e) {
+                return ResponseEntity.status(503).body(Map.of("error",
+                        "Сервис IIS БГУИР временно недоступен. Попробуйте позже."));
             }
         }
 
@@ -153,6 +160,18 @@ public class UploadController {
         user.setRole(role);
         user.setFullName(fullName);
         if (email != null) user.setEmail(email);
+        if (urlIdToSave != null) {
+            user.setUrlId(urlIdToSave);
+            // Сохраняем список групп преподавателя для быстрой фильтрации
+            try {
+                Set<String> groups = bsuirApiService.fetchTeacherGroups(urlIdToSave);
+                if (!groups.isEmpty()) {
+                    user.setTeacherGroups(new ObjectMapper().writeValueAsString(groups));
+                }
+            } catch (Exception e) {
+                System.err.println("[REGISTER] Не удалось загрузить группы для " + urlIdToSave + ": " + e.getMessage());
+            }
+        }
         userRepository.save(user);
 
         return ResponseEntity.ok(Map.of(

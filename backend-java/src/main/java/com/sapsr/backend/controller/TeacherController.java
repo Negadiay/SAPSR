@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,6 +22,7 @@ public class TeacherController {
     private final BsuirApiService bsuirApiService;
 
     private static final Pattern GROUP_PATTERN = Pattern.compile("\\(гр\\.\\s*(\\d{6})\\)");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public TeacherController(UserRepository userRepository, BsuirApiService bsuirApiService) {
         this.userRepository = userRepository;
@@ -33,34 +36,41 @@ public class TeacherController {
         // Пытаемся получить группу студента из его fullName: "Иванов И.И. (гр. 321702)"
         String groupNumber = extractGroupNumber(request);
 
-        // null = ещё не определено; в конце: если null → показать всех (IIS недоступен)
         List<User> filtered = null;
-        if (groupNumber != null && !groupNumber.isBlank()) {
-            Set<String> iisEmails = bsuirApiService.getTeacherEmailsForGroup(groupNumber);
-            Set<String> iisNames  = bsuirApiService.getTeachersForGroup(groupNumber);
-            boolean iisHasData = !iisEmails.isEmpty() || !iisNames.isEmpty();
 
-            if (iisHasData) {
-                // 1. Совпадение по email
-                if (!iisEmails.isEmpty()) {
-                    List<User> byEmail = allTeachers.stream()
-                            .filter(t -> t.getEmail() != null && iisEmails.contains(t.getEmail().toLowerCase()))
-                            .toList();
-                    if (!byEmail.isEmpty()) filtered = byEmail;
+        if (groupNumber != null && !groupNumber.isBlank()) {
+            final String group = groupNumber;
+
+            // 1. Быстрый путь: преподаватели с сохранёнными группами (данные из БД, без IIS)
+            List<User> byStoredGroups = allTeachers.stream()
+                    .filter(t -> t.getTeacherGroups() != null && teacherHasGroup(t.getTeacherGroups(), group))
+                    .toList();
+
+            if (!byStoredGroups.isEmpty()) {
+                filtered = byStoredGroups;
+            } else {
+                // 2. Fallback: старая логика через IIS (для преподавателей без сохранённых групп)
+                Set<String> iisEmails = bsuirApiService.getTeacherEmailsForGroup(groupNumber);
+                Set<String> iisNames  = bsuirApiService.getTeachersForGroup(groupNumber);
+                boolean iisHasData = !iisEmails.isEmpty() || !iisNames.isEmpty();
+
+                if (iisHasData) {
+                    if (!iisEmails.isEmpty()) {
+                        List<User> byEmail = allTeachers.stream()
+                                .filter(t -> t.getEmail() != null && iisEmails.contains(t.getEmail().toLowerCase()))
+                                .toList();
+                        if (!byEmail.isEmpty()) filtered = byEmail;
+                    }
+                    if (filtered == null && !iisNames.isEmpty()) {
+                        List<User> byName = allTeachers.stream()
+                                .filter(t -> t.getFullName() != null
+                                        && iisNames.contains(BsuirApiService.normalize(t.getFullName())))
+                                .toList();
+                        if (!byName.isEmpty()) filtered = byName;
+                    }
+                    if (filtered == null) filtered = Collections.emptyList();
                 }
-                // 2. Совпадение по нормализованному ФИО
-                if (filtered == null && !iisNames.isEmpty()) {
-                    List<User> byName = allTeachers.stream()
-                            .filter(t -> t.getFullName() != null
-                                    && iisNames.contains(BsuirApiService.normalize(t.getFullName())))
-                            .toList();
-                    if (!byName.isEmpty()) filtered = byName;
-                }
-                // 3. IIS вернул данные, но ни один зарегистрированный преподаватель не совпал —
-                //    показываем пустой список, чтобы не допустить выбор чужого преподавателя
-                if (filtered == null) filtered = Collections.emptyList();
             }
-            // Если iisHasData == false: IIS не ответил — filtered остаётся null → ниже вернём всех
         }
         if (filtered == null) filtered = allTeachers;
 
@@ -72,6 +82,15 @@ public class TeacherController {
                 .toList();
 
         return ResponseEntity.ok(result);
+    }
+
+    private boolean teacherHasGroup(String groupsJson, String groupNumber) {
+        try {
+            List<String> groups = MAPPER.readValue(groupsJson, new TypeReference<>() {});
+            return groups.contains(groupNumber);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String extractGroupNumber(HttpServletRequest request) {

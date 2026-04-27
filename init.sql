@@ -24,6 +24,9 @@ ON CONFLICT (telegram_id) DO NOTHING;
 
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS teacher_message_id INTEGER;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS url_id VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_groups TEXT;
+
 CREATE TABLE email_verifications (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
