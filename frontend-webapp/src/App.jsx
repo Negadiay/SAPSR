@@ -914,7 +914,7 @@ function App() {
                           </div>
                           <div className="notif-btn-group">
                             {s.status !== 'PROCESSING' && (
-                              <button className="download-btn" onClick={() => handleDownloadReport(s.id)}>📥</button>
+                              <button className="download-btn" title="Скачать отчёт" onClick={() => handleDownloadReport(s.id)}>📥</button>
                             )}
                             {s.status === 'SUCCESS' && !s.teacher_verdict && (
                               <button className="withdraw-btn" aria-label="Отозвать работу" title="Отозвать работу" disabled={withdrawing === s.id}

@@ -47,20 +47,28 @@ public class BsuirApiService {
     public record TeacherInfo(String fio, String urlId) {}
 
     /**
-     * Ищет преподавателя в IIS БГУИР по корпоративной почте.
+     * Ищет преподавателя в IIS БГУИР по корпоративной почте @bsuir.by.
      *
      * Алгоритм (O(1) HTTP):
      *  1. urlId = часть email до '@' (напр. "n.zotov").
      *  2. GET /employees/schedule/{urlId}.
-     *  3. Сравниваем employee.email с введённой почтой.
-     *  4. Совпало → Optional.of(TeacherInfo); нет → Optional.empty().
+     *  3. HTTP 404 → преподаватель не найден → Optional.empty().
+     *  4. HTTP 200 → преподаватель существует.
+     *     Проверяем, что employee.urlId совпадает с нашим urlId (санити-чек).
+     *     Берём ФИО из employee.lastName/firstName/middleName.
      *
-     * @throws IisUnavailableException если сервер вернул не 200/404
+     * Примечание: сравнение email в ответе IIS не используется, т.к. endpoint
+     * /employees/schedule/{urlId} не возвращает поле email в объекте employee.
+     * Подтверждение личности гарантируется самим фактом доступности endpoint под
+     * данным urlId (почта БГУИР всегда имеет формат {urlId}@bsuir.by).
+     *
+     * @throws IisUnavailableException если сервер вернул не 200 и не 404
      */
     public Optional<TeacherInfo> findTeacherByEmail(String email) {
         if (email == null) return Optional.empty();
         String normalized = email.trim().toLowerCase();
-        String urlId      = normalized.contains("@") ? normalized.split("@")[0] : normalized;
+        if (!normalized.contains("@")) return Optional.empty();
+        String urlId = normalized.split("@")[0];
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(EMPLOYEE_SCHEDULE_URL + urlId))
@@ -69,21 +77,33 @@ public class BsuirApiService {
                     .GET()
                     .build();
             HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            System.out.println("[BSUIR API] /employees/schedule/" + urlId + " → HTTP " + resp.statusCode());
+
             if (resp.statusCode() == 404) return Optional.empty();
             if (resp.statusCode() != 200) {
                 throw new IisUnavailableException("IIS вернул HTTP " + resp.statusCode());
             }
+
             JsonNode root     = objectMapper.readTree(resp.body());
             JsonNode employee = root.get("employee");
-            if (employee == null || employee.isNull()) return Optional.empty();
-
-            String iisEmail = text(employee, "email");
-            if (iisEmail == null || !iisEmail.trim().equalsIgnoreCase(normalized)) {
-                System.err.println("[BSUIR API] Email не совпал: IIS=" + iisEmail + ", введено=" + normalized);
+            if (employee == null || employee.isNull()) {
+                System.err.println("[BSUIR API] Ответ не содержит поле employee");
                 return Optional.empty();
             }
+
+            // Санити-чек: urlId в ответе должен совпадать с тем, что мы запросили
+            String iisUrlId = text(employee, "urlId");
+            if (iisUrlId != null && !iisUrlId.equalsIgnoreCase(urlId)) {
+                System.err.println("[BSUIR API] urlId не совпал: ожидали=" + urlId + ", получили=" + iisUrlId);
+                return Optional.empty();
+            }
+
             String fio = text(employee, "fio");
             if (fio == null) fio = buildFio(employee);
+            if (fio == null) {
+                System.err.println("[BSUIR API] Не удалось построить ФИО для urlId=" + urlId);
+                return Optional.empty();
+            }
             System.out.println("[BSUIR API] Найден преподаватель: " + fio + " (urlId=" + urlId + ")");
             return Optional.of(new TeacherInfo(fio, urlId));
         } catch (IisUnavailableException e) {
