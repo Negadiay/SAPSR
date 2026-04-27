@@ -18,6 +18,13 @@ const getTelegramUserId = (initData) => {
   }
 };
 
+const formatCountdown = (seconds) => {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const rest = String(safeSeconds % 60).padStart(2, '0');
+  return `${minutes}:${rest}`;
+};
+
 // --- Туториал ---
 const STUDENT_STEPS = [
   { refKey: null,           text: 'Добро пожаловать в SAPSR! Это система автоматической проверки оформления курсовых работ по стандартам БГУИР.' },
@@ -108,6 +115,8 @@ function App() {
   const [teacherEmail, setTeacherEmail]       = useState('');
   const [regCode, setRegCode]                 = useState('');
   const [sendingCode, setSendingCode]         = useState(false);
+  const [codeExpiresAt, setCodeExpiresAt]     = useState(null);
+  const [codeTimeLeft, setCodeTimeLeft]       = useState(0);
 
   // Загрузка файла (студент)
   const [file, setFile]                   = useState(null);
@@ -191,6 +200,18 @@ function App() {
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
   const apiHeaders = (extra = {}) => ({ 'Authorization': initData, ...extra });
+
+  useEffect(() => {
+    if (step !== 'confirm_code' || !codeExpiresAt) return undefined;
+
+    const tick = () => {
+      setCodeTimeLeft(Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000)));
+    };
+
+    tick();
+    const timerId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timerId);
+  }, [step, codeExpiresAt]);
 
   const getTutorialTabIndex = (role, refKey) => {
     if (role === 'teacher') {
@@ -505,15 +526,23 @@ function App() {
   const handleTeacherSendCode = async (e) => {
     e.preventDefault();
     setRegError('');
-    if (!teacherEmail.trim()) { setRegError('Введите email'); return; }
+    const email = teacherEmail.trim().toLowerCase();
+    if (!email) { setRegError('Введите email'); return; }
     setSendingCode(true);
     try {
       const res = await fetch(`${API_BASE}/register/send-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: teacherEmail.trim() }),
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ email }),
       });
-      if (res.ok) { setStep('confirm_code'); setRegCode(''); }
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const expiresIn = Number(data.expires_in_seconds) || 300;
+        setTeacherEmail(email);
+        setCodeExpiresAt(Date.now() + expiresIn * 1000);
+        setStep('confirm_code');
+        setRegCode('');
+      }
       else {
         const err = await res.json().catch(() => ({}));
         setRegError(err.error || 'Ошибка отправки кода');
@@ -526,6 +555,7 @@ function App() {
     e.preventDefault();
     setRegError('');
     if (!regCode.trim()) { setRegError('Введите код из письма'); return; }
+    if (codeTimeLeft <= 0) { setRegError('Срок действия кода истёк. Запросите новый код.'); return; }
     setRegistering(true);
     try {
       const res = await fetch(`${API_BASE}/register`, {
@@ -537,6 +567,8 @@ function App() {
         tg?.HapticFeedback?.notificationOccurred('success');
         setUserRole('teacher');
         setStep('main');
+        setCodeExpiresAt(null);
+        setCodeTimeLeft(0);
         fetchTeacherSubmissions();
         maybeLaunchTutorial('teacher');
       } else {
@@ -820,12 +852,17 @@ function App() {
             <form onSubmit={handleConfirmCode} className="register-form">
               <input type="text" className="reg-input code-input-wide" placeholder="6-значный код"
                 value={regCode} onChange={(e) => setRegCode(e.target.value)} maxLength={6} inputMode="numeric" autoFocus />
+              <p className={`code-timer ${codeTimeLeft <= 0 ? 'code-timer-expired' : ''}`}>
+                {codeTimeLeft > 0
+                  ? `Код действителен ещё ${formatCountdown(codeTimeLeft)}`
+                  : 'Срок действия кода истёк'}
+              </p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
-                <button type="submit" className="submit-btn" disabled={registering}>
+                <button type="submit" className="submit-btn" disabled={registering || codeTimeLeft <= 0}>
                   {registering ? '⏳ Проверка...' : '✅ Подтвердить'}
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => { setStep('register'); setRegError(''); setRegCode(''); }}>
+                <button type="button" className="secondary-btn" onClick={() => { setStep('register'); setRegError(''); setRegCode(''); setCodeExpiresAt(null); setCodeTimeLeft(0); }}>
                   ⬅️ Назад
                 </button>
               </div>

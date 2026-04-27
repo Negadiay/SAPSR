@@ -18,6 +18,7 @@ public class BsuirApiService {
 
     private static final String SCHEDULE_URL        = "https://iis.bsuir.by/api/v1/schedule?studentGroup=";
     private static final String STUDENT_GROUPS_URL  = "https://iis.bsuir.by/api/v1/student-groups";
+    private static final String EMPLOYEES_ALL_URL   = "https://iis.bsuir.by/api/v1/employees/all";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -27,6 +28,7 @@ public class BsuirApiService {
     private final Map<String, Set<String>> cache = new ConcurrentHashMap<>();
     // Кэш: номер группы → набор email преподавателей (@bsuir.by)
     private final Map<String, Set<String>> emailCache = new ConcurrentHashMap<>();
+    private final Map<String, CachedTeacherInfo> teacherByEmailCache = new ConcurrentHashMap<>();
     private final Set<String> knownGroupsCache = ConcurrentHashMap.newKeySet();
     public Set<String> getTeachersForGroup(String groupNumber) {
         return cache.computeIfAbsent(groupNumber, this::fetchFromApi);
@@ -45,22 +47,16 @@ public class BsuirApiService {
 
     /** Данные преподавателя из IIS. */
     public record TeacherInfo(String fio, String urlId) {}
+    private record CachedTeacherInfo(TeacherInfo info, long expiresAtMillis) {}
 
     /**
      * Ищет преподавателя в IIS БГУИР по корпоративной почте @bsuir.by.
      *
-     * Алгоритм (O(1) HTTP):
-     *  1. urlId = часть email до '@' (напр. "n.zotov").
-     *  2. GET /employees/schedule/{urlId}.
-     *  3. HTTP 404 → преподаватель не найден → Optional.empty().
-     *  4. HTTP 200 → преподаватель существует.
-     *     Проверяем, что employee.urlId совпадает с нашим urlId (санити-чек).
-     *     Берём ФИО из employee.lastName/firstName/middleName.
-     *
-     * Примечание: сравнение email в ответе IIS не используется, т.к. endpoint
-     * /employees/schedule/{urlId} не возвращает поле email в объекте employee.
-     * Подтверждение личности гарантируется самим фактом доступности endpoint под
-     * данным urlId (почта БГУИР всегда имеет формат {urlId}@bsuir.by).
+     * Алгоритм:
+     *  1. GET /employees/all.
+     *  2. Для каждого urlId из списка GET /employees/schedule/{urlId}.
+     *  3. Сравниваем email из employee/employeeDto с введенной почтой.
+     *  4. При совпадении возвращаем ФИО и urlId преподавателя.
      *
      * @throws IisUnavailableException если сервер вернул не 200 и не 404
      */
@@ -68,7 +64,58 @@ public class BsuirApiService {
         if (email == null) return Optional.empty();
         String normalized = email.trim().toLowerCase();
         if (!normalized.contains("@")) return Optional.empty();
-        String urlId = normalized.split("@")[0];
+
+        CachedTeacherInfo cached = teacherByEmailCache.get(normalized);
+        if (cached != null) {
+            if (cached.expiresAtMillis() > System.currentTimeMillis()) return Optional.of(cached.info());
+            teacherByEmailCache.remove(normalized);
+        }
+
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(EMPLOYEES_ALL_URL))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(8))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            System.out.println("[BSUIR API] /employees/all → HTTP " + resp.statusCode());
+
+            if (resp.statusCode() == 404) return Optional.empty();
+            if (resp.statusCode() != 200) {
+                throw new IisUnavailableException("IIS вернул HTTP " + resp.statusCode());
+            }
+
+            JsonNode employees = firstArray(objectMapper.readTree(resp.body()), "employees", "employeeDtos", "items", "content");
+            if (employees == null) {
+                System.err.println("[BSUIR API] /employees/all вернул неизвестную структуру");
+                return Optional.empty();
+            }
+
+            Set<String> checkedUrlIds = new HashSet<>();
+            for (JsonNode employeeSummary : employees) {
+                String urlId = text(employeeSummary, "urlId");
+                if (urlId == null || !checkedUrlIds.add(urlId.toLowerCase())) continue;
+
+                Optional<TeacherInfo> info = fetchTeacherByUrlIdIfEmailMatches(urlId, normalized);
+                if (info.isPresent()) {
+                    teacherByEmailCache.put(normalized,
+                            new CachedTeacherInfo(info.get(), System.currentTimeMillis() + Duration.ofMinutes(5).toMillis()));
+                    System.out.println("[BSUIR API] Найден преподаватель по email: " + info.get().fio() + " (urlId=" + info.get().urlId() + ")");
+                    return info;
+                }
+            }
+
+            System.err.println("[BSUIR API] Email не найден среди преподавателей IIS: " + normalized);
+            return Optional.empty();
+        } catch (IisUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IisUnavailableException("Ошибка соединения с IIS: " + e.getMessage());
+        }
+    }
+
+    private Optional<TeacherInfo> fetchTeacherByUrlIdIfEmailMatches(String urlId, String expectedEmail) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(EMPLOYEE_SCHEDULE_URL + urlId))
@@ -77,35 +124,28 @@ public class BsuirApiService {
                     .GET()
                     .build();
             HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
-            System.out.println("[BSUIR API] /employees/schedule/" + urlId + " → HTTP " + resp.statusCode());
 
             if (resp.statusCode() == 404) return Optional.empty();
             if (resp.statusCode() != 200) {
-                throw new IisUnavailableException("IIS вернул HTTP " + resp.statusCode());
+                throw new IisUnavailableException("IIS вернул HTTP " + resp.statusCode() + " для " + urlId);
             }
 
-            JsonNode root     = objectMapper.readTree(resp.body());
-            JsonNode employee = root.get("employee");
-            if (employee == null || employee.isNull()) {
-                System.err.println("[BSUIR API] Ответ не содержит поле employee");
-                return Optional.empty();
-            }
+            JsonNode root = objectMapper.readTree(resp.body());
+            JsonNode employee = firstObject(root, "employee", "employeeDto");
+            if (employee == null) employee = root.isObject() ? root : null;
+            if (employee == null) return Optional.empty();
 
-            // Санити-чек: urlId в ответе должен совпадать с тем, что мы запросили
+            String iisEmail = text(employee, "email");
+            if (iisEmail == null || !iisEmail.equalsIgnoreCase(expectedEmail)) return Optional.empty();
+
             String iisUrlId = text(employee, "urlId");
-            if (iisUrlId != null && !iisUrlId.equalsIgnoreCase(urlId)) {
-                System.err.println("[BSUIR API] urlId не совпал: ожидали=" + urlId + ", получили=" + iisUrlId);
-                return Optional.empty();
-            }
-
-            String fio = text(employee, "fio");
+            String urlIdToSave = iisUrlId != null ? iisUrlId : urlId;
+            String fio = buildFullName(employee);
+            if (fio == null) fio = text(employee, "fio");
             if (fio == null) fio = buildFio(employee);
-            if (fio == null) {
-                System.err.println("[BSUIR API] Не удалось построить ФИО для urlId=" + urlId);
-                return Optional.empty();
-            }
-            System.out.println("[BSUIR API] Найден преподаватель: " + fio + " (urlId=" + urlId + ")");
-            return Optional.of(new TeacherInfo(fio, urlId));
+            if (fio == null) return Optional.empty();
+
+            return Optional.of(new TeacherInfo(fio, urlIdToSave));
         } catch (IisUnavailableException e) {
             throw e;
         } catch (Exception e) {
@@ -290,6 +330,38 @@ public class BsuirApiService {
         return sb.toString();
     }
 
+    private String buildFullName(JsonNode emp) {
+        String lastName = text(emp, "lastName");
+        String firstName = text(emp, "firstName");
+        String middleName = text(emp, "middleName");
+        if (lastName == null) return null;
+        StringBuilder sb = new StringBuilder(lastName);
+        if (firstName != null) sb.append(" ").append(firstName);
+        if (middleName != null) sb.append(" ").append(middleName);
+        return sb.toString();
+    }
+
+    private JsonNode firstArray(JsonNode root, String... fields) {
+        if (root == null || root.isNull()) return null;
+        if (root.isArray()) return root;
+        if (!root.isObject()) return null;
+        for (String field : fields) {
+            JsonNode node = root.get(field);
+            if (node != null && node.isArray()) return node;
+        }
+        return null;
+    }
+
+    private JsonNode firstObject(JsonNode root, String... fields) {
+        if (root == null || root.isNull()) return null;
+        if (!root.isObject()) return null;
+        for (String field : fields) {
+            JsonNode node = root.get(field);
+            if (node != null && node.isObject()) return node;
+        }
+        return null;
+    }
+
     private String text(JsonNode node, String field) {
         JsonNode n = node.get(field);
         return (n != null && !n.isNull() && !n.asText().isBlank()) ? n.asText().trim() : null;
@@ -303,6 +375,7 @@ public class BsuirApiService {
     public void clearCache() {
         cache.clear();
         emailCache.clear();
+        teacherByEmailCache.clear();
         knownGroupsCache.clear();
         System.out.println("[BSUIR API] Кэш расписаний очищен");
     }

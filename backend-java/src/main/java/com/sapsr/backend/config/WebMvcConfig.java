@@ -16,7 +16,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(telegramInitDataInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/v1/register/send-code");
+                .addPathPatterns("/api/**");
     }
 }

@@ -168,6 +168,19 @@ h1 {
   text-align: center;
 }
 
+.code-timer {
+  font-size: 12px;
+  font-weight: 600;
+  margin: -4px 0 0;
+  opacity: 0.75;
+  text-align: center;
+}
+
+.code-timer-expired {
+  color: #e53935;
+  opacity: 1;
+}
+
 .debug-banner {
   background: #fff3cd;
   color: #856404;
