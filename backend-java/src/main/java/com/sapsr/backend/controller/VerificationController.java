@@ -48,7 +48,7 @@ public class VerificationController {
         }
 
         Optional<User> byEmail = userRepository.findByEmail(email);
-        if (byEmail.isPresent() && !byEmail.get().getTelegramId().equals(telegramId)) {
+        if (byEmail.isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована в системе"));
         }
 

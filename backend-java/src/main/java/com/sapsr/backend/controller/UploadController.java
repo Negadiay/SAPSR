@@ -133,7 +133,7 @@ public class UploadController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Требуется корпоративная почта @bsuir.by"));
             }
             Optional<User> byEmail = userRepository.findByEmail(email);
-            if (byEmail.isPresent() && !byEmail.get().getTelegramId().equals(telegramId)) {
+            if (byEmail.isPresent()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована в системе"));
             }
             if (!emailVerificationService.verifyCode(email, code)) {

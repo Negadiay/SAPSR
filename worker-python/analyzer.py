@@ -802,13 +802,15 @@ def _check_minsk_year(first_page_text: str) -> list:
 def _extract_person_near_label(first_page_text: str, label_re: re.Pattern) -> Optional[str]:
     lines = [line.strip() for line in first_page_text.splitlines()]
     for idx, line in enumerate(lines):
-        if not label_re.search(line):
+        label_match = label_re.search(line)
+        if not label_match:
             continue
 
-        candidates = [line]
+        after_label = line[label_match.end():].strip(" :-—–\t")
+        candidates = [after_label] if after_label else []
         candidates.extend(lines[idx + offset] for offset in range(1, 3) if idx + offset < len(lines))
         for candidate in candidates:
-            for pattern in (_RE_PERSON_FULL_NAME, _RE_PERSON_SURNAME_INITIALS, _RE_PERSON_INITIALS_SURNAME):
+            for pattern in (_RE_PERSON_FULL_NAME, _RE_PERSON_INITIALS_SURNAME, _RE_PERSON_SURNAME_INITIALS):
                 match = pattern.search(candidate)
                 if match:
                     return match.group(0)
