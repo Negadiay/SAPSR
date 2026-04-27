@@ -8,6 +8,15 @@ const AUTO_REFRESH_INTERVAL_MS = 12000;
 const COMMENT_TEMPLATE_LIMIT = 20;
 const COMMENT_SUGGESTION_LIMIT = 3;
 const LAST_TEACHER_KEY = 'sapsr_last_teacher_id';
+const FONT_SIZE_OPTIONS = ['small', 'normal', 'large', 'xlarge'];
+const FONT_SIZE_LABELS = {
+  small: 'Мелкий',
+  normal: 'Обычный',
+  large: 'Крупный',
+  xlarge: 'Очень крупный',
+};
+const STUDENT_INPUT_ALLOWED_RE = /[^А-ЯЁа-яё.,\s\d]/g;
+const STUDENT_REG_RE = /^[А-ЯЁ][а-яё]+\s[А-ЯЁ]\.[А-ЯЁ]\.,\s\d{6}$/;
 
 const getTelegramUserId = (initData) => {
   try {
@@ -103,6 +112,7 @@ function App() {
   const [activeTab, setActiveTab]     = useState(0);
   const [direction, setDirection]     = useState(0);
   const [userRole, setUserRole]       = useState('');
+  const [registeredRole, setRegisteredRole] = useState('');
   const [currentUserId, setCurrentUserId] = useState('');
 
   // Регистрация студента
@@ -111,7 +121,6 @@ function App() {
   const [registering, setRegistering] = useState(false);
 
   // Регистрация преподавателя
-  const [teacherFullName, setTeacherFullName] = useState('');
   const [teacherEmail, setTeacherEmail]       = useState('');
   const [regCode, setRegCode]                 = useState('');
   const [sendingCode, setSendingCode]         = useState(false);
@@ -194,7 +203,6 @@ function App() {
       document.removeEventListener('touchstart', onStart);
       document.removeEventListener('touchend', onEnd);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, userRole]);
 
   const tg = window.Telegram?.WebApp;
@@ -430,6 +438,7 @@ function App() {
           const role = data.role.toLowerCase();
           setCurrentUserId(data.telegram_id ? String(data.telegram_id) : '');
           setUserRole(role);
+          setRegisteredRole(role);
           setStep('main');
           if (role === 'student') { fetchTeachers(); fetchSubmissions(); }
           else fetchTeacherSubmissions();
@@ -496,11 +505,12 @@ function App() {
   const handleRegisterStudent = async (e) => {
     e.preventDefault();
     setRegError('');
-    const match = regInput.trim().match(/^(.+),\s*(\d{6})$/);
-    if (!match) { setRegError('Формат: Фамилия И.О., 123456'); return; }
-    if (/[a-zA-Z]/.test(match[1])) { setRegError('Имя должно быть на кириллице'); return; }
-    if (/\d/.test(match[1])) { setRegError('Имя не должно содержать цифры'); return; }
-    const fullName = match[1].trim() + ' (гр. ' + match[2] + ')';
+    const normalizedInput = regInput.trim().replace(/\s+/g, ' ');
+    const match = normalizedInput.match(STUDENT_REG_RE);
+    if (!match) { setRegError('Формат: Иванов И.И., 123456'); return; }
+    const groupNumber = normalizedInput.slice(-6);
+    const namePart = normalizedInput.slice(0, -8);
+    const fullName = namePart + ' (гр. ' + groupNumber + ')';
     setRegistering(true);
     try {
       const res = await fetch(`${API_BASE}/register`, {
@@ -511,6 +521,7 @@ function App() {
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred('success');
         setUserRole('student');
+        setRegisteredRole('student');
         setStep('main');
         fetchTeachers();
         maybeLaunchTutorial('student');
@@ -566,6 +577,7 @@ function App() {
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred('success');
         setUserRole('teacher');
+        setRegisteredRole('teacher');
         setStep('main');
         setCodeExpiresAt(null);
         setCodeTimeLeft(0);
@@ -718,12 +730,40 @@ function App() {
 
   const handleRoleSelect = (role) => {
     setUserRole(role); setRegInput(''); setRegCode(''); setRegError('');
-    setTeacherFullName(''); setTeacherEmail(''); setStep('register');
+    setTeacherEmail(''); setStep('register');
+  };
+
+  const handleExistingRoleLogin = async (role) => {
+    setRegError('');
+    try {
+      const res = await fetch(`${API_BASE}/me`, { headers: apiHeaders() });
+      if (!res.ok) {
+        setRegError('Не удалось войти. Откройте мини-приложение из Telegram ещё раз.');
+        return;
+      }
+      const data = await res.json();
+      const dbRole = data.role && data.role !== 'NONE' ? data.role.toLowerCase() : '';
+      if (dbRole !== role) {
+        setRegError('Для этой роли нет сохранённой регистрации');
+        return;
+      }
+
+      setCurrentUserId(data.telegram_id ? String(data.telegram_id) : currentUserId);
+      setUserRole(role);
+      setRegisteredRole(role);
+      setDirection(0);
+      setActiveTab(0);
+      setStep('main');
+      if (role === 'student') { fetchTeachers(); fetchSubmissions(); }
+      else fetchTeacherSubmissions();
+    } catch {
+      setRegError('Сервер недоступен');
+    }
   };
 
   const resetRegistration = () => {
     setStep('role'); setUserRole(''); setRegInput(''); setRegCode('');
-    setRegError(''); setTeacherFullName(''); setTeacherEmail('');
+    setRegError(''); setTeacherEmail('');
   };
 
   const variants = {
@@ -797,15 +837,24 @@ function App() {
           <MotionDiv key="role" className="screen" exit={{ opacity: 0 }}>
             <p className="description">Выберите вашу роль в системе</p>
             <div className="role-container">
-              <button className="role-card" onClick={() => handleRoleSelect('student')}>
-                <span className="role-icon">👨‍🎓</span>
-                <span className="role-text">Студент</span>
-              </button>
-              <button className="role-card" onClick={() => handleRoleSelect('teacher')}>
-                <span className="role-icon">👨‍🏫</span>
-                <span className="role-text">Преподаватель</span>
-              </button>
+              {[
+                ['student', '👨‍🎓', 'Студент'],
+                ['teacher', '👨‍🏫', 'Преподаватель'],
+              ].map(([role, icon, label]) => (
+                <div className="role-row" key={role}>
+                  <button className="role-card" onClick={() => handleRoleSelect(role)}>
+                    <span className="role-icon">{icon}</span>
+                    <span className="role-text">{label}</span>
+                  </button>
+                  {registeredRole === role && (
+                    <button className="role-login-btn" onClick={() => handleExistingRoleLogin(role)}>
+                      Войти
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
+            {regError && <div className="reg-error role-error">{regError}</div>}
           </MotionDiv>
         )}
 
@@ -814,8 +863,8 @@ function App() {
             <p className="description">Введите ФИО и номер группы</p>
             <form onSubmit={handleRegisterStudent} className="register-form">
               <input type="text" className="reg-input" placeholder="Иванов И.О., 321702"
-                value={regInput} onChange={(e) => setRegInput(e.target.value)} autoFocus />
-              <p className="reg-hint">Формат: Фамилия И.О., номер группы (6 цифр)</p>
+                value={regInput} onChange={(e) => setRegInput(e.target.value.replace(STUDENT_INPUT_ALLOWED_RE, ''))} autoFocus />
+              <p className="reg-hint">Формат: Иванов И.И., 321702. Только кириллица, точки и запятая.</p>
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering}>
@@ -1109,12 +1158,21 @@ function App() {
 
                 <div className="settings-section">
                   <div className="settings-label">Размер шрифта</div>
-                  <div className="fontsize-row">
-                    {[['small','А−'],['normal','А'],['large','А+'],['xlarge','А++']].map(([val, label]) => (
-                      <button key={val} className={`fontsize-btn ${fontSize === val ? 'active' : ''}`}
-                        onClick={() => setFontSize(val)}>{label}</button>
-                    ))}
+                  <div className="fontsize-slider-row">
+                    <span className="fontsize-marker">A−</span>
+                    <input
+                      className="fontsize-slider"
+                      type="range"
+                      min="0"
+                      max={FONT_SIZE_OPTIONS.length - 1}
+                      step="1"
+                      value={Math.max(0, FONT_SIZE_OPTIONS.indexOf(fontSize))}
+                      onChange={(e) => setFontSize(FONT_SIZE_OPTIONS[Number(e.target.value)] || 'normal')}
+                      aria-label="Размер шрифта"
+                    />
+                    <span className="fontsize-marker fontsize-marker-large">A+</span>
                   </div>
+                  <div className="settings-desc">{FONT_SIZE_LABELS[fontSize] || FONT_SIZE_LABELS.normal}</div>
                 </div>
 
                 <div className="settings-section">
@@ -1129,7 +1187,7 @@ function App() {
                 </div>
 
                 <div className="settings-divider" />
-                <button className="secondary-btn" onClick={resetRegistration}>Выйти из системы</button>
+                <button className="secondary-btn settings-wide-btn" onClick={resetRegistration}>Выйти из системы</button>
               </div>
             )}
           </MotionDiv>

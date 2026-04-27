@@ -92,11 +92,18 @@ h1 {
   flex-direction: column;
   gap: 12px;
   width: 100%;
-  max-width: 280px;
+  max-width: 320px;
+}
+
+.role-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
 }
 
 .role-card {
-  width: 100%;
+  flex: 1;
   background: var(--tg-theme-secondary-bg-color, #f4f4f5);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 15px;
@@ -124,9 +131,27 @@ h1 {
   text-align: left;
 }
 
+.role-login-btn {
+  min-width: 86px;
+  border: 1px solid var(--tg-theme-button-color, #2481cc);
+  border-radius: 15px;
+  background: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-text-color, #fff);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .role-card:active {
   background: var(--tg-theme-button-color, #2481cc);
   color: white;
+}
+
+.role-login-btn:active {
+  transform: scale(0.96);
+}
+
+.role-error {
+  margin-top: 12px;
 }
 
 /* --- 5. ФОРМЫ (РЕГИСТРАЦИЯ) --- */
@@ -851,7 +876,10 @@ input[type="file"] {
 
 /* --- 15. НАСТРОЙКИ --- */
 .settings-section {
+  width: 100%;
+  max-width: 340px;
   background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  border: 2px solid transparent;
   border-radius: 12px;
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -876,14 +904,22 @@ input[type="file"] {
 .settings-desc { font-size: 14px; }
 
 .settings-divider {
+  width: 100%;
+  max-width: 340px;
   height: 1px;
   background: rgba(0,0,0,0.08);
   margin: 16px 0;
 }
 
+.settings-wide-btn {
+  width: 100%;
+  max-width: 340px;
+}
+
 .theme-toggle {
   display: flex;
   gap: 6px;
+  width: 100%;
 }
 
 .theme-btn {
@@ -1029,6 +1065,10 @@ input[type="file"] {
 .App .settings-desc {
   font-size: var(--app-font-size);
 }
+.App .role-login-btn,
+.App .fontsize-marker {
+  font-size: calc(var(--app-font-size) * 0.93);
+}
 .App .code-input-wide { font-size: calc(var(--app-font-size) * 1.7); }
 .App .notif-file-subject,
 .App .submit-btn {
@@ -1069,7 +1109,9 @@ input[type="file"] {
 .app-contrast:not(.app-dark) .ts-card-compact,
 .app-contrast:not(.app-dark) .notif-line {
   background: #d8f2ff !important;
-  border: 2px solid #38a7e8 !important;
+  border-color: #38a7e8 !important;
+  outline: 2px solid #38a7e8;
+  outline-offset: -2px;
   color: #03233f !important;
 }
 
@@ -1077,15 +1119,13 @@ input[type="file"] {
 .app-contrast:not(.app-dark) .revision-input,
 .app-contrast:not(.app-dark) .teacher-select,
 .app-contrast:not(.app-dark) .teacher-search,
-.app-contrast:not(.app-dark) .theme-btn,
-.app-contrast:not(.app-dark) .fontsize-btn {
+.app-contrast:not(.app-dark) .theme-btn {
   background: #ffffff !important;
   border-color: #38a7e8 !important;
   color: #03233f !important;
 }
 
-.app-contrast:not(.app-dark) .theme-btn.active,
-.app-contrast:not(.app-dark) .fontsize-btn.active {
+.app-contrast:not(.app-dark) .theme-btn.active {
   background: #007ad1 !important;
   border-color: #005f9f !important;
   color: #ffffff !important;
@@ -1093,7 +1133,7 @@ input[type="file"] {
 
 .app-contrast:not(.app-dark) .bottom-nav {
   background: rgba(0, 70, 120, 0.95) !important;
-  border: 2px solid #7fd3ff;
+  outline: 2px solid #7fd3ff;
 }
 
 .app-contrast:not(.app-dark) .bottom-nav button.active .nav-icon-bg,
@@ -1110,6 +1150,12 @@ input[type="file"] {
   border: 2px solid #007ad1 !important;
   color: #005f9f !important;
 }
+
+.app-contrast:not(.app-dark) .refresh-btn:active {
+  background: #007ad1 !important;
+  color: #ffffff !important;
+  transform: scale(0.96);
+}
 .app-contrast.app-dark {
   --tg-theme-text-color: #ffffff !important;
   --tg-theme-bg-color: #000000 !important;
@@ -1124,7 +1170,9 @@ input[type="file"] {
 .app-contrast.app-dark .settings-section,
 .app-contrast.app-dark .upload-container {
   background: #000 !important;
-  border: 2px solid #fff !important;
+  border-color: #fff !important;
+  outline: 2px solid #fff;
+  outline-offset: -2px;
   color: #fff !important;
 }
 
@@ -1132,15 +1180,13 @@ input[type="file"] {
 .app-contrast.app-dark .revision-input,
 .app-contrast.app-dark .teacher-select,
 .app-contrast.app-dark .teacher-search,
-.app-contrast.app-dark .theme-btn,
-.app-contrast.app-dark .fontsize-btn {
+.app-contrast.app-dark .theme-btn {
   background: #000 !important;
   border-color: #555 !important;
   color: #fff !important;
 }
 
-.app-contrast.app-dark .theme-btn.active,
-.app-contrast.app-dark .fontsize-btn.active {
+.app-contrast.app-dark .theme-btn.active {
   background: #ff8c00 !important;
   border-color: #ff8c00 !important;
   color: #000 !important;
@@ -1148,7 +1194,7 @@ input[type="file"] {
 
 .app-contrast.app-dark .bottom-nav {
   background: #000 !important;
-  border: 2px solid #fff;
+  outline: 2px solid #fff;
 }
 
 .app-contrast.app-dark .bottom-nav button.active .nav-icon-bg,
@@ -1166,36 +1212,33 @@ input[type="file"] {
   color: #ff8c00 !important;
 }
 
-/* --- 19. КНОПКИ РАЗМЕРА ШРИФТА --- */
-.fontsize-row {
+.app-contrast.app-dark .refresh-btn:active {
+  background: #ff8c00 !important;
+  color: #000 !important;
+  transform: scale(0.96);
+}
+
+/* --- 19. ПОЛЗУНОК РАЗМЕРА ШРИФТА --- */
+.fontsize-slider-row {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
-.fontsize-btn {
+.fontsize-slider {
   flex: 1;
-  padding: 10px 4px;
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
-  font-weight: 700;
+  accent-color: var(--tg-theme-button-color, #2481cc);
   cursor: pointer;
-  transition: border-color 0.2s, font-size 0.1s;
 }
-.fontsize-btn:nth-child(1) { font-size: calc(var(--app-font-size) * 0.8); }
-.fontsize-btn:nth-child(2) { font-size: calc(var(--app-font-size) * 0.93); }
-.fontsize-btn:nth-child(3) { font-size: calc(var(--app-font-size) * 1.07); }
-.fontsize-btn:nth-child(4) { font-size: calc(var(--app-font-size) * 1.21); }
 
-.fontsize-btn.active {
-  border-color: var(--tg-theme-button-color, #2481cc);
+.fontsize-marker {
+  font-weight: 800;
   color: var(--tg-theme-button-color, #2481cc);
 }
 
-.app-dark .fontsize-btn {
-  background: #16213e !important;
-  color: #e0e0e0 !important;
+.fontsize-marker-large {
+  font-size: calc(var(--app-font-size) * 1.2) !important;
 }
 
 /* --- 20. ШАБЛОНЫ КОММЕНТАРИЕВ --- */

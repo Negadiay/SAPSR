@@ -46,8 +46,16 @@ public class ResultListenerService {
 
             if (submission.getStudent() != null) {
                 Long chatId = submission.getStudent().getTelegramId();
+                String fileName = submissionFileName(submission);
+                int warningCount = countReportWarnings(errorsJson);
+                String warningLine = warningCount > 0
+                        ? "В отчёте есть предупреждения: " + warningCount + ". Для ознакомления скачайте отчёт в мини-приложении."
+                        : "Предупреждений в отчёте проверки нет. Отчёт можно скачать в мини-приложении.";
                 String studentText = "SUCCESS".equals(status)
-                        ? "✅ Ваша работа прошла автоматическую проверку оформления!\nРабота передана преподавателю на содержательную проверку."
+                        ? "✅ Ваша работа прошла автоматическую проверку оформления!\n"
+                        + "Работа: " + fileName + "\n"
+                        + warningLine + "\n"
+                        + "Работа передана преподавателю на содержательную проверку."
                         : "❌ Работа не прошла проверку оформления. Исправьте ошибки и загрузите работу заново.";
                 bot.notifyUser(chatId, studentText);
             }
@@ -67,5 +75,29 @@ public class ResultListenerService {
             System.err.println("[RESULT LISTENER] Ошибка обработки: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private int countReportWarnings(String errorsJson) {
+        try {
+            JsonNode errors = objectMapper.readTree(errorsJson);
+            if (!errors.isArray()) return 0;
+            int count = 0;
+            for (JsonNode error : errors) {
+                String severity = error.has("severity") ? error.get("severity").asText("") : "";
+                if (!"critical".equals(severity) && !"major".equals(severity)) count++;
+            }
+            return count;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private String submissionFileName(Submission submission) {
+        String fp = submission.getFilePath();
+        if (fp == null || fp.isBlank()) return "file.pdf";
+        String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
+        name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
+        if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
+        return name;
     }
 }

@@ -97,7 +97,7 @@ _RE_MINSK_YEAR = re.compile(
     r"минск[^\n]*?(\d{4})|(\d{4})[^\n]*?минск", re.IGNORECASE
 )
 _RE_BSUIR_ID  = re.compile(
-    r"БГУИР\s+КП\d+\s+((?:\d[\d\s\-]{3,20}\d))\s+(\d{3})\b"
+    r"БГУИР\s+КП[3-7]\s+((?:\d[\d\s\-]{3,40}\d))\s+(\d{3})\s+ПЗ\b"
 )
 _RE_BSUIR_FB  = re.compile(
     r"(\d-\d{2}[\s\-]\d{4}-\d{2}|\d-\d{2}[\s\-]\d{2}[\s\-]\d{2})\s+(\d{3})\b"
@@ -684,12 +684,12 @@ def _check_student_id(full_text: str) -> list:
     if specialty_code not in known:
         ctx = _extract_context(full_text, _RE_BSUIR_ID if _RE_BSUIR_ID.search(full_text) else _RE_BSUIR_FB)
         return [_make_error(
-            "warning", 1,
+            "critical", 1,
             f"Код специальности «{specialty_raw}» не найден в реестре БГУИР.",
             "Код специальности должен существовать в реестре БГУИР.",
             f"Найден код: {specialty_raw}.",
             "Проверьте код специальности на титульном листе.",
-            "Страница 1, обозначение работы", "warning",
+            "Страница 1, обозначение работы", "critical",
             context=ctx,
         )]
     return []

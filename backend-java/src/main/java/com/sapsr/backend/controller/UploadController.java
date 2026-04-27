@@ -107,6 +107,9 @@ public class UploadController {
         }
 
         if ("STUDENT".equals(role)) {
+            if (!fullName.matches("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ]\\.[А-ЯЁ]\\. \\(гр\\. \\d{6}\\)$")) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Укажите ФИО и группу в формате: Иванов И.И., 123456"));
+            }
             Matcher groupMatcher = Pattern.compile("\\(гр\\.\\s*(\\d{6})\\)").matcher(fullName);
             if (!groupMatcher.find()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Укажите номер группы в формате: Иванов И.И., 123456"));
