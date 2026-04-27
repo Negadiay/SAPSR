@@ -105,6 +105,10 @@ _RE_DEPARTMENT_HEAD_LINE = re.compile(
     r"(?:заведующ(?:ий|ая|его|ей)\s+кафедр(?:ой|ы)|зав\.\s*кафедр(?:ой|ы)?|завкафедр(?:ой|ы)?)",
     re.IGNORECASE,
 )
+_RE_REVIEWER_LINE = re.compile(
+    r"(?:провер(?:ил|ила|яющий|яющая|яющего|яющей)|руководител(?:ь|я|ем)|преподавател(?:ь|я|ем))",
+    re.IGNORECASE,
+)
 _RE_PERSON_SURNAME_INITIALS = re.compile(r"\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.\s*[А-ЯЁ]\.")
 _RE_PERSON_INITIALS_SURNAME = re.compile(r"\b[А-ЯЁ]\.\s*[А-ЯЁ]\.\s*[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?")
 _RE_PERSON_FULL_NAME = re.compile(r"\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+")
@@ -758,17 +762,28 @@ def _check_student_id(full_text: str) -> list:
 
 
 def _check_minsk_year(first_page_text: str) -> list:
+    current_year = datetime.now().year
     m = _RE_MINSK_YEAR.search(first_page_text)
     if not m:
         return [_make_error(
-            "minor", 1,
+            "major", 1,
             "На титульном листе не найден год рядом со словом «Минск».",
-            "Должна быть строка вида «Минск 2026».",
+            f"Должна быть строка вида «Минск {current_year}».",
             "Не обнаружено.",
-            "Добавьте строку «Минск <год>» на титульный лист.",
-            "Страница 1", "warning",
+            f"Добавьте строку «Минск {current_year}» на титульный лист.",
+            "Страница 1", "major",
         )]
     year = int(m.group(1) or m.group(2))
+    if year != current_year:
+        return [_make_error(
+            "major", 1,
+            f"На титульном листе указан год {year}, но сейчас {current_year}.",
+            "Год на титульном листе должен совпадать с текущим системным годом.",
+            f"Год: {year}.",
+            f"Исправьте год на {current_year}.",
+            "Страница 1", "major",
+            context=_extract_context(first_page_text, _RE_MINSK_YEAR),
+        )]
     title_years = {int(y) for y in _RE_TITLE_YEAR.findall(first_page_text)}
     mismatched_years = sorted(y for y in title_years if y != year)
     if mismatched_years:
@@ -781,22 +796,13 @@ def _check_minsk_year(first_page_text: str) -> list:
             "Страница 1", "major",
             context=_extract_context(first_page_text, _RE_TITLE_YEAR),
         )]
-    if abs(year - datetime.now().year) > 1:
-        return [_make_error(
-            "minor", 1,
-            f"На титульном листе указан год {year}.",
-            f"Ожидается {datetime.now().year} (допустимо ±1).",
-            f"Год: {year}.",
-            f"Исправьте год на {datetime.now().year}.",
-            "Страница 1", "warning",
-        )]
     return []
 
 
-def _extract_department_head_name(first_page_text: str) -> Optional[str]:
+def _extract_person_near_label(first_page_text: str, label_re: re.Pattern) -> Optional[str]:
     lines = [line.strip() for line in first_page_text.splitlines()]
     for idx, line in enumerate(lines):
-        if not _RE_DEPARTMENT_HEAD_LINE.search(line):
+        if not label_re.search(line):
             continue
 
         candidates = [line]
@@ -809,45 +815,63 @@ def _extract_department_head_name(first_page_text: str) -> Optional[str]:
     return None
 
 
-def _check_department_head(first_page_text: str) -> list:
-    if not _RE_DEPARTMENT_HEAD_LINE.search(first_page_text):
+def _check_title_employee(first_page_text: str, label_re: re.Pattern, role_name: str, role_name_genitive: str) -> list:
+    if not label_re.search(first_page_text):
         return [_make_error(
             "major", 1,
-            "На титульном листе не найден заведующий кафедрой.",
-            "На титульном листе должен быть указан заведующий кафедрой.",
-            "Не обнаружена строка с заведующим кафедрой.",
-            "Добавьте ФИО заведующего кафедрой на титульный лист.",
+            f"На титульном листе не найден {role_name}.",
+            f"На титульном листе должен быть указан {role_name}.",
+            f"Не обнаружена строка с ролью «{role_name}».",
+            f"Добавьте ФИО {role_name_genitive} на титульный лист.",
             "Страница 1", "major",
         )]
 
-    head_name = _extract_department_head_name(first_page_text)
-    if not head_name:
+    employee_name = _extract_person_near_label(first_page_text, label_re)
+    if not employee_name:
         return [_make_error(
             "major", 1,
-            "Не удалось распознать ФИО заведующего кафедрой.",
-            "ФИО заведующего кафедрой должно быть указано в формате «Фамилия И.О.» или «И.О. Фамилия».",
-            "Строка с заведующим кафедрой найдена, ФИО не распознано.",
-            "Проверьте написание ФИО заведующего кафедрой.",
+            f"Не удалось распознать ФИО {role_name_genitive}.",
+            f"ФИО {role_name_genitive} должно быть указано в формате «Фамилия И.О.» или «И.О. Фамилия».",
+            f"Строка с ролью «{role_name}» найдена, ФИО не распознано.",
+            f"Проверьте написание ФИО {role_name_genitive}.",
             "Страница 1", "major",
-            context=_extract_context(first_page_text, _RE_DEPARTMENT_HEAD_LINE),
+            context=_extract_context(first_page_text, label_re),
         )]
 
     known_names = _get_known_employee_names()
     if known_names is None:
         return []  # IIS недоступен — не блокируем проверку документа.
 
-    normalized = _normalize_person_name(head_name)
+    normalized = _normalize_person_name(employee_name)
     if normalized not in known_names:
         return [_make_error(
             "major", 1,
-            f"Заведующий кафедрой «{head_name}» не найден в IIS БГУИР.",
-            "ФИО заведующего кафедрой должно соответствовать преподавателю из IIS БГУИР.",
-            f"Найдено ФИО: {head_name}.",
-            "Проверьте ФИО заведующего кафедрой на титульном листе.",
+            f"{role_name.capitalize()} «{employee_name}» не найден в IIS БГУИР.",
+            f"ФИО {role_name_genitive} должно соответствовать преподавателю из IIS БГУИР.",
+            f"Найдено ФИО: {employee_name}.",
+            f"Проверьте ФИО {role_name_genitive} на титульном листе.",
             "Страница 1", "major",
-            context=_extract_context(first_page_text, _RE_DEPARTMENT_HEAD_LINE),
+            context=_extract_context(first_page_text, label_re),
         )]
     return []
+
+
+def _check_department_head(first_page_text: str) -> list:
+    return _check_title_employee(
+        first_page_text,
+        _RE_DEPARTMENT_HEAD_LINE,
+        "заведующий кафедрой",
+        "заведующего кафедрой",
+    )
+
+
+def _check_reviewer(first_page_text: str) -> list:
+    return _check_title_employee(
+        first_page_text,
+        _RE_REVIEWER_LINE,
+        "проверяющий",
+        "проверяющего",
+    )
 
 
 def _check_margins(page, page_num: int) -> list:
@@ -1238,6 +1262,9 @@ def analyze_pdf(path: str) -> dict:
 
             # 17. Заведующий кафедрой на титульном листе
             errors.extend(_check_department_head(first_page_text))
+
+            # 18. Проверяющий на титульном листе
+            errors.extend(_check_reviewer(first_page_text))
 
             has_blocking = any(e["severity"] in ("critical", "major") for e in errors)
             status       = "FAIL" if has_blocking else "SUCCESS"

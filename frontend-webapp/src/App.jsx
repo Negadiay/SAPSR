@@ -154,7 +154,7 @@ function App() {
   const [withdrawConfirmId, setWithdrawConfirmId] = useState(null);
 
   // Настройки
-  const [theme, setTheme]       = useState(() => localStorage.getItem('sapsr_theme') || 'auto');
+  const [theme, setTheme]       = useState(() => localStorage.getItem('sapsr_theme') === 'dark' ? 'dark' : 'light');
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
   const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
 
@@ -424,10 +424,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, userRole]);
 
-  // Эффективная тема: 'auto' читает из Telegram
-  const resolvedTheme = theme === 'auto'
-    ? (window.Telegram?.WebApp?.colorScheme || 'light')
-    : theme;
+  const resolvedTheme = theme;
 
   const checkAuth = async () => {
     try {
@@ -1148,11 +1145,21 @@ function App() {
 
                 <div className="settings-section">
                   <div className="settings-label">Тема оформления</div>
-                  <div className="theme-toggle">
-                    {[['light','☀️ Светлая'],['dark','🌙 Тёмная'],['auto','⚙️ Авто']].map(([val, label]) => (
-                      <button key={val} className={`theme-btn ${theme === val ? 'active' : ''}`}
-                        onClick={() => setTheme(val)}>{label}</button>
-                    ))}
+                  <div className="settings-row">
+                    <span className="settings-desc">Ночной режим</span>
+                    <button className={`toggle-switch ${theme === 'dark' ? 'on' : ''}`}
+                      onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+                      aria-label="Переключить ночной режим">
+                      <span className="toggle-thumb" />
+                    </button>
+                  </div>
+                  <div className="settings-row settings-row-spaced">
+                    <span className="settings-desc">Контрастный режим</span>
+                    <button className={`toggle-switch ${contrast ? 'on' : ''}`}
+                      onClick={() => setContrast(c => !c)}
+                      aria-label="Переключить контрастный режим">
+                      <span className="toggle-thumb" />
+                    </button>
                   </div>
                 </div>
 
@@ -1173,17 +1180,6 @@ function App() {
                     <span className="fontsize-marker fontsize-marker-large">A+</span>
                   </div>
                   <div className="settings-desc">{FONT_SIZE_LABELS[fontSize] || FONT_SIZE_LABELS.normal}</div>
-                </div>
-
-                <div className="settings-section">
-                  <div className="settings-label">Контрастный режим</div>
-                  <div className="settings-row">
-                    <span className="settings-desc">Усиленный контраст цветов</span>
-                    <button className={`toggle-switch ${contrast ? 'on' : ''}`}
-                      onClick={() => setContrast(c => !c)}>
-                      <span className="toggle-thumb" />
-                    </button>
-                  </div>
                 </div>
 
                 <div className="settings-divider" />

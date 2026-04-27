@@ -901,6 +901,10 @@ input[type="file"] {
   gap: 12px;
 }
 
+.settings-row-spaced {
+  margin-top: 14px;
+}
+
 .settings-desc { font-size: 14px; }
 
 .settings-divider {
@@ -914,31 +918,6 @@ input[type="file"] {
 .settings-wide-btn {
   width: 100%;
   max-width: 340px;
-}
-
-.theme-toggle {
-  display: flex;
-  gap: 6px;
-  width: 100%;
-}
-
-.theme-btn {
-  flex: 1;
-  padding: 9px 4px;
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  white-space: nowrap;
-}
-
-.theme-btn.active {
-  border-color: var(--tg-theme-button-color, #2481cc);
-  color: var(--tg-theme-button-color, #2481cc);
 }
 
 .toggle-switch {
@@ -1004,11 +983,6 @@ input[type="file"] {
   background: rgba(10, 10, 30, 0.95) !important;
 }
 
-.app-dark .theme-btn {
-  background: #16213e !important;
-  color: #e0e0e0 !important;
-}
-
 /* --- 17. РАЗМЕР ШРИФТА --- */
 .font-small  { --app-font-size: 12px; }
 .font-normal { --app-font-size: 14px; }
@@ -1049,8 +1023,7 @@ input[type="file"] {
 .App .error-card,
 .App .ts-date,
 .App .ts-file,
-.App .ts-comment,
-.App .theme-btn {
+.App .ts-comment {
   font-size: calc(var(--app-font-size) * 0.86);
 }
 .App .reg-input,
@@ -1118,17 +1091,10 @@ input[type="file"] {
 .app-contrast:not(.app-dark) .reg-input,
 .app-contrast:not(.app-dark) .revision-input,
 .app-contrast:not(.app-dark) .teacher-select,
-.app-contrast:not(.app-dark) .teacher-search,
-.app-contrast:not(.app-dark) .theme-btn {
+.app-contrast:not(.app-dark) .teacher-search {
   background: #ffffff !important;
   border-color: #38a7e8 !important;
   color: #03233f !important;
-}
-
-.app-contrast:not(.app-dark) .theme-btn.active {
-  background: #007ad1 !important;
-  border-color: #005f9f !important;
-  color: #ffffff !important;
 }
 
 .app-contrast:not(.app-dark) .bottom-nav {
@@ -1179,17 +1145,10 @@ input[type="file"] {
 .app-contrast.app-dark .reg-input,
 .app-contrast.app-dark .revision-input,
 .app-contrast.app-dark .teacher-select,
-.app-contrast.app-dark .teacher-search,
-.app-contrast.app-dark .theme-btn {
+.app-contrast.app-dark .teacher-search {
   background: #000 !important;
   border-color: #555 !important;
   color: #fff !important;
-}
-
-.app-contrast.app-dark .theme-btn.active {
-  background: #ff8c00 !important;
-  border-color: #ff8c00 !important;
-  color: #000 !important;
 }
 
 .app-contrast.app-dark .bottom-nav {
