@@ -1,6 +1,10 @@
 /* --- 1. ГЛОБАЛЬНЫЕ НАСТРОЙКИ --- */
 * {
   box-sizing: border-box;
+  scrollbar-width: none;        /* Firefox */
+}
+*::-webkit-scrollbar {
+  display: none;                /* Chrome / Telegram WebView */
 }
 
 html, body {
@@ -253,6 +257,13 @@ h1 {
   margin-bottom: 4px;
 }
 
+.custom-file-upload span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 input[type="file"] {
   display: none;
 }
@@ -334,8 +345,10 @@ input[type="file"] {
   background: var(--tg-theme-button-color, #2481cc);
   border: none;
   color: white;
-  width: 38px;
-  height: 38px;
+  width:  calc(var(--app-font-size) * 2.71);
+  height: calc(var(--app-font-size) * 2.71);
+  min-width: 34px;
+  min-height: 34px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 18px;
@@ -918,6 +931,12 @@ input[type="file"] {
   background: #16213e !important;
 }
 
+.app-dark .notif-line {
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: 10px;
+  padding: 12px !important;
+}
+
 .app-dark .reg-input,
 .app-dark .revision-input,
 .app-dark .teacher-select,
@@ -1234,8 +1253,10 @@ input[type="file"] {
   background: none;
   border: 1px solid #e53935;
   color: #e53935;
-  width: 38px;
-  height: 38px;
+  width:  calc(var(--app-font-size) * 2.71);
+  height: calc(var(--app-font-size) * 2.71);
+  min-width: 34px;
+  min-height: 34px;
   border-radius: 8px;
   font-size: 18px;
   font-weight: 600;

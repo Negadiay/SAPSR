@@ -38,20 +38,27 @@ public class BsuirApiService {
 
     private static final String EMPLOYEE_SCHEDULE_URL = "https://iis.bsuir.by/api/v1/employees/schedule/";
 
+    /** Бросается когда IIS API недоступен (не 200 и не 404). */
+    public static class IisUnavailableException extends RuntimeException {
+        public IisUnavailableException(String message) { super(message); }
+    }
+
+    /** Данные преподавателя из IIS. */
+    public record TeacherInfo(String fio, String urlId) {}
+
     /**
-     * Ищет ФИО преподавателя в IIS БГУИР по корпоративной почте.
+     * Ищет преподавателя в IIS БГУИР по корпоративной почте.
      *
-     * Алгоритм (O(1) HTTP-запросов):
-     *  1. Из email берётся urlId = часть до '@' (напр. "n.zotov").
-     *  2. Вызывается GET /employees/schedule/{urlId}.
-     *  3. В ответе сравнивается employee.email с переданной почтой.
-     *  4. При совпадении возвращается ФИО; при несовпадении — null.
+     * Алгоритм (O(1) HTTP):
+     *  1. urlId = часть email до '@' (напр. "n.zotov").
+     *  2. GET /employees/schedule/{urlId}.
+     *  3. Сравниваем employee.email с введённой почтой.
+     *  4. Совпало → Optional.of(TeacherInfo); нет → Optional.empty().
      *
-     * Примечание: у БГУИР urlId всегда совпадает с логином email,
-     * поэтому один запрос покрывает 100% реальных случаев.
+     * @throws IisUnavailableException если сервер вернул не 200/404
      */
-    public String findTeacherNameByEmail(String email) {
-        if (email == null) return null;
+    public Optional<TeacherInfo> findTeacherByEmail(String email) {
+        if (email == null) return Optional.empty();
         String normalized = email.trim().toLowerCase();
         String urlId      = normalized.contains("@") ? normalized.split("@")[0] : normalized;
         try {
@@ -62,26 +69,83 @@ public class BsuirApiService {
                     .GET()
                     .build();
             HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 404) return Optional.empty();
             if (resp.statusCode() != 200) {
-                System.err.println("[BSUIR API] /employees/schedule/" + urlId + " → HTTP " + resp.statusCode());
-                return null;
+                throw new IisUnavailableException("IIS вернул HTTP " + resp.statusCode());
             }
             JsonNode root     = objectMapper.readTree(resp.body());
             JsonNode employee = root.get("employee");
-            if (employee == null || employee.isNull()) return null;
+            if (employee == null || employee.isNull()) return Optional.empty();
 
             String iisEmail = text(employee, "email");
             if (iisEmail == null || !iisEmail.trim().equalsIgnoreCase(normalized)) {
                 System.err.println("[BSUIR API] Email не совпал: IIS=" + iisEmail + ", введено=" + normalized);
-                return null;
+                return Optional.empty();
             }
             String fio = text(employee, "fio");
             if (fio == null) fio = buildFio(employee);
-            System.out.println("[BSUIR API] Найден преподаватель: " + fio + " (" + iisEmail + ")");
-            return fio;
+            System.out.println("[BSUIR API] Найден преподаватель: " + fio + " (urlId=" + urlId + ")");
+            return Optional.of(new TeacherInfo(fio, urlId));
+        } catch (IisUnavailableException e) {
+            throw e;
         } catch (Exception e) {
-            System.err.println("[BSUIR API] Ошибка поиска по email: " + e.getMessage());
-            return null;
+            throw new IisUnavailableException("Ошибка соединения с IIS: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Возвращает множество номеров групп из расписания преподавателя.
+     * Парсит schedules.{day}[].studentGroups[].name
+     */
+    public Set<String> fetchTeacherGroups(String urlId) {
+        Set<String> groups = new HashSet<>();
+        if (urlId == null || urlId.isBlank()) return groups;
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(EMPLOYEE_SCHEDULE_URL + urlId))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(8))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) return groups;
+
+            JsonNode root      = objectMapper.readTree(resp.body());
+            JsonNode schedules = root.get("schedules");
+            if (schedules == null || !schedules.isObject()) return groups;
+
+            for (var dayEntry : schedules.properties()) {
+                JsonNode daySlots = dayEntry.getValue();
+                if (!daySlots.isArray()) continue;
+                for (JsonNode slot : daySlots) {
+                    extractStudentGroupNames(slot.get("studentGroups"), groups);
+                    JsonNode lessons = slot.get("lessons");
+                    if (lessons == null) continue;
+                    if (lessons.isArray()) {
+                        for (JsonNode lesson : lessons)
+                            extractStudentGroupNames(lesson.get("studentGroups"), groups);
+                    } else if (lessons.isObject()) {
+                        for (var typeEntry : lessons.properties()) {
+                            JsonNode list = typeEntry.getValue();
+                            if (list.isArray())
+                                for (JsonNode lesson : list)
+                                    extractStudentGroupNames(lesson.get("studentGroups"), groups);
+                        }
+                    }
+                }
+            }
+            System.out.println("[BSUIR API] Преподаватель " + urlId + ": групп=" + groups.size());
+        } catch (Exception e) {
+            System.err.println("[BSUIR API] Ошибка fetchTeacherGroups(" + urlId + "): " + e.getMessage());
+        }
+        return groups;
+    }
+
+    private void extractStudentGroupNames(JsonNode studentGroups, Set<String> out) {
+        if (studentGroups == null || !studentGroups.isArray()) return;
+        for (JsonNode sg : studentGroups) {
+            String name = text(sg, "name");
+            if (name != null && !name.isBlank()) out.add(name.trim());
         }
     }
 

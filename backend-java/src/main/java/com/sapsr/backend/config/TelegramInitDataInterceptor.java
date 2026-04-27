@@ -30,6 +30,11 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
 
         String initData = request.getHeader("Authorization");
 
+        // Для GET-запросов (скачивание файлов) принимаем initData из query-параметра tg_auth
+        if ((initData == null || initData.isBlank()) && "GET".equals(request.getMethod())) {
+            initData = request.getParameter("tg_auth");
+        }
+
         if (initData == null || initData.isBlank()) {
             response.setStatus(401);
             response.setContentType("application/json");
