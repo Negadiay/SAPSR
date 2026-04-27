@@ -922,7 +922,7 @@ function App() {
         {step === 'main' && (
           <MotionDiv key={activeTab} custom={direction} variants={variants}
             initial="enter" animate="center" exit="exit"
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            transition={{ type: 'spring', stiffness: 520, damping: 36, mass: 0.75 }}
             className="screen main-content"
           >
             {/* ===== СТУДЕНТ: загрузка ===== */}
