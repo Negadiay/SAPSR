@@ -7,12 +7,15 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.Random;
 
 @Service
 public class EmailVerificationService {
+
+    public static final int CODE_TTL_SECONDS = 5 * 60;
+    private static final SecureRandom CODE_RANDOM = new SecureRandom();
 
     private final EmailVerificationRepository repository;
     private final JavaMailSender mailSender;
@@ -34,12 +37,12 @@ public class EmailVerificationService {
     }
 
     public void sendVerificationCode(String email) {
-        String code = String.format("%06d", new Random().nextInt(1_000_000));
+        String code = String.format("%06d", CODE_RANDOM.nextInt(1_000_000));
 
         EmailVerification verification = new EmailVerification();
         verification.setEmail(email.toLowerCase());
         verification.setCode(code);
-        verification.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+        verification.setExpiresAt(LocalDateTime.now().plusSeconds(CODE_TTL_SECONDS));
         repository.save(verification);
 
         SimpleMailMessage message = new SimpleMailMessage();
@@ -50,7 +53,7 @@ public class EmailVerificationService {
                 "Здравствуйте!\n\n" +
                 "Ваш код подтверждения для регистрации в системе SAPSR:\n\n" +
                 "    " + code + "\n\n" +
-                "Код действителен 15 минут.\n\n" +
+                "Код действителен 5 минут.\n\n" +
                 "Если вы не запрашивали код — просто проигнорируйте это письмо."
         );
         mailSender.send(message);

@@ -129,14 +129,12 @@ public class UploadController {
             if (!emailVerificationService.isAllowedDomain(email)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Требуется корпоративная почта @bsuir.by"));
             }
-            if (!emailVerificationService.verifyCode(email, code)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
-            }
-
-            // Проверка дубликата: та же почта у другого пользователя
             Optional<User> byEmail = userRepository.findByEmail(email);
             if (byEmail.isPresent() && !byEmail.get().getTelegramId().equals(telegramId)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована в системе"));
+            }
+            if (!emailVerificationService.verifyCode(email, code)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
             }
 
             // Поиск преподавателя в IIS и автозаполнение ФИО + urlId
