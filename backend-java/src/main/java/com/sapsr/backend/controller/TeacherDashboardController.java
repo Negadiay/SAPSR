@@ -101,9 +101,10 @@ public class TeacherDashboardController {
 
         if (submission.getStudent() != null) {
             String teacherName = teacher.get().getFullName() != null ? teacher.get().getFullName() : "Преподаватель";
+            String fileName = submissionFileName(submission);
             String text = "APPROVED".equals(verdict)
-                    ? "✅ Преподаватель " + teacherName + " принял вашу работу!"
-                    : "🔄 Преподаватель " + teacherName + " отправил работу на доработку.\n\nКомментарий: " + comment;
+                    ? "✅ Преподаватель " + teacherName + " принял вашу работу!\n\nРабота: " + fileName
+                    : "🔄 Преподаватель " + teacherName + " отправил работу на доработку.\n\nРабота: " + fileName + "\nКомментарий: " + comment;
             bot.notifyUser(submission.getStudent().getTelegramId(), text);
         }
 
@@ -138,5 +139,14 @@ public class TeacherDashboardController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private String submissionFileName(Submission submission) {
+        String fp = submission.getFilePath();
+        if (fp == null || fp.isBlank()) return "file.pdf";
+        String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
+        name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
+        if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
+        return name;
     }
 }
