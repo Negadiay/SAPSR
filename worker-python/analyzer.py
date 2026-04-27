@@ -25,6 +25,7 @@ import requests
 
 from check_config import (
     ALLOWED_FONT_FAMILIES,
+    BSUIR_EMPLOYEES_ALL_URL,
     BSUIR_SPECIALITIES_URL,
     CRITICAL_REFERENCES_THRESHOLD,
     FONT_SIZE_MAJOR_THRESHOLD_PCT,
@@ -96,9 +97,17 @@ _RE_NUMBERED_LIST = re.compile(
 _RE_MINSK_YEAR = re.compile(
     r"минск[^\n]*?(\d{4})|(\d{4})[^\n]*?минск", re.IGNORECASE
 )
+_RE_TITLE_YEAR = re.compile(r"\b(20\d{2})\b")
 _RE_BSUIR_ID  = re.compile(
     r"БГУИР\s+КП[3-7]\s+((?:\d[\d\s\-]{3,40}\d))\s+(\d{3})\s+ПЗ\b"
 )
+_RE_DEPARTMENT_HEAD_LINE = re.compile(
+    r"(?:заведующ(?:ий|ая|его|ей)\s+кафедр(?:ой|ы)|зав\.\s*кафедр(?:ой|ы)?|завкафедр(?:ой|ы)?)",
+    re.IGNORECASE,
+)
+_RE_PERSON_SURNAME_INITIALS = re.compile(r"\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.\s*[А-ЯЁ]\.")
+_RE_PERSON_INITIALS_SURNAME = re.compile(r"\b[А-ЯЁ]\.\s*[А-ЯЁ]\.\s*[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?")
+_RE_PERSON_FULL_NAME = re.compile(r"\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+")
 _RE_BSUIR_FB  = re.compile(
     r"(\d-\d{2}[\s\-]\d{4}-\d{2}|\d-\d{2}[\s\-]\d{2}[\s\-]\d{2})\s+(\d{3})\b"
 )
@@ -128,6 +137,8 @@ _ALLOWED_FONTS_NORMALIZED: frozenset[str] = frozenset(
 
 _specialties_cache: Optional[frozenset] = None
 _specialties_cache_ts: float            = 0.0
+_employees_cache: Optional[frozenset]   = None
+_employees_cache_ts: float              = 0.0
 _SPECIALTIES_TTL: float                 = 3600.0
 
 
@@ -150,6 +161,49 @@ def _get_known_specialties() -> Optional[frozenset]:
     except Exception as exc:
         print(f"[ANALYZER] BSUIR specialties API недоступен: {exc}")
     return _specialties_cache  # устаревший кэш или None
+
+
+def _employee_name_variants(employee: dict) -> set:
+    variants = set()
+
+    fio = employee.get("fio")
+    if fio:
+        variants.add(_normalize_person_name(fio))
+
+    last_name = employee.get("lastName") or employee.get("last_name")
+    first_name = employee.get("firstName") or employee.get("first_name")
+    middle_name = employee.get("middleName") or employee.get("middle_name")
+    if last_name and first_name:
+        first_initial = str(first_name).strip()[:1]
+        middle_initial = str(middle_name).strip()[:1] if middle_name else ""
+        variants.add(_normalize_person_name(f"{last_name} {first_initial}.{middle_initial}."))
+        variants.add(_normalize_person_name(f"{first_initial}.{middle_initial}. {last_name}"))
+        if middle_name:
+            variants.add(_normalize_person_name(f"{last_name} {first_name} {middle_name}"))
+
+    return {v for v in variants if v}
+
+
+def _get_known_employee_names() -> Optional[frozenset]:
+    global _employees_cache, _employees_cache_ts
+    now = time.monotonic()
+    if _employees_cache is not None and (now - _employees_cache_ts) < _SPECIALTIES_TTL:
+        return _employees_cache
+    try:
+        resp = requests.get(BSUIR_EMPLOYEES_ALL_URL, timeout=8)
+        if resp.status_code == 200:
+            payload = resp.json()
+            employees = payload if isinstance(payload, list) else payload.get("employees", [])
+            names = set()
+            for employee in employees:
+                if isinstance(employee, dict):
+                    names.update(_employee_name_variants(employee))
+            _employees_cache = frozenset(names)
+            _employees_cache_ts = now
+            return _employees_cache
+    except Exception as exc:
+        print(f"[ANALYZER] BSUIR employees API недоступен: {exc}")
+    return _employees_cache  # устаревший кэш или None
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +296,14 @@ def _clean_text(raw: str) -> str:
 
 def _normalize_code(s: str) -> str:
     return re.sub(r"[\s\-]", "", (s or "")).lower()
+
+
+def _normalize_person_name(s: str) -> str:
+    text = _fix_lookalikes(s or "")
+    text = text.replace("ё", "е").replace("Ё", "Е")
+    text = re.sub(r"[^А-Яа-я.\-\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    return text
 
 
 def _norm_num(n: str) -> str:
@@ -707,6 +769,18 @@ def _check_minsk_year(first_page_text: str) -> list:
             "Страница 1", "warning",
         )]
     year = int(m.group(1) or m.group(2))
+    title_years = {int(y) for y in _RE_TITLE_YEAR.findall(first_page_text)}
+    mismatched_years = sorted(y for y in title_years if y != year)
+    if mismatched_years:
+        return [_make_error(
+            "major", 1,
+            "На титульном листе указаны разные годы.",
+            "Все годы на титульном листе должны совпадать со строкой «Минск <год>».",
+            f"Минск: {year}; другие годы: {', '.join(map(str, mismatched_years))}.",
+            f"Приведите все годы на титульном листе к {year}.",
+            "Страница 1", "major",
+            context=_extract_context(first_page_text, _RE_TITLE_YEAR),
+        )]
     if abs(year - datetime.now().year) > 1:
         return [_make_error(
             "minor", 1,
@@ -715,6 +789,63 @@ def _check_minsk_year(first_page_text: str) -> list:
             f"Год: {year}.",
             f"Исправьте год на {datetime.now().year}.",
             "Страница 1", "warning",
+        )]
+    return []
+
+
+def _extract_department_head_name(first_page_text: str) -> Optional[str]:
+    lines = [line.strip() for line in first_page_text.splitlines()]
+    for idx, line in enumerate(lines):
+        if not _RE_DEPARTMENT_HEAD_LINE.search(line):
+            continue
+
+        candidates = [line]
+        candidates.extend(lines[idx + offset] for offset in range(1, 3) if idx + offset < len(lines))
+        for candidate in candidates:
+            for pattern in (_RE_PERSON_FULL_NAME, _RE_PERSON_SURNAME_INITIALS, _RE_PERSON_INITIALS_SURNAME):
+                match = pattern.search(candidate)
+                if match:
+                    return match.group(0)
+    return None
+
+
+def _check_department_head(first_page_text: str) -> list:
+    if not _RE_DEPARTMENT_HEAD_LINE.search(first_page_text):
+        return [_make_error(
+            "major", 1,
+            "На титульном листе не найден заведующий кафедрой.",
+            "На титульном листе должен быть указан заведующий кафедрой.",
+            "Не обнаружена строка с заведующим кафедрой.",
+            "Добавьте ФИО заведующего кафедрой на титульный лист.",
+            "Страница 1", "major",
+        )]
+
+    head_name = _extract_department_head_name(first_page_text)
+    if not head_name:
+        return [_make_error(
+            "major", 1,
+            "Не удалось распознать ФИО заведующего кафедрой.",
+            "ФИО заведующего кафедрой должно быть указано в формате «Фамилия И.О.» или «И.О. Фамилия».",
+            "Строка с заведующим кафедрой найдена, ФИО не распознано.",
+            "Проверьте написание ФИО заведующего кафедрой.",
+            "Страница 1", "major",
+            context=_extract_context(first_page_text, _RE_DEPARTMENT_HEAD_LINE),
+        )]
+
+    known_names = _get_known_employee_names()
+    if known_names is None:
+        return []  # IIS недоступен — не блокируем проверку документа.
+
+    normalized = _normalize_person_name(head_name)
+    if normalized not in known_names:
+        return [_make_error(
+            "major", 1,
+            f"Заведующий кафедрой «{head_name}» не найден в IIS БГУИР.",
+            "ФИО заведующего кафедрой должно соответствовать преподавателю из IIS БГУИР.",
+            f"Найдено ФИО: {head_name}.",
+            "Проверьте ФИО заведующего кафедрой на титульном листе.",
+            "Страница 1", "major",
+            context=_extract_context(first_page_text, _RE_DEPARTMENT_HEAD_LINE),
         )]
     return []
 
@@ -1104,6 +1235,9 @@ def analyze_pdf(path: str) -> dict:
 
             # 16. Год на титульном листе
             errors.extend(_check_minsk_year(first_page_text))
+
+            # 17. Заведующий кафедрой на титульном листе
+            errors.extend(_check_department_head(first_page_text))
 
             has_blocking = any(e["severity"] in ("critical", "major") for e in errors)
             status       = "FAIL" if has_blocking else "SUCCESS"

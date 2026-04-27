@@ -48,6 +48,7 @@ public class ResultListenerService {
                 Long chatId = submission.getStudent().getTelegramId();
                 String fileName = submissionFileName(submission);
                 int warningCount = countReportWarnings(errorsJson);
+                int errorCount = countReportErrors(errorsJson);
                 String warningLine = warningCount > 0
                         ? "В отчёте есть предупреждения: " + warningCount + ". Для ознакомления скачайте отчёт в мини-приложении."
                         : "Предупреждений в отчёте проверки нет. Отчёт можно скачать в мини-приложении.";
@@ -56,7 +57,11 @@ public class ResultListenerService {
                         + "Работа: " + fileName + "\n"
                         + warningLine + "\n"
                         + "Работа передана преподавателю на содержательную проверку."
-                        : "❌ Работа не прошла проверку оформления. Исправьте ошибки и загрузите работу заново.";
+                        : "❌ Работа не прошла проверку оформления.\n"
+                        + "Работа: " + fileName + "\n"
+                        + "Ошибок: " + errorCount + ", предупреждений: " + warningCount + ".\n"
+                        + formatReportFindings(errorsJson)
+                        + "Исправьте ошибки и загрузите работу заново. Полный отчёт доступен в мини-приложении.";
                 bot.notifyUser(chatId, studentText);
             }
 
@@ -89,6 +94,46 @@ public class ResultListenerService {
             return count;
         } catch (Exception e) {
             return 0;
+        }
+    }
+
+    private int countReportErrors(String errorsJson) {
+        try {
+            JsonNode errors = objectMapper.readTree(errorsJson);
+            if (!errors.isArray()) return 0;
+            int count = 0;
+            for (JsonNode error : errors) {
+                String severity = error.has("severity") ? error.get("severity").asText("") : "";
+                if ("critical".equals(severity) || "major".equals(severity)) count++;
+            }
+            return count;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private String formatReportFindings(String errorsJson) {
+        try {
+            JsonNode errors = objectMapper.readTree(errorsJson);
+            if (!errors.isArray() || errors.isEmpty()) return "";
+
+            StringBuilder sb = new StringBuilder("Основные замечания:\n");
+            int shown = 0;
+            for (JsonNode error : errors) {
+                if (shown >= 5) break;
+                String severity = error.has("severity") ? error.get("severity").asText("") : "";
+                String prefix = ("critical".equals(severity) || "major".equals(severity)) ? "Ошибка" : "Предупреждение";
+                String message = error.has("message") ? error.get("message").asText("") : "";
+                if (message.isBlank()) continue;
+                sb.append("• ").append(prefix).append(": ").append(message).append("\n");
+                shown++;
+            }
+            if (errors.size() > shown) {
+                sb.append("И ещё замечаний: ").append(errors.size() - shown).append(".\n");
+            }
+            return sb.append("\n").toString();
+        } catch (Exception e) {
+            return "";
         }
     }
 
