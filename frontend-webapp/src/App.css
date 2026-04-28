@@ -563,10 +563,6 @@ input[type="file"] {
   z-index: 1000;
 }
 
-.App.keyboard-open .nav-wrapper {
-  display: none;
-}
-
 .bottom-nav {
   background: rgba(28, 58, 56, 0.92);
   backdrop-filter: blur(10px);

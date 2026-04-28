@@ -35,7 +35,8 @@ public class Submission {
     @Column(name = "teacher_verdict")
     private String teacherVerdict;
 
-    @Column(name = "teacher_comment")
+    @Lob
+    @Column(name = "teacher_comment", columnDefinition = "TEXT")
     private String teacherComment;
 
     @Column(name = "created_at", insertable = false, updatable = false)

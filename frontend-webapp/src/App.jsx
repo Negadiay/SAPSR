@@ -309,7 +309,7 @@ function App() {
     };
   }, [step, userRole]);
 
-  // На мобильных скрываем нижнюю панель при вводе, чтобы клавиатура перекрывала её.
+  // На мобильных клавиатура перекрывает нижнюю панель, а активное поле прокручивается выше.
   useEffect(() => {
     const vp = window.visualViewport;
     const isEditable = (target) => target instanceof HTMLElement
@@ -320,7 +320,11 @@ function App() {
         || window.matchMedia?.('(pointer: coarse)').matches;
     };
     const onFocusIn = (e) => {
-      if (isMobileInput() && isEditable(e.target)) setKeyboardOpen(true);
+      if (!isMobileInput() || !isEditable(e.target)) return;
+      setKeyboardOpen(true);
+      window.setTimeout(() => {
+        e.target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      }, 250);
     };
     const onFocusOut = () => {
       window.setTimeout(() => {
