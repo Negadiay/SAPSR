@@ -63,7 +63,7 @@ const fuzzyToken = (token, haystack) => {
 
 // --- Туториал ---
 const STUDENT_STEPS = [
-  { refKey: null,            text: 'Добро пожаловать в SAPSR — систему автоматической проверки оформления курсовых работ по стандартам БГУИР! 👋' },
+  { refKey: null,            text: 'Добро пожаловать в SAPSR — систему автоматической проверки оформления курсовых работ по стандартам БГУИР.' },
   { refKey: 'teacherSel',   text: 'Выберите научного руководителя из списка. Показаны только преподаватели вашей группы, указанной при регистрации.' },
   { refKey: 'fileUpload',   text: 'Прикрепите PDF-файл курсовой работы. Система принимает только формат .pdf размером до 50 МБ.' },
   { refKey: 'submitBtn',    text: 'Нажмите «Отправить» — система автоматически проверит форматирование по ГОСТу и уведомит преподавателя.' },
@@ -73,12 +73,12 @@ const STUDENT_STEPS = [
 ];
 
 const TEACHER_STEPS = [
-  { refKey: null,            text: 'Добро пожаловать! В SAPSR студенты присылают работы, уже прошедшие автоматическую проверку оформления по ГОСТу. 👋' },
+  { refKey: null,            text: 'Добро пожаловать! В SAPSR студенты присылают работы, уже прошедшие автоматическую проверку оформления по ГОСТу.' },
   { refKey: 'submissions',   text: 'Здесь отображаются работы, ожидающие вашей проверки. Нажмите на карточку, чтобы раскрыть действия: скачать PDF, принять или отправить на доработку.' },
   { refKey: 'teacherSearch', text: 'Нечёткий поиск фильтрует работы по имени студента, группе или файлу — даже при опечатках. Попробуйте ввести фамилию или номер группы.' },
   { refKey: 'navHistory',    text: 'Во вкладке «История» хранятся все ранее проверенные вами работы — удобно проверить, действительно ли студент сдавал работу.' },
   { refKey: 'navNotes',      text: 'Во вкладке «Заметки» записывайте напоминания о студентах. Кнопка 🔍 в заметке автоматически найдёт работы упомянутого студента.' },
-  { refKey: 'addNoteBtn',    text: '✍️ Попробуйте прямо сейчас! Нажмите «+ Новая заметка» и создайте первую заметку — например, напишите имя студента. Затем нажмите «Далее» для продолжения.' },
+  { refKey: 'addNoteBtn',    text: 'Попробуйте прямо сейчас: нажмите «+ Новая заметка» и создайте первую заметку — например, напишите имя студента. Затем нажмите в любое место для продолжения.' },
   { refKey: null,            text: 'Вы получаете уведомление в Telegram каждый раз, когда студент присылает новую работу.' },
   { refKey: 'navSettings',   text: 'В настройках можно изменить тему оформления, размер шрифта и включить контрастный режим.' },
 ];
@@ -250,8 +250,8 @@ function App() {
   // Заметки: подтверждение удаления
   const [deleteConfirmNoteId, setDeleteConfirmNoteId] = useState(null);
 
-  // Клавиатура поднялась — скрываем нижнюю навигацию
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  // Ref на нижнюю навигацию для JS-позиционирования при появлении клавиатуры
+  const navRef = useRef(null);
 
   // Ref для блокировки свайпа во время туториала (избегает stale closure)
   const tutorialActiveRef = useRef(false);
@@ -308,15 +308,23 @@ function App() {
     };
   }, [step, userRole]);
 
-  // Скрываем нижнюю навигацию, когда клавиатура поднята
+  // Держим нижнюю навигацию за клавиатурой (запасной вариант для браузеров
+  // без поддержки interactive-widget=resizes-visual-viewport в meta viewport)
   useEffect(() => {
     const vp = window.visualViewport;
     if (!vp) return;
-    const handleResize = () => {
-      setKeyboardVisible(vp.height < window.innerHeight * 0.75);
+    const reposition = () => {
+      const el = navRef.current;
+      if (!el) return;
+      const kbHeight = Math.max(0, window.innerHeight - vp.height - vp.offsetTop);
+      el.style.transform = kbHeight > 60 ? `translateY(${kbHeight}px)` : '';
     };
-    vp.addEventListener('resize', handleResize);
-    return () => vp.removeEventListener('resize', handleResize);
+    vp.addEventListener('resize', reposition);
+    vp.addEventListener('scroll', reposition);
+    return () => {
+      vp.removeEventListener('resize', reposition);
+      vp.removeEventListener('scroll', reposition);
+    };
   }, []);
 
   const tg = window.Telegram?.WebApp;
@@ -1051,9 +1059,9 @@ function App() {
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering}>
-                  {registering ? '⏳ Регистрация...' : '✅ Зарегистрироваться'}
+                  {registering ? 'Регистрация...' : 'Зарегистрироваться'}
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
+                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
               </div>
             </form>
           </MotionDiv>
@@ -1069,9 +1077,9 @@ function App() {
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={sendingCode}>
-                  {sendingCode ? '⏳ Отправка...' : '📧 Отправить код'}
+                  {sendingCode ? 'Отправка...' : 'Отправить код'}
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>⬅️ Назад</button>
+                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
               </div>
             </form>
           </MotionDiv>
@@ -1092,15 +1100,15 @@ function App() {
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering || codeTimeLeft <= 0}>
-                  {registering ? '⏳ Проверка...' : '✅ Подтвердить'}
+                  {registering ? 'Проверка...' : 'Подтвердить'}
                 </button>
                 <button type="button" className="secondary-btn" disabled={sendingCode} onClick={handleResendCode}>
-                  {sendingCode ? '⏳ Отправка...' : '🔄 Отправить код повторно'}
+                  {sendingCode ? 'Отправка...' : 'Отправить код повторно'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => {
                   setStep('register'); setRegError(''); setRegCode(''); setCodeExpiresAt(null); setCodeTimeLeft(0);
                 }}>
-                  ⬅️ Назад
+                  Назад
                 </button>
               </div>
             </form>
@@ -1160,7 +1168,7 @@ function App() {
             {userRole === 'student' && activeTab === 1 && (
               <div className="tab-view">
                 <h2 className="view-title">Мои работы</h2>
-                <button className="refresh-btn" onClick={fetchSubmissions}>🔄 Обновить</button>
+                <button className="refresh-btn" onClick={fetchSubmissions}>Обновить</button>
                 <div className="notif-window student-works-window">
                   {submissions.length === 0 && <p className="notif-empty">Пока нет загруженных файлов</p>}
                   {studentWorkGroups.map(group => {
@@ -1209,7 +1217,7 @@ function App() {
             {userRole === 'teacher' && activeTab === 0 && (
               <div className="tab-view">
                 <h2 className="view-title">Работы студентов</h2>
-                <button className="refresh-btn" onClick={fetchTeacherSubmissions}>🔄 Обновить</button>
+                <button className="refresh-btn" onClick={fetchTeacherSubmissions}>Обновить</button>
                 <div className="notif-window" ref={refs.submissions}>
                   {teacherSubmissions.length === 0 && <p className="notif-empty">Нет работ, ожидающих проверки</p>}
                   {teacherSubmissions.length > 0 && filteredTeacherSubmissions.length === 0 && (
@@ -1240,7 +1248,11 @@ function App() {
                               <div className="revision-form">
                                 <textarea className="revision-input" rows={3}
                                   placeholder="Комментарий для студента..."
+                                  maxLength={1500}
                                   value={revisionComment} onChange={(e) => setRevisionComment(e.target.value)} />
+                                <div className={`comment-char-counter ${revisionComment.length > 1400 ? 'comment-char-warn' : ''}`}>
+                                  {revisionComment.length} / 1500
+                                </div>
                                 {revisionSuggestions.length > 0 && (
                                   <div className="comment-suggestions">
                                     <div className="comment-suggestions-title">Шаблонные ответы</div>
@@ -1284,7 +1296,7 @@ function App() {
             {userRole === 'teacher' && activeTab === 1 && (
               <div className="tab-view">
                 <h2 className="view-title">История проверок</h2>
-                <button className="refresh-btn" onClick={fetchTeacherHistory}>🔄 Обновить</button>
+                <button className="refresh-btn" onClick={fetchTeacherHistory}>Обновить</button>
                 <div className="notif-window" style={{ height: '65vh' }}>
                   {teacherHistoryGroups.length === 0 && (
                     <p className="notif-empty">История проверок пуста</p>
@@ -1450,8 +1462,8 @@ function App() {
         )}
       </AnimatePresence>
 
-      {step === 'main' && !keyboardVisible && (
-        <div className="nav-wrapper">
+      {step === 'main' && (
+        <div className="nav-wrapper" ref={navRef}>
           <div className="bottom-nav">
             {tabs.map((tab, i) => (
               <button key={i} ref={tab.ref || null}

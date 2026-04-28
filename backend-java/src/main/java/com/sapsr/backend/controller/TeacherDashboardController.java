@@ -94,6 +94,10 @@ public class TeacherDashboardController {
         if ("REVISION".equals(verdict) && comment.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "При отправке на доработку укажите комментарий"));
         }
+        if (comment.length() > 1500) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "Комментарий слишком длинный (" + comment.length() + " символов). Максимум — 1500 символов."));
+        }
 
         submission.setTeacherVerdict(verdict);
         submission.setTeacherComment(comment.isEmpty() ? null : comment);

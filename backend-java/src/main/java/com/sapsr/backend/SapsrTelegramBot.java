@@ -78,6 +78,27 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
         }
     }
 
+    public void sendWelcomeMessage(long chatId) {
+        WebAppInfo webAppInfo = WebAppInfo.builder().url(webAppUrl).build();
+        InlineKeyboardButton webAppButton = InlineKeyboardButton.builder()
+                .text("Открыть SAPSR")
+                .webApp(webAppInfo)
+                .build();
+        InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
+                .keyboardRow(new InlineKeyboardRow(webAppButton))
+                .build();
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text("Система SAPSR запущена и готова к работе.\nНажмите кнопку ниже, чтобы открыть приложение.")
+                .replyMarkup(keyboard)
+                .build();
+        try {
+            telegramClient.execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
     public Integer notifyUser(Long chatId, String text) {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)

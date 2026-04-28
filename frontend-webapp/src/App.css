@@ -794,6 +794,18 @@ input[type="file"] {
   color: var(--tg-theme-text-color, #1c3a38);
 }
 
+.comment-char-counter {
+  font-size: 11px;
+  text-align: right;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  margin-top: -4px;
+}
+
+.comment-char-warn {
+  color: #e53935;
+  font-weight: 600;
+}
+
 .revision-btns {
   display: flex;
   gap: 8px;
