@@ -34,25 +34,56 @@ const formatCountdown = (seconds) => {
   return `${minutes}:${rest}`;
 };
 
+// --- Нечёткий поиск ---
+const levenshtein = (a, b) => {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (j === 0 ? i : 0))
+  );
+  for (let j = 1; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  return dp[m][n];
+};
+
+const fuzzyToken = (token, haystack) => {
+  if (haystack.includes(token)) return true;
+  const words = haystack.split(/[\s,._\-]+/).filter(Boolean);
+  const threshold = token.length <= 3 ? 0 : token.length <= 5 ? 1 : 2;
+  return words.some(word => {
+    if (word.startsWith(token)) return true;
+    if (word.length >= token.length - 1 && word.length <= token.length + 2)
+      return levenshtein(token, word) <= threshold;
+    return false;
+  });
+};
+
 // --- Туториал ---
 const STUDENT_STEPS = [
-  { refKey: null,           text: 'Добро пожаловать в SAPSR! Это система автоматической проверки оформления курсовых работ по стандартам БГУИР.' },
-  { refKey: 'teacherSel',  text: 'Выберите вашего научного руководителя из списка. Показаны только преподаватели вашей группы.' },
-  { refKey: 'fileUpload',  text: 'Прикрепите PDF-файл курсовой работы.' },
-  { refKey: 'submitBtn',   text: 'Нажмите «Отправить» — система автоматически проверит оформление по ГОСТу.' },
-  { refKey: 'navNotif',    text: 'Во вкладке «Мои работы» отображаются результаты проверки и вердикт преподавателя.' },
-  { refKey: 'navSettings', text: 'В настройках можно изменить тему, размер шрифта и включить контрастный режим.' },
-];
-const TEACHER_STEPS = [
-  { refKey: null,           text: 'Добро пожаловать! Здесь вы проверяете курсовые работы студентов.' },
-  { refKey: 'submissions',  text: 'Здесь появляются работы, прошедшие автоматическую проверку оформления. Нажмите на карточку чтобы раскрыть действия.' },
-  { refKey: 'teacherSearch', text: 'Поиск под списком работ фильтрует по имени, группе или файлу. Можно вводить сразу несколько слов — например «Жерко 321702».' },
-  { refKey: 'navNotes',     text: 'Во вкладке «Заметки» можно записать напоминание. Кнопка «Найти» автоматически найдёт работы студента, упомянутого в заметке.' },
-  { refKey: null,           text: 'Вы получите уведомление в Telegram, когда студент пришлёт работу на проверку.' },
-  { refKey: 'navSettings',  text: 'В настройках можно изменить тему, размер шрифта и включить контрастный режим.' },
+  { refKey: null,            text: 'Добро пожаловать в SAPSR — систему автоматической проверки оформления курсовых работ по стандартам БГУИР! 👋' },
+  { refKey: 'teacherSel',   text: 'Выберите научного руководителя из списка. Показаны только преподаватели вашей группы, указанной при регистрации.' },
+  { refKey: 'fileUpload',   text: 'Прикрепите PDF-файл курсовой работы. Система принимает только формат .pdf размером до 50 МБ.' },
+  { refKey: 'submitBtn',    text: 'Нажмите «Отправить» — система автоматически проверит форматирование по ГОСТу и уведомит преподавателя.' },
+  { refKey: 'navNotif',     text: 'Во вкладке «Мои работы» отображаются все ваши работы, статус проверки и вердикт преподавателя. Здесь же можно скачать отчёт об ошибках (кнопка 📥).' },
+  { refKey: null,            text: '📥 Скачанные файлы можно найти в Telegram: нажмите три точки (•••) в правом верхнем углу мини-приложения → «Открыть в браузере», затем проверьте папку «Загрузки» на устройстве.' },
+  { refKey: 'navSettings',  text: 'В настройках можно переключить светлую/тёмную тему, изменить размер шрифта и включить контрастный режим для улучшенной видимости.' },
 ];
 
-function TutorialOverlay({ steps, step, onNext, refs }) {
+const TEACHER_STEPS = [
+  { refKey: null,            text: 'Добро пожаловать! В SAPSR студенты присылают работы, уже прошедшие автоматическую проверку оформления по ГОСТу. 👋' },
+  { refKey: 'submissions',   text: 'Здесь отображаются работы, ожидающие вашей проверки. Нажмите на карточку, чтобы раскрыть действия: скачать PDF, принять или отправить на доработку.' },
+  { refKey: 'teacherSearch', text: 'Нечёткий поиск фильтрует работы по имени студента, группе или файлу — даже при опечатках. Попробуйте ввести фамилию или номер группы.' },
+  { refKey: 'navHistory',    text: 'Во вкладке «История» хранятся все ранее проверенные вами работы — удобно проверить, действительно ли студент сдавал работу.' },
+  { refKey: 'navNotes',      text: 'Во вкладке «Заметки» записывайте напоминания о студентах. Кнопка 🔍 в заметке автоматически найдёт работы упомянутого студента.' },
+  { refKey: 'addNoteBtn',    text: '✍️ Попробуйте прямо сейчас! Нажмите «+ Новая заметка» и создайте первую заметку — например, напишите имя студента. Затем нажмите «Далее» для продолжения.' },
+  { refKey: null,            text: 'Вы получаете уведомление в Telegram каждый раз, когда студент присылает новую работу.' },
+  { refKey: 'navSettings',   text: 'В настройках можно изменить тему оформления, размер шрифта и включить контрастный режим.' },
+];
+
+function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   const current = steps[step];
   const targetRef = current?.refKey ? refs[current.refKey] : null;
   const [rect, setRect] = useState(null);
@@ -67,20 +98,18 @@ function TutorialOverlay({ steps, step, onNext, refs }) {
 
   const PAD = 6;
   const TOOLTIP_W = Math.min(300, window.innerWidth - 24);
-  const TOOLTIP_H = 130;
+  const TOOLTIP_H = 170;
   const BOTTOM_SAFE_AREA = 110;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
   let tooltipStyle;
   if (rect) {
-    // Вертикаль: предпочитаем снизу, если не влезает — сверху
     const spaceBelow = vh - rect.bottom - PAD - BOTTOM_SAFE_AREA;
     let top = spaceBelow >= TOOLTIP_H
       ? rect.bottom + PAD + 10
       : Math.max(12, rect.top - PAD - TOOLTIP_H - 10);
     top = Math.max(12, Math.min(top, vh - TOOLTIP_H - BOTTOM_SAFE_AREA));
-    // Горизонталь: центрируем по элементу, не выходим за экран
     let left = rect.left + rect.width / 2 - TOOLTIP_W / 2;
     left = Math.max(12, Math.min(left, vw - TOOLTIP_W - 12));
     tooltipStyle = { top, left, width: TOOLTIP_W };
@@ -98,10 +127,42 @@ function TutorialOverlay({ steps, step, onNext, refs }) {
           height: rect.height + PAD * 2,
         }} />
       )}
-      <div className="tutorial-tooltip" style={tooltipStyle}>
+      <div className="tutorial-tooltip" style={tooltipStyle} onClick={e => e.stopPropagation()}>
         <p>{current?.text}</p>
-        <span className="tutorial-counter">{step + 1} / {steps.length}</span>
-        <span className="tutorial-hint">Нажмите в любое место →</span>
+        <div className="tutorial-footer">
+          <span className="tutorial-counter">{step + 1} / {steps.length}</span>
+          <button className="tutorial-skip-btn" onClick={onSkip}>Пропустить</button>
+          <button className="tutorial-next-btn" onClick={onNext}>
+            {step + 1 >= steps.length ? 'Готово' : 'Далее →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Авторы ---
+const AUTHORS = [
+  { name: 'Бузычков Н.Ф.',  role: 'Менеджер проекта' },
+  { name: 'Жерко Н.А.',     role: 'Бэкенд-разработчик' },
+  { name: 'Котко П.А.',     role: 'Фронтенд-разработчик' },
+  { name: 'Халилов Р.Э.',   role: 'Интеграция сервисов' },
+];
+
+function AuthorsModal({ onClose }) {
+  return (
+    <div className="confirm-overlay" onClick={onClose}>
+      <div className="authors-dialog" onClick={e => e.stopPropagation()}>
+        <h3 className="authors-title">✨ Авторы</h3>
+        <div className="authors-list">
+          {AUTHORS.map(a => (
+            <div key={a.name} className="authors-item">
+              <span className="authors-name">{a.name}</span>
+              <span className="authors-role">{a.role}</span>
+            </div>
+          ))}
+        </div>
+        <button className="secondary-btn authors-close-btn" onClick={onClose}>Закрыть</button>
       </div>
     </div>
   );
@@ -121,11 +182,11 @@ function App() {
   const [registering, setRegistering] = useState(false);
 
   // Регистрация преподавателя
-  const [teacherEmail, setTeacherEmail]       = useState('');
-  const [regCode, setRegCode]                 = useState('');
-  const [sendingCode, setSendingCode]         = useState(false);
-  const [codeExpiresAt, setCodeExpiresAt]     = useState(null);
-  const [codeTimeLeft, setCodeTimeLeft]       = useState(0);
+  const [teacherEmail, setTeacherEmail]   = useState('');
+  const [regCode, setRegCode]             = useState('');
+  const [sendingCode, setSendingCode]     = useState(false);
+  const [codeExpiresAt, setCodeExpiresAt] = useState(null);
+  const [codeTimeLeft, setCodeTimeLeft]   = useState(0);
 
   // Загрузка файла (студент)
   const [file, setFile]                   = useState(null);
@@ -137,6 +198,7 @@ function App() {
 
   // Дашборд преподавателя
   const [teacherSubmissions, setTeacherSubmissions] = useState([]);
+  const [teacherHistory, setTeacherHistory]         = useState([]);
   const [expandedId, setExpandedId]       = useState(null);
   const [revisionId, setRevisionId]       = useState(null);
   const [revisionComment, setRevisionComment] = useState('');
@@ -145,12 +207,12 @@ function App() {
   const [verdictLoading, setVerdictLoading] = useState(false);
 
   // Заметки преподавателя
-  const [teacherNotes, setTeacherNotes]     = useState([]);
-  const [noteInput, setNoteInput]           = useState('');
-  const [editingNoteId, setEditingNoteId]   = useState(null);
+  const [teacherNotes, setTeacherNotes]   = useState([]);
+  const [noteInput, setNoteInput]         = useState('');
+  const [editingNoteId, setEditingNoteId] = useState(null);
 
   // Отзыв работы студентом
-  const [withdrawing, setWithdrawing]       = useState(null);
+  const [withdrawing, setWithdrawing]         = useState(null);
   const [withdrawConfirmId, setWithdrawConfirmId] = useState(null);
 
   // Настройки
@@ -158,23 +220,28 @@ function App() {
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
   const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
 
+  // Авторы
+  const [showAuthors, setShowAuthors] = useState(false);
+
   // Туториал
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep]     = useState(0);
 
   // Refs для туториала
   const refs = {
-    teacherSel:   useRef(null),
-    fileUpload:   useRef(null),
-    submitBtn:    useRef(null),
-    navNotif:     useRef(null),
-    navSettings:  useRef(null),
-    navNotes:     useRef(null),
-    submissions:  useRef(null),
+    teacherSel:    useRef(null),
+    fileUpload:    useRef(null),
+    submitBtn:     useRef(null),
+    navNotif:      useRef(null),
+    navSettings:   useRef(null),
+    navNotes:      useRef(null),
+    navHistory:    useRef(null),
+    submissions:   useRef(null),
     teacherSearch: useRef(null),
+    addNoteBtn:    useRef(null),
   };
 
-  // Свайп-навигация (document-level, чтобы работало на всей площади экрана)
+  // Свайп-навигация — исключаем слайдеры
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
   const swipeActive = useRef(false);
@@ -182,6 +249,10 @@ function App() {
   useEffect(() => {
     if (step !== 'main') return;
     const onStart = (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'range') {
+        swipeActive.current = false;
+        return;
+      }
       swipeStartX.current = e.touches[0].clientX;
       swipeStartY.current = e.touches[0].clientY;
       swipeActive.current = true;
@@ -192,8 +263,7 @@ function App() {
       const dx = e.changedTouches[0].clientX - swipeStartX.current;
       const dy = e.changedTouches[0].clientY - swipeStartY.current;
       if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      // Используем функциональное обновление через ref чтобы избежать stale closure
-      const tabCount = userRole === 'teacher' ? 3 : 3;
+      const tabCount = userRole === 'teacher' ? 4 : 3;
       setDirection(dx < 0 ? 1 : -1);
       setActiveTab(prev => dx < 0 ? (prev + 1) % tabCount : (prev - 1 + tabCount) % tabCount);
     };
@@ -211,11 +281,9 @@ function App() {
 
   useEffect(() => {
     if (step !== 'confirm_code' || !codeExpiresAt) return undefined;
-
     const tick = () => {
       setCodeTimeLeft(Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000)));
     };
-
     tick();
     const timerId = window.setInterval(tick, 1000);
     return () => window.clearInterval(timerId);
@@ -223,13 +291,12 @@ function App() {
 
   const getTutorialTabIndex = (role, refKey) => {
     if (role === 'teacher') {
-      if (refKey === 'teacherSearch') return 0;
-      if (refKey === 'submissions') return 0;
-      if (refKey === 'navNotes') return 1;
-      if (refKey === 'navSettings') return 2;
+      if (refKey === 'teacherSearch' || refKey === 'submissions') return 0;
+      if (refKey === 'navHistory') return 1;
+      if (refKey === 'navNotes' || refKey === 'addNoteBtn') return 2;
+      if (refKey === 'navSettings') return 3;
       return null;
     }
-
     if (['teacherSel', 'fileUpload', 'submitBtn'].includes(refKey)) return 0;
     if (refKey === 'navNotif') return 1;
     if (refKey === 'navSettings') return 2;
@@ -301,11 +368,25 @@ function App() {
     saveNotes(teacherNotes.filter(n => n.id !== id));
   };
 
+  // Улучшенный анализатор заметок — ищет фамилию по суффиксам
   const handleFindFromNote = (text) => {
     const groupMatch = text.match(/\d{6}/);
-    // Пропускаем слова, похожие на глаголы-инфинитивы (оканчивающиеся на -ть, -чь, -ться)
-    const capitalWords = [...text.matchAll(/[А-ЯЁ][а-яё]+/g)].map(m => m[0]);
-    const surname = capitalWords.find(w => !/[тТ][ьЬ]([сС][яЯ])?$|[чЧ][ьЬ]$/.test(w));
+
+    const SURNAME_ENDINGS = /(?:ов|ев|ёв|ова|ева|ёва|ин|ина|ын|ына|ий|ая|ой|ский|цкий|ская|цкая|ко|ук|юк|ич|евич|ович|ан|ян|ец|нко)$/i;
+    const SKIP_ENDINGS   = /(?:[тТ][ьЬ]([сС][яЯ])?|[чЧ][ьЬ]|[шШ][ьЬ]|[жЖ][ьЬ]|ние|ость|ство|ание|ение)$/;
+    const SKIP_WORDS     = /^(?:Это|Как|Что|Где|Его|Её|Их|Все|Всё|Тот|Для|При|Про|Без|Над|Под|Через|Между|Среди|Около|Снова|Потом|Когда|Такой|Такая|Такое|Такие|Очень|Нужно|Можно|Нельзя|Январ|Феврал|Март|Апрел|Май|Июн|Июл|Август|Сентябр|Октябр|Ноябр|Декабр|Понедельник|Вторник|Среда|Четверг|Пятница|Суббота|Воскресенье)$/i;
+
+    const capitalWords = [...text.matchAll(/\b[А-ЯЁ][а-яё]{2,}\b/g)].map(m => m[0]);
+
+    // Приоритет — слова с типичными суффиксами фамилий
+    let surname = capitalWords.find(w =>
+      !SKIP_ENDINGS.test(w) && !SKIP_WORDS.test(w) && SURNAME_ENDINGS.test(w)
+    );
+    // Запасной вариант — любое подходящее заглавное слово
+    if (!surname) {
+      surname = capitalWords.find(w => !SKIP_ENDINGS.test(w) && !SKIP_WORDS.test(w));
+    }
+
     const query = [surname, groupMatch?.[0]].filter(Boolean).join(' ');
     setTeacherSearch(query);
     setDirection(-1);
@@ -350,7 +431,6 @@ function App() {
       group.items.push(submission);
       groups.set(key, group);
     });
-
     return [...groups.values()].map((group) => {
       const desc = [...group.items].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
       return { ...group, items: desc, timeline: [...desc].reverse(), latest: desc[0] };
@@ -359,24 +439,23 @@ function App() {
 
   const studentWorkGroups = buildStudentWorkGroups();
 
+  // Нечёткий поиск по работам преподавателя
   const filteredTeacherSubmissions = teacherSubmissions.filter((s) => {
     const query = teacherSearch.trim().toLowerCase();
     if (!query) return true;
     const tokens = query.split(/\s+/).filter(Boolean);
     const haystack = [s.student_name, s.file_name, s.created_at]
       .filter(Boolean).map(v => String(v).toLowerCase()).join(' ');
-    return tokens.every(token => haystack.includes(token));
+    return tokens.every(token => fuzzyToken(token, haystack));
   });
 
   useEffect(() => {
     tg?.ready();
     tg?.expand();
     checkAuth();
-    // Telegram WebApp bootstrapping should happen once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Сохраняем настройки
   useEffect(() => { localStorage.setItem('sapsr_theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('sapsr_fontsize', fontSize); }, [fontSize]);
   useEffect(() => { localStorage.setItem('sapsr_contrast', contrast ? '1' : '0'); }, [contrast]);
@@ -391,36 +470,33 @@ function App() {
       setTeacherNotes([]);
       return;
     }
-
     try {
       const raw = localStorage.getItem(getTemplateStorageKey());
       setCommentTemplates(raw ? sortTemplates(JSON.parse(raw)) : []);
     } catch {
       setCommentTemplates([]);
     }
-
     setTeacherNotes(loadNotes());
-    // Storage key is derived only from these two values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userRole, currentUserId]);
 
   useEffect(() => {
     if (step !== 'main') return undefined;
-
     if (userRole === 'student') {
       fetchSubmissions();
       const id = window.setInterval(fetchSubmissions, AUTO_REFRESH_INTERVAL_MS);
       return () => window.clearInterval(id);
     }
-
     if (userRole === 'teacher') {
       fetchTeacherSubmissions();
-      const id = window.setInterval(fetchTeacherSubmissions, AUTO_REFRESH_INTERVAL_MS);
+      fetchTeacherHistory();
+      const id = window.setInterval(() => {
+        fetchTeacherSubmissions();
+        fetchTeacherHistory();
+      }, AUTO_REFRESH_INTERVAL_MS);
       return () => window.clearInterval(id);
     }
-
     return undefined;
-    // Polling intentionally restarts only when the current main role changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, userRole]);
 
@@ -438,7 +514,7 @@ function App() {
           setRegisteredRole(role);
           setStep('main');
           if (role === 'student') { fetchTeachers(); fetchSubmissions(); }
-          else fetchTeacherSubmissions();
+          else { fetchTeacherSubmissions(); fetchTeacherHistory(); }
           return;
         }
       }
@@ -475,8 +551,14 @@ function App() {
     } catch (err) { console.warn('Teacher submissions error:', err); }
   };
 
-  // --- Туториал ---
+  const fetchTeacherHistory = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/teacher/history`, { headers: apiHeaders() });
+      if (res.ok) setTeacherHistory(await res.json());
+    } catch (err) { console.warn('Teacher history error:', err); }
+  };
 
+  // --- Туториал ---
   const handleTutorialNext = () => {
     const steps = userRole === 'teacher' ? TEACHER_STEPS : STUDENT_STEPS;
     if (tutorialStep + 1 >= steps.length) {
@@ -485,6 +567,11 @@ function App() {
     } else {
       openTutorialStep(userRole, tutorialStep + 1);
     }
+  };
+
+  const handleTutorialSkip = () => {
+    setTutorialActive(false);
+    localStorage.setItem('sapsr_onboarded_' + userRole, '1');
   };
 
   const maybeLaunchTutorial = (role) => {
@@ -532,7 +619,7 @@ function App() {
 
   // --- Регистрация преподавателя ---
   const handleTeacherSendCode = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     setRegError('');
     const email = teacherEmail.trim().toLowerCase();
     if (!email) { setRegError('Введите email'); return; }
@@ -550,8 +637,29 @@ function App() {
         setCodeExpiresAt(Date.now() + expiresIn * 1000);
         setStep('confirm_code');
         setRegCode('');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setRegError(err.error || 'Ошибка отправки кода');
       }
-      else {
+    } catch { setRegError('Сервер недоступен'); }
+    finally { setSendingCode(false); }
+  };
+
+  const handleResendCode = async () => {
+    setRegError('');
+    setSendingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/register/send-code`, {
+        method: 'POST',
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ email: teacherEmail }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const expiresIn = Number(data.expires_in_seconds) || 300;
+        setCodeExpiresAt(Date.now() + expiresIn * 1000);
+        setRegCode('');
+      } else {
         const err = await res.json().catch(() => ({}));
         setRegError(err.error || 'Ошибка отправки кода');
       }
@@ -563,7 +671,7 @@ function App() {
     e.preventDefault();
     setRegError('');
     if (!regCode.trim()) { setRegError('Введите код из письма'); return; }
-    if (codeTimeLeft <= 0) { setRegError('Срок действия кода истёк. Запросите новый код.'); return; }
+    if (codeTimeLeft <= 0) { setRegError('Срок действия кода истёк. Нажмите «Отправить код повторно».'); return; }
     setRegistering(true);
     try {
       const res = await fetch(`${API_BASE}/register`, {
@@ -579,6 +687,7 @@ function App() {
         setCodeExpiresAt(null);
         setCodeTimeLeft(0);
         fetchTeacherSubmissions();
+        fetchTeacherHistory();
         maybeLaunchTutorial('teacher');
       } else {
         const err = await res.json().catch(() => ({}));
@@ -589,9 +698,6 @@ function App() {
   };
 
   // --- Скачивание ---
-  // Открывает файл на скачивание. На мобильных Telegram-устройствах
-  // programmatic click по blob-URL не работает — используем tg.downloadFile
-  // (Bot API 7.x+) или window.open() с auth в query-параметре.
   const openDownloadUrl = (apiPath, filename) => {
     const url = `${API_BASE}${apiPath}?tg_auth=${encodeURIComponent(initData)}`;
     if (tg?.downloadFile) {
@@ -610,7 +716,6 @@ function App() {
   };
 
   const handleDownloadReport = async (id) => {
-    // На мобильном — открываем URL напрямую, на десктопе — через fetch+blob
     if (tg?.platform && tg.platform !== 'unknown') {
       openDownloadUrl(`/submissions/${id}/report`, `report_${id}.pdf`);
     } else {
@@ -648,6 +753,7 @@ function App() {
         tg?.HapticFeedback?.notificationOccurred('success');
         setRevisionId(null); setRevisionComment(''); setExpandedId(null);
         fetchTeacherSubmissions();
+        fetchTeacherHistory();
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || 'Ошибка');
@@ -718,7 +824,6 @@ function App() {
   const handleTabChange = (t) => { setDirection(t > activeTab ? 1 : -1); setActiveTab(t); setStatus(''); };
 
   const startTutorial = () => {
-    setStep('main');
     setDirection(0 > activeTab ? 1 : -1);
     setActiveTab(0);
     setTutorialStep(0);
@@ -744,7 +849,6 @@ function App() {
         setRegError('Для этой роли нет сохранённой регистрации');
         return;
       }
-
       setCurrentUserId(data.telegram_id ? String(data.telegram_id) : currentUserId);
       setUserRole(role);
       setRegisteredRole(role);
@@ -752,7 +856,7 @@ function App() {
       setActiveTab(0);
       setStep('main');
       if (role === 'student') { fetchTeachers(); fetchSubmissions(); }
-      else fetchTeacherSubmissions();
+      else { fetchTeacherSubmissions(); fetchTeacherHistory(); }
     } catch {
       setRegError('Сервер недоступен');
     }
@@ -769,21 +873,27 @@ function App() {
     exit:   (d) => ({ x: d < 0 ? 300 : -300, opacity: 0 }),
   };
 
-  // --- Tab structure ---
+  // --- Структура вкладок ---
   const studentTabs = [
     { icon: '📁', label: 'Загрузка' },
-    { icon: '🔔', label: 'Работы', ref: refs.navNotif },
+    { icon: '🔔', label: 'Работы',    ref: refs.navNotif },
     { icon: '⚙️', label: 'Настройки', ref: refs.navSettings },
   ];
   const teacherTabs = [
     { icon: '📋', label: 'Работы' },
-    { icon: '📝', label: 'Заметки', ref: refs.navNotes },
+    { icon: '📚', label: 'История',   ref: refs.navHistory },
+    { icon: '📝', label: 'Заметки',   ref: refs.navNotes },
     { icon: '⚙️', label: 'Настройки', ref: refs.navSettings },
   ];
   const tabs = userRole === 'teacher' ? teacherTabs : studentTabs;
 
+  const settingsTabIndex = userRole === 'teacher' ? 3 : 2;
+
   return (
     <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''}`}>
+
+      {/* Модальное окно авторов */}
+      {showAuthors && <AuthorsModal onClose={() => setShowAuthors(false)} />}
 
       {/* Диалог подтверждения отзыва работы */}
       {withdrawConfirmId !== null && (
@@ -812,6 +922,7 @@ function App() {
           steps={userRole === 'teacher' ? TEACHER_STEPS : STUDENT_STEPS}
           step={tutorialStep}
           onNext={handleTutorialNext}
+          onSkip={handleTutorialSkip}
           refs={refs}
         />
       )}
@@ -908,7 +1019,12 @@ function App() {
                 <button type="submit" className="submit-btn" disabled={registering || codeTimeLeft <= 0}>
                   {registering ? '⏳ Проверка...' : '✅ Подтвердить'}
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => { setStep('register'); setRegError(''); setRegCode(''); setCodeExpiresAt(null); setCodeTimeLeft(0); }}>
+                <button type="button" className="secondary-btn" disabled={sendingCode} onClick={handleResendCode}>
+                  {sendingCode ? '⏳ Отправка...' : '🔄 Отправить код повторно'}
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => {
+                  setStep('register'); setRegError(''); setRegCode(''); setCodeExpiresAt(null); setCodeTimeLeft(0);
+                }}>
                   ⬅️ Назад
                 </button>
               </div>
@@ -952,7 +1068,7 @@ function App() {
                     <input id="file-upload" type="file" accept=".pdf"
                       onChange={(e) => { setFile(e.target.files[0]); setStatus(''); }} />
                     {teachers.length === 0 && (
-                      <p className="reg-hint" style={{color:'#e53935'}}>Нет доступных преподавателей. Попробуйте позже.</p>
+                      <p className="reg-hint" style={{ color: '#e53935' }}>Нет доступных преподавателей. Попробуйте позже.</p>
                     )}
                     <button type="submit" className="submit-btn" ref={refs.submitBtn}
                       disabled={!file || uploading || teachers.length === 0 || !selectedTeacherId}
@@ -1014,7 +1130,7 @@ function App() {
               </div>
             )}
 
-            {/* ===== ПРЕПОДАВАТЕЛЬ: дашборд ===== */}
+            {/* ===== ПРЕПОДАВАТЕЛЬ: ожидающие работы ===== */}
             {userRole === 'teacher' && activeTab === 0 && (
               <div className="tab-view">
                 <h2 className="view-title">Работы студентов</h2>
@@ -1089,11 +1205,43 @@ function App() {
               </div>
             )}
 
-            {/* ===== ПРЕПОДАВАТЕЛЬ: заметки ===== */}
+            {/* ===== ПРЕПОДАВАТЕЛЬ: история проверок ===== */}
             {userRole === 'teacher' && activeTab === 1 && (
               <div className="tab-view">
+                <h2 className="view-title">История проверок</h2>
+                <button className="refresh-btn" onClick={fetchTeacherHistory}>🔄 Обновить</button>
+                <div className="notif-window" style={{ height: '65vh' }}>
+                  {teacherHistory.length === 0 && (
+                    <p className="notif-empty">История проверок пуста</p>
+                  )}
+                  {teacherHistory.map(s => (
+                    <div key={s.id} className="ts-card-compact history-card">
+                      <div className="ts-card-main" style={{ cursor: 'default' }}>
+                        <div className="ts-row-top">
+                          <span className="ts-student">{s.student_name || 'Студент'}</span>
+                          <span className={`history-verdict-badge ${s.teacher_verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
+                            {s.teacher_verdict === 'APPROVED' ? '✅ Принято' : '🔄 Доработка'}
+                          </span>
+                        </div>
+                        <div className="ts-row-bottom">
+                          <span className="ts-file">{s.file_name}</span>
+                          <span className="ts-date">{formatDate(s.created_at)}</span>
+                        </div>
+                        {s.teacher_comment && (
+                          <div className="ts-comment">💬 {s.teacher_comment}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ===== ПРЕПОДАВАТЕЛЬ: заметки ===== */}
+            {userRole === 'teacher' && activeTab === 2 && (
+              <div className="tab-view">
                 <h2 className="view-title">Заметки</h2>
-                <button className="add-note-btn" onClick={() => { setNoteInput(''); setEditingNoteId('new'); }}>
+                <button className="add-note-btn" ref={refs.addNoteBtn} onClick={() => { setNoteInput(''); setEditingNoteId('new'); }}>
                   + Новая заметка
                 </button>
                 {editingNoteId === 'new' && (
@@ -1123,9 +1271,12 @@ function App() {
                         <>
                           <p className="note-text">{note.text}</p>
                           <div className="note-actions">
-                            <button className="note-action-btn" onClick={() => { setEditingNoteId(note.id); setNoteInput(note.text); }}>✏️ Изменить</button>
-                            <button className="note-action-btn note-action-delete" onClick={() => handleDeleteNote(note.id)}>🗑 Удалить</button>
-                            <button className="note-action-btn note-action-find" onClick={() => handleFindFromNote(note.text)}>🔍 Найти</button>
+                            <button className="note-action-btn note-action-icon" title="Изменить"
+                              onClick={() => { setEditingNoteId(note.id); setNoteInput(note.text); }}>✏️</button>
+                            <button className="note-action-btn note-action-delete note-action-icon" title="Удалить"
+                              onClick={() => handleDeleteNote(note.id)}>🗑</button>
+                            <button className="note-action-btn note-action-find note-action-icon" title="Найти студента"
+                              onClick={() => handleFindFromNote(note.text)}>🔍</button>
                           </div>
                         </>
                       )}
@@ -1139,7 +1290,7 @@ function App() {
             )}
 
             {/* ===== НАСТРОЙКИ (общие) ===== */}
-            {activeTab === 2 && (
+            {activeTab === settingsTabIndex && (
               <div className="tab-view">
                 <h2 className="view-title">Настройки</h2>
 
@@ -1206,6 +1357,7 @@ function App() {
               </button>
             ))}
           </div>
+          <button className="authors-link" onClick={() => setShowAuthors(true)}>Авторы</button>
         </div>
       )}
     </div>

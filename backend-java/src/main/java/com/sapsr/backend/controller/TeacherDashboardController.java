@@ -111,6 +111,33 @@ public class TeacherDashboardController {
         return ResponseEntity.ok(Map.of("status", "OK", "verdict", verdict));
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<?> getHistory(HttpServletRequest request) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+
+        Optional<User> teacher = userRepository.findById(telegramId);
+        if (teacher.isEmpty() || !"TEACHER".equals(teacher.get().getRole())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Доступ запрещён"));
+        }
+
+        List<Submission> submissions = submissionRepository
+                .findByTeacher_TelegramIdAndTeacherVerdictIsNotNullOrderByCreatedAtDesc(telegramId);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Submission s : submissions) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", s.getId());
+            item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            item.put("teacher_verdict", s.getTeacherVerdict());
+            item.put("teacher_comment", s.getTeacherComment());
+            if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
+            item.put("file_name", submissionFileName(s));
+            result.add(item);
+        }
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/submissions/{id}/pdf")
     public ResponseEntity<byte[]> getPdf(@PathVariable Integer id, HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");

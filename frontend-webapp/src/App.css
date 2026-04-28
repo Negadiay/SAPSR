@@ -1,10 +1,10 @@
 /* --- 1. ГЛОБАЛЬНЫЕ НАСТРОЙКИ --- */
 * {
   box-sizing: border-box;
-  scrollbar-width: none;        /* Firefox */
+  scrollbar-width: none;
 }
 *::-webkit-scrollbar {
-  display: none;                /* Chrome / Telegram WebView */
+  display: none;
 }
 
 html, body {
@@ -12,23 +12,32 @@ html, body {
   padding: 0;
   width: 100%;
   overflow-x: hidden;
-  background-color: var(--tg-theme-bg-color, #ffffff);
+  background-color: #f0f9f5;
 }
 
+/* --- 2. СВЕТЛАЯ ТЕМА (по умолчанию) --- */
+/* Переопределяем переменные Telegram собственными значениями */
 .App {
+  --tg-theme-bg-color:            #f0f9f5;
+  --tg-theme-secondary-bg-color:  #dff0e9;
+  --tg-theme-button-color:        #2e8d8a;
+  --tg-theme-button-text-color:   #ffffff;
+  --tg-theme-text-color:          #1c3a38;
+  --tg-theme-hint-color:          #6a8a88;
   --app-font-size: 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: var(--app-font-size);
-  color: var(--tg-theme-text-color, #000000);
+  color: var(--tg-theme-text-color, #1c3a38);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px;
   width: 100%;
+  background-color: var(--tg-theme-bg-color, #f0f9f5);
 }
 
-/* --- 2. БРЕНДИНГ (ЛОГОТИП И ЗАГОЛОВОК) --- */
+/* --- 3. БРЕНДИНГ --- */
 .branding {
   display: flex;
   flex-direction: column;
@@ -47,7 +56,7 @@ html, body {
 h1 {
   font-size: 28px;
   margin: 10px 0;
-  color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2e8d8a);
   font-weight: 800;
 }
 
@@ -58,7 +67,7 @@ h1 {
   margin-bottom: 25px;
 }
 
-/* --- 3. ЭКРАНЫ И МАКЕТЫ ТАБОВ --- */
+/* --- 4. ЭКРАНЫ И МАКЕТЫ ТАБОВ --- */
 .screen {
   display: flex;
   flex-direction: column;
@@ -68,7 +77,7 @@ h1 {
 }
 
 .main-content {
-  padding-bottom: 140px; /* Отступ снизу для навигации */
+  padding-bottom: 140px;
 }
 
 .tab-view {
@@ -82,11 +91,11 @@ h1 {
   font-size: 24px;
   margin-bottom: 20px;
   font-weight: 700;
-  color: #fff !important;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  color: var(--tg-theme-button-color, #2e8d8a);
+  letter-spacing: -0.3px;
 }
 
-/* --- 4. РЕГИСТРАЦИЯ (ВЫБОР РОЛИ) --- */
+/* --- 5. РЕГИСТРАЦИЯ --- */
 .role-container {
   display: flex;
   flex-direction: column;
@@ -104,8 +113,8 @@ h1 {
 
 .role-card {
   flex: 1;
-  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border: 1px solid rgba(46, 141, 138, 0.2);
   border-radius: 15px;
   padding: 10px 15px;
   display: flex;
@@ -133,16 +142,16 @@ h1 {
 
 .role-login-btn {
   min-width: 86px;
-  border: 1px solid var(--tg-theme-button-color, #2481cc);
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
   border-radius: 15px;
-  background: var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-button-color, #2e8d8a);
   color: var(--tg-theme-button-text-color, #fff);
   font-weight: 700;
   cursor: pointer;
 }
 
 .role-card:active {
-  background: var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-button-color, #2e8d8a);
   color: white;
 }
 
@@ -154,7 +163,7 @@ h1 {
   margin-top: 12px;
 }
 
-/* --- 5. ФОРМЫ (РЕГИСТРАЦИЯ) --- */
+/* --- 6. ФОРМЫ (РЕГИСТРАЦИЯ) --- */
 .register-form {
   display: flex;
   flex-direction: column;
@@ -168,9 +177,9 @@ h1 {
   width: 100%;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 2px solid var(--tg-theme-button-color, #2481cc);
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  border: 2px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
   font-size: 15px;
   outline: none;
 }
@@ -237,7 +246,7 @@ h1 {
   margin-top: 8px;
 }
 
-/* --- 5b. СЕЛЕКТ ПРЕПОДАВАТЕЛЯ --- */
+/* --- 6b. СЕЛЕКТ ПРЕПОДАВАТЕЛЯ --- */
 .teacher-select-wrapper {
   margin-bottom: 16px;
   text-align: left;
@@ -255,30 +264,30 @@ h1 {
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 2px solid var(--tg-theme-button-color, #2481cc);
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  border: 2px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
   font-size: 14px;
   outline: none;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%232481cc' fill='none' stroke-width='2'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%232e8d8a' fill='none' stroke-width='2'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
 }
 
-/* --- 6. ЗАГРУЗКА ФАЙЛА --- */
+/* --- 7. ЗАГРУЗКА ФАЙЛА --- */
 .upload-container {
   width: 90vw;
   max-width: 350px;
-  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
   padding: 30px;
   border-radius: 20px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
 
 .custom-file-upload {
-  border: 2px dashed var(--tg-theme-button-color, #2481cc);
+  border: 2px dashed var(--tg-theme-button-color, #2e8d8a);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -286,7 +295,7 @@ h1 {
   padding: 20px;
   border-radius: 15px;
   cursor: pointer;
-  background: rgba(36, 129, 204, 0.05);
+  background: rgba(46, 141, 138, 0.05);
   transition: background 0.2s;
 }
 
@@ -313,13 +322,13 @@ input[type="file"] {
   color: var(--tg-theme-button-color);
 }
 
-/* --- 7. УВЕДОМЛЕНИЯ (СПИСОК ФАЙЛОВ) --- */
+/* --- 8. УВЕДОМЛЕНИЯ (СПИСОК ФАЙЛОВ) --- */
 .notif-window {
   width: 90vw;
   max-width: 340px;
   height: 50vh;
-  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border: 1px solid rgba(46, 141, 138, 0.15);
   border-radius: 15px;
   padding: 15px;
   overflow-y: auto;
@@ -355,7 +364,7 @@ input[type="file"] {
 
 .notif-info {
   display: flex;
-  flex-direction: column; /* ФИО на новой строке */
+  flex-direction: column;
   text-align: left;
   gap: 4px;
   flex: 1;
@@ -380,7 +389,7 @@ input[type="file"] {
 }
 
 .download-btn {
-  background: var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-button-color, #2e8d8a);
   border: none;
   color: white;
   width:  calc(var(--app-font-size) * 2.71);
@@ -403,8 +412,8 @@ input[type="file"] {
 
 .refresh-btn {
   background: none;
-  border: 1px solid var(--tg-theme-button-color, #2481cc);
-  color: var(--tg-theme-button-color, #2481cc);
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-color, #2e8d8a);
   padding: 6px 16px;
   border-radius: 10px;
   font-size: 13px;
@@ -415,7 +424,7 @@ input[type="file"] {
 }
 
 .refresh-btn:active {
-  background: var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-button-color, #2e8d8a);
   color: #fff;
 }
 
@@ -426,9 +435,9 @@ input[type="file"] {
   margin-bottom: 4px;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid var(--tg-theme-button-color, #2481cc);
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
   outline: none;
 }
 
@@ -455,12 +464,12 @@ input[type="file"] {
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
 }
 
 .iteration-step,
 .iteration-final {
-  background: rgba(36, 129, 204, 0.08);
+  background: rgba(46, 141, 138, 0.08);
   border-radius: 999px;
   padding: 2px 7px;
   font-size: calc(var(--app-font-size) * 0.8);
@@ -508,7 +517,7 @@ input[type="file"] {
   padding-left: 12px;
 }
 
-/* --- 8. КНОПКИ (ОБЩИЕ СТИЛИ) --- */
+/* --- 9. КНОПКИ (ОБЩИЕ) --- */
 .submit-btn, .secondary-btn {
   width: 100%;
   padding: 14px;
@@ -524,14 +533,14 @@ input[type="file"] {
 }
 
 .submit-btn {
-  background-color: var(--tg-theme-button-color, #2481cc);
+  background-color: var(--tg-theme-button-color, #2e8d8a);
   color: var(--tg-theme-button-text-color, #ffffff);
   font-size: 16px;
 }
 
 .secondary-btn {
-  background-color: var(--tg-theme-secondary-bg-color, #eef0f2);
-  color: var(--tg-theme-button-color, #2481cc);
+  background-color: var(--tg-theme-secondary-bg-color, #dff0e9);
+  color: var(--tg-theme-button-color, #2e8d8a);
   font-size: 14px;
 }
 
@@ -540,7 +549,7 @@ input[type="file"] {
   opacity: 0.8;
 }
 
-/* --- 9. НИЖНЯЯ НАВИГАЦИЯ (STYLE TELEGRAM) --- */
+/* --- 10. НИЖНЯЯ НАВИГАЦИЯ --- */
 .nav-wrapper {
   position: fixed;
   bottom: 20px;
@@ -548,18 +557,18 @@ input[type="file"] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 6px;
   z-index: 1000;
 }
 
 .bottom-nav {
-  background: rgba(28, 37, 52, 0.9);
+  background: rgba(28, 58, 56, 0.92);
   backdrop-filter: blur(10px);
   padding: 8px 15px;
   border-radius: 50px;
   display: flex;
   gap: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 }
 
 .bottom-nav button {
@@ -602,15 +611,31 @@ input[type="file"] {
 }
 
 .bottom-nav button.active .nav-icon-bg {
-  background: var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-button-color, #2e8d8a);
   color: white;
 }
 
-/* --- 10. ССЫЛКИ И АНИМАЦИИ --- */
+/* Кнопка «Авторы» под навигацией */
+.authors-link {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 8px;
+  transition: color 0.2s;
+}
+
+.authors-link:active {
+  color: #fff;
+}
+
+/* --- 11. ССЫЛКИ И АНИМАЦИИ --- */
 .skip-btn, .back-link-bottom {
   background: none;
   border: none;
-  color: var(--tg-theme-hint-color, #999);
+  color: var(--tg-theme-hint-color, #6a8a88);
   margin-top: 40px;
   cursor: pointer;
   text-decoration: underline;
@@ -631,7 +656,7 @@ input[type="file"] {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- 11. БАЛЛЫ И ВЕРДИКТ (СТУДЕНТ) --- */
+/* --- 12. ВЕРДИКТ (СТУДЕНТ) --- */
 .notif-score {
   font-size: 12px;
   font-weight: 700;
@@ -646,7 +671,7 @@ input[type="file"] {
 
 .notif-comment {
   font-size: 12px;
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
   margin-top: 2px;
   font-style: italic;
 }
@@ -654,9 +679,9 @@ input[type="file"] {
 .verdict-ok { color: #43a047; }
 .verdict-revision { color: #fb8c00; }
 
-/* --- 12. ДАШБОРД ПРЕПОДАВАТЕЛЯ --- */
+/* --- 13. ДАШБОРД ПРЕПОДАВАТЕЛЯ --- */
 .teacher-submission-card {
-  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
   border-radius: 12px;
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -678,12 +703,12 @@ input[type="file"] {
 
 .ts-date {
   font-size: 12px;
-  color: var(--tg-theme-hint-color, #999);
+  color: var(--tg-theme-hint-color, #6a8a88);
 }
 
 .ts-file {
   font-size: 12px;
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -702,7 +727,7 @@ input[type="file"] {
 
 .ts-comment {
   font-size: 12px;
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
   font-style: italic;
   margin-top: 2px;
 }
@@ -716,8 +741,8 @@ input[type="file"] {
 
 .download-btn-sm {
   background: none;
-  border: 1px solid var(--tg-theme-button-color, #2481cc);
-  color: var(--tg-theme-button-color, #2481cc);
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-color, #2e8d8a);
   padding: 7px 14px;
   border-radius: 8px;
   font-size: 13px;
@@ -759,13 +784,13 @@ input[type="file"] {
 .revision-input {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid #ddd;
+  border: 1px solid rgba(46, 141, 138, 0.3);
   padding: 10px;
   font-size: 14px;
   font-family: inherit;
   resize: none;
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
 }
 
 .revision-btns {
@@ -780,9 +805,9 @@ input[type="file"] {
   padding: 10px;
 }
 
-/* --- 13. КОМПАКТНЫЕ КАРТОЧКИ ПРЕПОДАВАТЕЛЯ --- */
+/* --- 14. КОМПАКТНЫЕ КАРТОЧКИ ПРЕПОДАВАТЕЛЯ --- */
 .ts-card-compact {
-  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
   border-radius: 10px;
   margin-bottom: 8px;
   overflow: hidden;
@@ -810,9 +835,9 @@ input[type="file"] {
 }
 
 .ts-student { font-weight: 700; font-size: 13px; }
-.ts-date    { font-size: 11px; color: var(--tg-theme-hint-color, #999); }
-.ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #888); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ts-chevron { font-size: 11px; color: var(--tg-theme-hint-color, #aaa); margin-left: 8px; }
+.ts-date    { font-size: 11px; color: var(--tg-theme-hint-color, #6a8a88); }
+.ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #6a8a88); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-chevron { font-size: 11px; color: var(--tg-theme-hint-color, #6a8a88); margin-left: 8px; }
 
 .ts-card-expanded .ts-card-main { border-bottom: 1px solid rgba(0,0,0,0.08); }
 
@@ -823,13 +848,37 @@ input[type="file"] {
   padding: 10px 14px;
 }
 
-/* --- 14. ТУТОРИАЛ --- */
+/* --- 15. ИСТОРИЯ ПРОВЕРОК --- */
+.history-card {
+  border-left: 3px solid transparent;
+}
+
+.history-verdict-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.history-badge-ok {
+  background: rgba(67, 160, 71, 0.12);
+  color: #43a047;
+}
+
+.history-badge-revision {
+  background: rgba(251, 140, 0, 0.12);
+  color: #fb8c00;
+}
+
+/* --- 16. ТУТОРИАЛ --- */
 .tutorial-btn {
   position: fixed;
   top: 12px;
   right: 12px;
   z-index: 8000;
-  background: rgba(0,0,0,0.15);
+  background: rgba(46, 141, 138, 0.18);
   border: none;
   border-radius: 50%;
   width: 36px;
@@ -867,18 +916,61 @@ input[type="file"] {
   padding: 16px 18px;
   max-width: min(320px, calc(100vw - 24px));
   box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.tutorial-tooltip p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; }
-.tutorial-counter { font-size: 12px; font-weight: 700; color: #2481cc; margin-right: 10px; }
-.tutorial-hint    { font-size: 11px; color: #999; }
+.tutorial-tooltip p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
 
-/* --- 15. НАСТРОЙКИ --- */
+.tutorial-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tutorial-counter {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2e8d8a;
+  flex: 1;
+}
+
+.tutorial-skip-btn {
+  background: none;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #888;
+  transition: background 0.15s;
+}
+
+.tutorial-skip-btn:active {
+  background: rgba(0,0,0,0.06);
+}
+
+.tutorial-next-btn {
+  background: #2e8d8a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tutorial-next-btn:active {
+  opacity: 0.8;
+}
+
+/* --- 17. НАСТРОЙКИ --- */
 .settings-section {
   width: 100%;
   max-width: 340px;
-  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
   border: 2px solid transparent;
   border-radius: 12px;
   padding: 14px 16px;
@@ -889,7 +981,7 @@ input[type="file"] {
   font-weight: 700;
   font-size: 13px;
   margin-bottom: 10px;
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -911,7 +1003,7 @@ input[type="file"] {
   width: 100%;
   max-width: 340px;
   height: 1px;
-  background: rgba(0,0,0,0.08);
+  background: rgba(46, 141, 138, 0.15);
   margin: 16px 0;
 }
 
@@ -932,7 +1024,7 @@ input[type="file"] {
   flex-shrink: 0;
 }
 
-.toggle-switch.on { background: var(--tg-theme-button-color, #2481cc); }
+.toggle-switch.on { background: var(--tg-theme-button-color, #2e8d8a); }
 
 .toggle-thumb {
   position: absolute;
@@ -945,22 +1037,31 @@ input[type="file"] {
 
 .toggle-switch.on .toggle-thumb { left: 23px; }
 
-/* --- 16. ТЁМНАЯ ТЕМА --- */
+/* --- 18. ТЁМНАЯ ТЕМА (серые и мятно-зелёные, как Telegram dark) --- */
 .app-dark {
-  background-color: #1a1a2e !important;
-  color: #e0e0e0 !important;
+  --tg-theme-bg-color:            #212d2f;
+  --tg-theme-secondary-bg-color:  #1e2a2c;
+  --tg-theme-button-color:        #63c9a0;
+  --tg-theme-button-text-color:   #0f1f1d;
+  --tg-theme-text-color:          #d1dbd8;
+  --tg-theme-hint-color:          #8aa09e;
+  background-color: #212d2f !important;
+  color: #d1dbd8 !important;
 }
 
 .app-dark .teacher-submission-card,
 .app-dark .ts-card-compact,
 .app-dark .notif-line,
 .app-dark .settings-section,
-.app-dark .error-card {
-  background: #16213e !important;
+.app-dark .error-card,
+.app-dark .upload-container,
+.app-dark .notif-window {
+  background: #2a3a3c !important;
+  border-color: rgba(99, 201, 160, 0.12) !important;
 }
 
 .app-dark .notif-line {
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
   border-radius: 10px;
   padding: 12px !important;
 }
@@ -969,21 +1070,62 @@ input[type="file"] {
 .app-dark .revision-input,
 .app-dark .teacher-select,
 .app-dark .teacher-search {
-  background: #16213e !important;
-  color: #e0e0e0 !important;
-  border-color: #333 !important;
+  background: #2a3a3c !important;
+  color: #d1dbd8 !important;
+  border-color: rgba(99, 201, 160, 0.25) !important;
 }
 
 .app-dark .secondary-btn {
-  background: #16213e !important;
-  color: #90caf9 !important;
+  background: #2a3a3c !important;
+  color: #63c9a0 !important;
 }
 
 .app-dark .bottom-nav {
-  background: rgba(10, 10, 30, 0.95) !important;
+  background: rgba(15, 22, 24, 0.95) !important;
 }
 
-/* --- 17. РАЗМЕР ШРИФТА --- */
+.app-dark .error-card {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.app-dark .role-card {
+  background: #2a3a3c !important;
+  border-color: rgba(99, 201, 160, 0.15) !important;
+}
+
+.app-dark .download-btn-sm {
+  border-color: #63c9a0 !important;
+  color: #63c9a0 !important;
+}
+
+.app-dark .refresh-btn {
+  border-color: #63c9a0 !important;
+  color: #63c9a0 !important;
+}
+
+.app-dark .refresh-btn:active {
+  background: #63c9a0 !important;
+  color: #0f1f1d !important;
+}
+
+.app-dark .teacher-search {
+  background: #2a3a3c !important;
+}
+
+.app-dark .view-title {
+  color: #63c9a0 !important;
+}
+
+.app-dark h1 {
+  color: #63c9a0 !important;
+}
+
+.app-dark .iteration-step,
+.app-dark .iteration-final {
+  background: rgba(99, 201, 160, 0.1) !important;
+}
+
+/* --- 19. РАЗМЕР ШРИФТА --- */
 .font-small  { --app-font-size: 12px; }
 .font-normal { --app-font-size: 14px; }
 .font-large  { --app-font-size: 16px; }
@@ -1060,18 +1202,19 @@ input[type="file"] {
 .App .tutorial-counter {
   font-size: calc(var(--app-font-size) * 0.86);
 }
-.App .tutorial-hint {
+.App .tutorial-skip-btn,
+.App .tutorial-next-btn {
   font-size: calc(var(--app-font-size) * 0.8);
 }
 
-/* --- 18. КОНТРАСТНЫЙ РЕЖИМ --- */
+/* --- 20. КОНТРАСТНЫЙ РЕЖИМ: светлый --- */
 .app-contrast:not(.app-dark) {
-  --tg-theme-text-color: #03233f !important;
-  --tg-theme-bg-color: #eaf7ff !important;
-  --tg-theme-secondary-bg-color: #cfefff !important;
-  --tg-theme-button-color: #006bb6 !important;
-  --tg-theme-button-text-color: #ffffff !important;
-  --tg-theme-hint-color: #275f86 !important;
+  --tg-theme-text-color:           #03233f !important;
+  --tg-theme-bg-color:             #eaf7ff !important;
+  --tg-theme-secondary-bg-color:   #cfefff !important;
+  --tg-theme-button-color:         #006bb6 !important;
+  --tg-theme-button-text-color:    #ffffff !important;
+  --tg-theme-hint-color:           #275f86 !important;
   background: linear-gradient(180deg, #eaf7ff 0%, #d6f0ff 100%) !important;
   color: #03233f !important;
 }
@@ -1120,12 +1263,25 @@ input[type="file"] {
 .app-contrast:not(.app-dark) .refresh-btn:active {
   background: #007ad1 !important;
   color: #ffffff !important;
-  transform: scale(0.96);
 }
+
+.app-contrast:not(.app-dark) .view-title {
+  color: #006bb6 !important;
+}
+
+.app-contrast:not(.app-dark) .history-badge-ok {
+  background: rgba(0, 107, 182, 0.12) !important;
+  color: #006bb6 !important;
+}
+
+/* --- 21. КОНТРАСТНЫЙ РЕЖИМ: тёмный --- */
 .app-contrast.app-dark {
-  --tg-theme-text-color: #ffffff !important;
-  --tg-theme-bg-color: #000000 !important;
-  --tg-theme-secondary-bg-color: #050505 !important;
+  --tg-theme-text-color:           #ffffff !important;
+  --tg-theme-bg-color:             #000000 !important;
+  --tg-theme-secondary-bg-color:   #050505 !important;
+  --tg-theme-button-color:         #ff8c00 !important;
+  --tg-theme-button-text-color:    #000000 !important;
+  --tg-theme-hint-color:           #ccaa77 !important;
   background: #000 !important;
   color: #fff !important;
 }
@@ -1134,7 +1290,8 @@ input[type="file"] {
 .app-contrast.app-dark .ts-card-compact,
 .app-contrast.app-dark .notif-line,
 .app-contrast.app-dark .settings-section,
-.app-contrast.app-dark .upload-container {
+.app-contrast.app-dark .upload-container,
+.app-contrast.app-dark .notif-window {
   background: #000 !important;
   border-color: #fff !important;
   outline: 2px solid #fff;
@@ -1174,10 +1331,17 @@ input[type="file"] {
 .app-contrast.app-dark .refresh-btn:active {
   background: #ff8c00 !important;
   color: #000 !important;
-  transform: scale(0.96);
 }
 
-/* --- 19. ПОЛЗУНОК РАЗМЕРА ШРИФТА --- */
+.app-contrast.app-dark .view-title {
+  color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark h1 {
+  color: #ff8c00 !important;
+}
+
+/* --- 22. ПОЛЗУНОК РАЗМЕРА ШРИФТА --- */
 .fontsize-slider-row {
   display: flex;
   align-items: center;
@@ -1187,34 +1351,35 @@ input[type="file"] {
 
 .fontsize-slider {
   flex: 1;
-  accent-color: var(--tg-theme-button-color, #2481cc);
+  accent-color: var(--tg-theme-button-color, #2e8d8a);
   cursor: pointer;
+  touch-action: none;
 }
 
 .fontsize-marker {
   font-weight: 800;
-  color: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-color, #2e8d8a);
 }
 
 .fontsize-marker-large {
   font-size: calc(var(--app-font-size) * 1.2) !important;
 }
 
-/* --- 20. ШАБЛОНЫ КОММЕНТАРИЕВ --- */
+/* --- 23. ШАБЛОНЫ КОММЕНТАРИЕВ --- */
 .comment-suggestions {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid rgba(36, 129, 204, 0.18);
+  border: 1px solid rgba(46, 141, 138, 0.18);
   border-radius: 10px;
   padding: 8px;
-  background: rgba(36, 129, 204, 0.06);
+  background: rgba(46, 141, 138, 0.06);
 }
 
 .App .comment-suggestions-title {
   font-size: calc(var(--app-font-size) * 0.8);
   font-weight: 700;
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -1228,8 +1393,8 @@ input[type="file"] {
   border: none;
   border-radius: 8px;
   padding: 7px 9px;
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
   cursor: pointer;
   text-align: left;
 }
@@ -1239,21 +1404,21 @@ input[type="file"] {
 }
 
 .comment-suggestion small {
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-hint-color, #6a8a88);
   white-space: nowrap;
 }
 
 .app-dark .comment-suggestions {
-  background: rgba(144, 202, 249, 0.08);
-  border-color: rgba(144, 202, 249, 0.2);
+  background: rgba(99, 201, 160, 0.06);
+  border-color: rgba(99, 201, 160, 0.15);
 }
 
 .app-dark .comment-suggestion {
-  background: #16213e;
-  color: #e0e0e0;
+  background: #2a3a3c;
+  color: #d1dbd8;
 }
 
-/* --- КНОПКА ОТОЗВАТЬ --- */
+/* --- 24. КНОПКА ОТОЗВАТЬ --- */
 .notif-btn-group {
   display: flex;
   flex-direction: row;
@@ -1293,9 +1458,9 @@ input[type="file"] {
   cursor: not-allowed;
 }
 
-/* --- ЗАМЕТКИ ПРЕПОДАВАТЕЛЯ --- */
+/* --- 25. ЗАМЕТКИ ПРЕПОДАВАТЕЛЯ --- */
 .add-note-btn {
-  background: var(--tg-theme-button-color, #2481cc);
+  background: var(--tg-theme-button-color, #2e8d8a);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -1320,7 +1485,7 @@ input[type="file"] {
 }
 
 .note-card {
-  background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
   border-radius: 12px;
   padding: 12px 14px;
   text-align: left;
@@ -1330,7 +1495,7 @@ input[type="file"] {
   margin: 0 0 10px;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--tg-theme-text-color, #1c3a38);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1341,15 +1506,25 @@ input[type="file"] {
   flex-wrap: wrap;
 }
 
+/* Компактные кнопки заметок — только иконки */
 .note-action-btn {
   background: none;
   border: 1px solid rgba(0,0,0,0.15);
   border-radius: 8px;
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 0;
+  font-size: 16px;
   cursor: pointer;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--tg-theme-text-color, #1c3a38);
   transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.note-action-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .note-action-btn:active {
@@ -1362,8 +1537,8 @@ input[type="file"] {
 }
 
 .note-action-find {
-  border-color: var(--tg-theme-button-color, #2481cc);
-  color: var(--tg-theme-button-color, #2481cc);
+  border-color: var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-color, #2e8d8a);
 }
 
 .note-editor {
@@ -1377,9 +1552,9 @@ input[type="file"] {
   min-height: 80px;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid var(--tg-theme-button-color, #2481cc);
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
   font-size: 14px;
   resize: vertical;
   outline: none;
@@ -1392,23 +1567,23 @@ input[type="file"] {
   margin-top: 8px;
 }
 
-/* --- ТЁМНАЯ ТЕМА: заметки и диалог --- */
+/* Тёмная тема: заметки */
 .app-dark .note-card {
-  background: #16213e !important;
-  color: #e0e0e0 !important;
+  background: #2a3a3c !important;
+  color: #d1dbd8 !important;
 }
 
 .app-dark .note-text {
-  color: #e0e0e0 !important;
+  color: #d1dbd8 !important;
 }
 
 .app-dark .note-action-btn {
-  border-color: rgba(255, 255, 255, 0.20) !important;
-  color: #e0e0e0 !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #d1dbd8 !important;
 }
 
 .app-dark .note-action-btn:active {
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
 }
 
 .app-dark .note-action-delete {
@@ -1417,17 +1592,22 @@ input[type="file"] {
 }
 
 .app-dark .note-action-find {
-  border-color: #90caf9 !important;
-  color: #90caf9 !important;
+  border-color: #63c9a0 !important;
+  color: #63c9a0 !important;
 }
 
 .app-dark .note-textarea {
-  background: #0f1729 !important;
-  color: #e0e0e0 !important;
-  border-color: #334466 !important;
+  background: #1a2a2c !important;
+  color: #d1dbd8 !important;
+  border-color: rgba(99, 201, 160, 0.3) !important;
 }
 
-/* --- ДИАЛОГ ПОДТВЕРЖДЕНИЯ ОТЗЫВА --- */
+.app-dark .add-note-btn {
+  background: #63c9a0 !important;
+  color: #0f1f1d !important;
+}
+
+/* --- 26. ДИАЛОГ ПОДТВЕРЖДЕНИЯ --- */
 .confirm-overlay {
   position: fixed;
   inset: 0;
@@ -1439,8 +1619,8 @@ input[type="file"] {
 }
 
 .confirm-dialog {
-  background: var(--tg-theme-bg-color, #fff);
-  color: var(--tg-theme-text-color, #000);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
   border-radius: 16px;
   padding: 24px 20px 18px;
   max-width: 300px;
@@ -1484,12 +1664,81 @@ input[type="file"] {
 }
 
 .app-dark .confirm-dialog {
-  background: #16213e !important;
-  color: #e0e0e0 !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  background: #2a3a3c !important;
+  color: #d1dbd8 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
-/* --- КОНТРАСТНАЯ СВЕТЛАЯ: заметки и диалог --- */
+/* --- 27. АВТОРЫ --- */
+.authors-dialog {
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+  border-radius: 20px;
+  padding: 24px 20px 20px;
+  max-width: 320px;
+  width: 88vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.authors-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--tg-theme-button-color, #2e8d8a);
+}
+
+.authors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.authors-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border-radius: 12px;
+  border-left: 3px solid var(--tg-theme-button-color, #2e8d8a);
+}
+
+.authors-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--tg-theme-text-color, #1c3a38);
+}
+
+.authors-role {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+}
+
+.authors-close-btn {
+  width: 100%;
+}
+
+.app-dark .authors-dialog {
+  background: #2a3a3c !important;
+  color: #d1dbd8 !important;
+}
+
+.app-dark .authors-item {
+  background: #1e2a2c !important;
+  border-left-color: #63c9a0 !important;
+}
+
+.app-dark .authors-name {
+  color: #d1dbd8 !important;
+}
+
+.app-dark .authors-title {
+  color: #63c9a0 !important;
+}
+
+/* --- 28. КОНТРАСТНАЯ СВЕТЛАЯ: заметки, диалоги --- */
 .app-contrast:not(.app-dark) .note-card {
   background: #d8f2ff !important;
   border: 2px solid #38a7e8 !important;
@@ -1527,13 +1776,23 @@ input[type="file"] {
   color: #ffffff !important;
 }
 
-.app-contrast:not(.app-dark) .confirm-dialog {
+.app-contrast:not(.app-dark) .confirm-dialog,
+.app-contrast:not(.app-dark) .authors-dialog {
   background: #eaf7ff !important;
   color: #03233f !important;
   border: 2px solid #38a7e8;
 }
 
-/* --- КОНТРАСТНАЯ ТЁМНАЯ: заметки и диалог --- */
+.app-contrast:not(.app-dark) .authors-item {
+  background: #d8f2ff !important;
+  border-left-color: #006bb6 !important;
+}
+
+.app-contrast:not(.app-dark) .authors-title {
+  color: #006bb6 !important;
+}
+
+/* --- 29. КОНТРАСТНАЯ ТЁМНАЯ: заметки, диалоги --- */
 .app-contrast.app-dark .note-card {
   background: #000000 !important;
   border: 2px solid #ffffff !important;
@@ -1571,8 +1830,22 @@ input[type="file"] {
   color: #000000 !important;
 }
 
-.app-contrast.app-dark .confirm-dialog {
+.app-contrast.app-dark .confirm-dialog,
+.app-contrast.app-dark .authors-dialog {
   background: #000000 !important;
   color: #ffffff !important;
   border: 2px solid #ffffff !important;
+}
+
+.app-contrast.app-dark .authors-item {
+  background: #111 !important;
+  border-left-color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark .authors-title {
+  color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark .authors-role {
+  color: #ccaa77 !important;
 }
