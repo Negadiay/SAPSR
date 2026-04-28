@@ -90,34 +90,50 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
 
   useEffect(() => {
     if (targetRef?.current) {
-      setRect(targetRef.current.getBoundingClientRect());
+      const r = targetRef.current.getBoundingClientRect();
+      setRect(r);
     } else {
       setRect(null);
     }
   }, [step, targetRef]);
 
-  const PAD = 6;
+  const PAD = 8;
   const TOOLTIP_W = Math.min(300, window.innerWidth - 24);
-  const TOOLTIP_H = 170;
-  const BOTTOM_SAFE_AREA = 110;
+  const TOOLTIP_H = 210;
+  const NAV_SAFE = 150;   // space for bottom nav + authors link
+  const TOOLTIP_GAP = 16; // gap between spotlight and tooltip
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
   let tooltipStyle;
   if (rect) {
-    const spaceBelow = vh - rect.bottom - PAD - BOTTOM_SAFE_AREA;
-    let top = spaceBelow >= TOOLTIP_H
-      ? rect.bottom + PAD + 10
-      : Math.max(12, rect.top - PAD - TOOLTIP_H - 10);
-    top = Math.max(12, Math.min(top, vh - TOOLTIP_H - BOTTOM_SAFE_AREA));
+    const spotlightBottom = rect.bottom + PAD;
+    const spotlightTop    = rect.top    - PAD;
+    const spaceBelow = vh - spotlightBottom - NAV_SAFE;
+    const spaceAbove = spotlightTop - TOOLTIP_GAP;
+
+    let top;
+    if (spaceBelow >= TOOLTIP_H) {
+      // fits below the spotlight
+      top = spotlightBottom + TOOLTIP_GAP;
+    } else if (spaceAbove >= TOOLTIP_H) {
+      // fits above the spotlight
+      top = spotlightTop - TOOLTIP_GAP - TOOLTIP_H;
+    } else {
+      // neither fits — put above nav, may overlap spotlight
+      top = vh - NAV_SAFE - TOOLTIP_H - 8;
+    }
+    top = Math.max(8, Math.min(top, vh - TOOLTIP_H - NAV_SAFE));
+
     let left = rect.left + rect.width / 2 - TOOLTIP_W / 2;
     left = Math.max(12, Math.min(left, vw - TOOLTIP_W - 12));
     tooltipStyle = { top, left, width: TOOLTIP_W };
   } else {
-    tooltipStyle = { top: '38%', left: '50%', transform: 'translateX(-50%)', width: TOOLTIP_W };
+    tooltipStyle = { top: '35%', left: '50%', transform: 'translateX(-50%)', width: TOOLTIP_W };
   }
 
   return (
+    // Clicking anywhere on overlay (except skip button) advances the tutorial
     <div className="tutorial-overlay" onClick={onNext}>
       {rect && (
         <div className="tutorial-spotlight" style={{
@@ -127,14 +143,15 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
           height: rect.height + PAD * 2,
         }} />
       )}
-      <div className="tutorial-tooltip" style={tooltipStyle} onClick={e => e.stopPropagation()}>
+      <div className="tutorial-tooltip" style={tooltipStyle}>
         <p>{current?.text}</p>
         <div className="tutorial-footer">
           <span className="tutorial-counter">{step + 1} / {steps.length}</span>
-          <button className="tutorial-skip-btn" onClick={onSkip}>Пропустить</button>
-          <button className="tutorial-next-btn" onClick={onNext}>
-            {step + 1 >= steps.length ? 'Готово' : 'Далее →'}
+          <button className="tutorial-skip-btn"
+            onClick={(e) => { e.stopPropagation(); onSkip(); }}>
+            Пропустить
           </button>
+          <span className="tutorial-hint">Нажмите в любое место →</span>
         </div>
       </div>
     </div>
@@ -227,6 +244,19 @@ function App() {
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep]     = useState(0);
 
+  // История: развёрнутая группа
+  const [expandedHistoryKey, setExpandedHistoryKey] = useState(null);
+
+  // Заметки: подтверждение удаления
+  const [deleteConfirmNoteId, setDeleteConfirmNoteId] = useState(null);
+
+  // Клавиатура поднялась — скрываем нижнюю навигацию
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // Ref для блокировки свайпа во время туториала (избегает stale closure)
+  const tutorialActiveRef = useRef(false);
+  useEffect(() => { tutorialActiveRef.current = tutorialActive; }, [tutorialActive]);
+
   // Refs для туториала
   const refs = {
     teacherSel:    useRef(null),
@@ -241,7 +271,7 @@ function App() {
     addNoteBtn:    useRef(null),
   };
 
-  // Свайп-навигация — исключаем слайдеры
+  // Свайп-навигация — исключаем слайдеры и активный туториал
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
   const swipeActive = useRef(false);
@@ -249,6 +279,9 @@ function App() {
   useEffect(() => {
     if (step !== 'main') return;
     const onStart = (e) => {
+      // Не свайпать во время туториала
+      if (tutorialActiveRef.current) { swipeActive.current = false; return; }
+      // Не свайпать при взаимодействии со слайдером
       if (e.target.tagName === 'INPUT' && e.target.type === 'range') {
         swipeActive.current = false;
         return;
@@ -274,6 +307,17 @@ function App() {
       document.removeEventListener('touchend', onEnd);
     };
   }, [step, userRole]);
+
+  // Скрываем нижнюю навигацию, когда клавиатура поднята
+  useEffect(() => {
+    const vp = window.visualViewport;
+    if (!vp) return;
+    const handleResize = () => {
+      setKeyboardVisible(vp.height < window.innerHeight * 0.75);
+    };
+    vp.addEventListener('resize', handleResize);
+    return () => vp.removeEventListener('resize', handleResize);
+  }, []);
 
   const tg = window.Telegram?.WebApp;
   const initData = tg?.initData || '';
@@ -376,7 +420,8 @@ function App() {
     const SKIP_ENDINGS   = /(?:[тТ][ьЬ]([сС][яЯ])?|[чЧ][ьЬ]|[шШ][ьЬ]|[жЖ][ьЬ]|ние|ость|ство|ание|ение)$/;
     const SKIP_WORDS     = /^(?:Это|Как|Что|Где|Его|Её|Их|Все|Всё|Тот|Для|При|Про|Без|Над|Под|Через|Между|Среди|Около|Снова|Потом|Когда|Такой|Такая|Такое|Такие|Очень|Нужно|Можно|Нельзя|Январ|Феврал|Март|Апрел|Май|Июн|Июл|Август|Сентябр|Октябр|Ноябр|Декабр|Понедельник|Вторник|Среда|Четверг|Пятница|Суббота|Воскресенье)$/i;
 
-    const capitalWords = [...text.matchAll(/\b[А-ЯЁ][а-яё]{2,}\b/g)].map(m => m[0]);
+    // \b не работает с кириллицей в JS, поэтому ищем любой заглавный кириллический символ + строчные
+    const capitalWords = [...text.matchAll(/[А-ЯЁ][а-яё]+/g)].map(m => m[0]);
 
     // Приоритет — слова с типичными суффиксами фамилий
     let surname = capitalWords.find(w =>
@@ -439,14 +484,31 @@ function App() {
 
   const studentWorkGroups = buildStudentWorkGroups();
 
-  // Нечёткий поиск по работам преподавателя
+  // Группировка истории проверок по названию файла
+  const buildTeacherHistoryGroups = () => {
+    const groups = new Map();
+    teacherHistory.forEach((submission) => {
+      const key = getBaseFileName(submission.file_name);
+      const group = groups.get(key) || { key, fileName: submission.file_name, studentName: submission.student_name, items: [] };
+      group.items.push(submission);
+      groups.set(key, group);
+    });
+    return [...groups.values()].map((group) => {
+      const desc = [...group.items].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      return { ...group, items: desc, latest: desc[0] };
+    }).sort((a, b) => new Date(b.latest?.created_at || 0) - new Date(a.latest?.created_at || 0));
+  };
+
+  const teacherHistoryGroups = buildTeacherHistoryGroups();
+
+  // Нечёткий поиск по работам преподавателя (OR: достаточно совпасть хотя бы одному слову)
   const filteredTeacherSubmissions = teacherSubmissions.filter((s) => {
     const query = teacherSearch.trim().toLowerCase();
     if (!query) return true;
     const tokens = query.split(/\s+/).filter(Boolean);
     const haystack = [s.student_name, s.file_name, s.created_at]
       .filter(Boolean).map(v => String(v).toLowerCase()).join(' ');
-    return tokens.every(token => fuzzyToken(token, haystack));
+    return tokens.some(token => fuzzyToken(token, haystack));
   });
 
   useEffect(() => {
@@ -698,13 +760,10 @@ function App() {
   };
 
   // --- Скачивание ---
-  const openDownloadUrl = (apiPath, filename) => {
+  // Открываем URL в браузере — позволяет просмотреть/скачать файл на всех платформах
+  const openDownloadUrl = (apiPath, _filename) => {
     const url = `${API_BASE}${apiPath}?tg_auth=${encodeURIComponent(initData)}`;
-    if (tg?.downloadFile) {
-      tg.downloadFile({ url, file_name: filename });
-    } else {
-      window.open(url, '_blank');
-    }
+    window.open(url, '_blank');
   };
 
   const downloadBlob = (blob, filename) => {
@@ -894,6 +953,22 @@ function App() {
 
       {/* Модальное окно авторов */}
       {showAuthors && <AuthorsModal onClose={() => setShowAuthors(false)} />}
+
+      {/* Диалог подтверждения удаления заметки */}
+      {deleteConfirmNoteId !== null && (
+        <div className="confirm-overlay" onClick={() => setDeleteConfirmNoteId(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <p className="confirm-title">Удалить заметку?</p>
+            <p className="confirm-body">Это действие нельзя отменить.</p>
+            <div className="confirm-btns">
+              <button className="secondary-btn" onClick={() => setDeleteConfirmNoteId(null)}>Отмена</button>
+              <button className="withdraw-confirm-btn" onClick={() => { handleDeleteNote(deleteConfirmNoteId); setDeleteConfirmNoteId(null); }}>
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Диалог подтверждения отзыва работы */}
       {withdrawConfirmId !== null && (
@@ -1211,28 +1286,62 @@ function App() {
                 <h2 className="view-title">История проверок</h2>
                 <button className="refresh-btn" onClick={fetchTeacherHistory}>🔄 Обновить</button>
                 <div className="notif-window" style={{ height: '65vh' }}>
-                  {teacherHistory.length === 0 && (
+                  {teacherHistoryGroups.length === 0 && (
                     <p className="notif-empty">История проверок пуста</p>
                   )}
-                  {teacherHistory.map(s => (
-                    <div key={s.id} className="ts-card-compact history-card">
-                      <div className="ts-card-main" style={{ cursor: 'default' }}>
-                        <div className="ts-row-top">
-                          <span className="ts-student">{s.student_name || 'Студент'}</span>
-                          <span className={`history-verdict-badge ${s.teacher_verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
-                            {s.teacher_verdict === 'APPROVED' ? '✅ Принято' : '🔄 Доработка'}
-                          </span>
+                  {teacherHistoryGroups.map(group => {
+                    const s = group.latest;
+                    const isExpanded = expandedHistoryKey === group.key;
+                    const hasVersions = group.items.length > 1;
+                    return (
+                      <div key={group.key} className="ts-card-compact history-card">
+                        {/* Основная карточка (последняя версия) */}
+                        <div className="ts-card-main history-card-main"
+                          onClick={() => hasVersions && setExpandedHistoryKey(isExpanded ? null : group.key)}>
+                          <div className="ts-row-top">
+                            <span className="ts-student">{s.student_name || 'Студент'}</span>
+                            <div className="history-card-right">
+                              <span className={`history-verdict-badge ${s.teacher_verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
+                                {s.teacher_verdict === 'APPROVED' ? '✅ Принято' : '🔄 Доработка'}
+                              </span>
+                              {hasVersions && (
+                                <span className="ts-chevron">{isExpanded ? '▲' : '▼'}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="ts-row-bottom">
+                            <span className="ts-file">{s.file_name}</span>
+                            <span className="ts-date">{formatDate(s.created_at)}</span>
+                          </div>
+                          {s.teacher_comment && <div className="ts-comment">💬 {s.teacher_comment}</div>}
+                          <div className="history-actions">
+                            <button className="download-btn-sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(s.id); }}>
+                              📄 Скачать
+                            </button>
+                            {hasVersions && !isExpanded && (
+                              <span className="history-versions-hint">{group.items.length} версии</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="ts-row-bottom">
-                          <span className="ts-file">{s.file_name}</span>
-                          <span className="ts-date">{formatDate(s.created_at)}</span>
-                        </div>
-                        {s.teacher_comment && (
-                          <div className="ts-comment">💬 {s.teacher_comment}</div>
-                        )}
+                        {/* Предыдущие версии */}
+                        {isExpanded && group.items.slice(1).map((ver, idx) => (
+                          <div key={ver.id} className="history-version-row">
+                            <div className="ts-row-top">
+                              <span className="ts-file" style={{ flex: 1 }}>v{group.items.length - 1 - idx} · {formatDate(ver.created_at)}</span>
+                              <span className={`history-verdict-badge ${ver.teacher_verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
+                                {ver.teacher_verdict === 'APPROVED' ? '✅' : '🔄'}
+                              </span>
+                            </div>
+                            {ver.teacher_comment && <div className="ts-comment">💬 {ver.teacher_comment}</div>}
+                            <button className="download-btn-sm" style={{ marginTop: 6 }}
+                              onClick={() => handleDownloadPdf(ver.id)}>
+                              📄 Скачать v{group.items.length - 1 - idx}
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1274,7 +1383,7 @@ function App() {
                             <button className="note-action-btn note-action-icon" title="Изменить"
                               onClick={() => { setEditingNoteId(note.id); setNoteInput(note.text); }}>✏️</button>
                             <button className="note-action-btn note-action-delete note-action-icon" title="Удалить"
-                              onClick={() => handleDeleteNote(note.id)}>🗑</button>
+                              onClick={() => setDeleteConfirmNoteId(note.id)}>🗑</button>
                             <button className="note-action-btn note-action-find note-action-icon" title="Найти студента"
                               onClick={() => handleFindFromNote(note.text)}>🔍</button>
                           </div>
@@ -1341,7 +1450,7 @@ function App() {
         )}
       </AnimatePresence>
 
-      {step === 'main' && (
+      {step === 'main' && !keyboardVisible && (
         <div className="nav-wrapper">
           <div className="bottom-nav">
             {tabs.map((tab, i) => (
