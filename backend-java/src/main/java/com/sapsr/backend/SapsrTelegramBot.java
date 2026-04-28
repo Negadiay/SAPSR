@@ -15,10 +15,14 @@ import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
 public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdateConsumer {
+
+    private static final int TELEGRAM_TEXT_LIMIT = 4096;
+    private static final int TELEGRAM_SAFE_TEXT_LIMIT = 3900;
 
     private final TelegramClient telegramClient;
     private final String botToken;
@@ -73,7 +77,7 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
 
         try {
             telegramClient.execute(message);
-        } catch (TelegramApiException e) {
+        } catch (TelegramApiException | RuntimeException e) {
             e.printStackTrace();
         }
     }
@@ -100,16 +104,44 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
     }
 
     public Integer notifyUser(Long chatId, String text) {
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text(text)
-                .build();
+        if (chatId == null || text == null || text.isBlank()) return null;
+
+        Integer firstMessageId = null;
         try {
-            return telegramClient.execute(message).getMessageId();
-        } catch (TelegramApiException e) {
+            for (String chunk : splitTelegramText(text)) {
+                SendMessage message = SendMessage.builder()
+                        .chatId(chatId)
+                        .text(chunk)
+                        .build();
+                Integer messageId = telegramClient.execute(message).getMessageId();
+                if (firstMessageId == null) firstMessageId = messageId;
+            }
+        } catch (TelegramApiException | RuntimeException e) {
             e.printStackTrace();
-            return null;
         }
+        return firstMessageId;
+    }
+
+    private List<String> splitTelegramText(String text) {
+        if (text.length() <= TELEGRAM_TEXT_LIMIT) return List.of(text);
+
+        List<String> parts = new ArrayList<>();
+        int start = 0;
+        while (start < text.length()) {
+            int end = Math.min(start + TELEGRAM_SAFE_TEXT_LIMIT, text.length());
+            if (end < text.length()) {
+                int splitAt = Math.max(
+                        Math.max(text.lastIndexOf('\n', end), text.lastIndexOf(' ', end)),
+                        start
+                );
+                if (splitAt > start) end = splitAt;
+            }
+            String part = text.substring(start, end).trim();
+            if (!part.isEmpty()) parts.add(part);
+            start = end;
+            while (start < text.length() && Character.isWhitespace(text.charAt(start))) start++;
+        }
+        return parts;
     }
 
     public void deleteMessage(Long chatId, Integer messageId) {

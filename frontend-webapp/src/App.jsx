@@ -222,6 +222,7 @@ function App() {
   const [commentTemplates, setCommentTemplates] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
   const [verdictLoading, setVerdictLoading] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   // Заметки преподавателя
   const [teacherNotes, setTeacherNotes]   = useState([]);
@@ -250,7 +251,7 @@ function App() {
   // Заметки: подтверждение удаления
   const [deleteConfirmNoteId, setDeleteConfirmNoteId] = useState(null);
 
-  // Ref на нижнюю навигацию для JS-позиционирования при появлении клавиатуры
+  // Ref на нижнюю навигацию для поведения при появлении клавиатуры
   const navRef = useRef(null);
 
   // Ref для блокировки свайпа во время туториала (избегает stale closure)
@@ -308,22 +309,39 @@ function App() {
     };
   }, [step, userRole]);
 
-  // Держим нижнюю навигацию за клавиатурой (запасной вариант для браузеров
-  // без поддержки interactive-widget=resizes-visual-viewport в meta viewport)
+  // На мобильных скрываем нижнюю панель при вводе, чтобы клавиатура перекрывала её.
   useEffect(() => {
     const vp = window.visualViewport;
-    if (!vp) return;
+    const isEditable = (target) => target instanceof HTMLElement
+      && (target.matches('input:not([type="range"]), textarea, select') || target.isContentEditable);
+    const isMobileInput = () => {
+      const platform = window.Telegram?.WebApp?.platform || '';
+      return /android|ios|iphone|ipad|mobile/i.test(platform)
+        || window.matchMedia?.('(pointer: coarse)').matches;
+    };
+    const onFocusIn = (e) => {
+      if (isMobileInput() && isEditable(e.target)) setKeyboardOpen(true);
+    };
+    const onFocusOut = () => {
+      window.setTimeout(() => {
+        if (!isEditable(document.activeElement)) setKeyboardOpen(false);
+      }, 0);
+    };
     const reposition = () => {
       const el = navRef.current;
       if (!el) return;
       const kbHeight = Math.max(0, window.innerHeight - vp.height - vp.offsetTop);
       el.style.transform = kbHeight > 60 ? `translateY(${kbHeight}px)` : '';
     };
-    vp.addEventListener('resize', reposition);
-    vp.addEventListener('scroll', reposition);
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    vp?.addEventListener('resize', reposition);
+    vp?.addEventListener('scroll', reposition);
     return () => {
-      vp.removeEventListener('resize', reposition);
-      vp.removeEventListener('scroll', reposition);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      vp?.removeEventListener('resize', reposition);
+      vp?.removeEventListener('scroll', reposition);
     };
   }, []);
 
@@ -957,7 +975,7 @@ function App() {
   const settingsTabIndex = userRole === 'teacher' ? 3 : 2;
 
   return (
-    <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''}`}>
+    <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''} ${keyboardOpen ? 'keyboard-open' : ''}`}>
 
       {/* Модальное окно авторов */}
       {showAuthors && <AuthorsModal onClose={() => setShowAuthors(false)} />}
@@ -1248,10 +1266,9 @@ function App() {
                               <div className="revision-form">
                                 <textarea className="revision-input" rows={3}
                                   placeholder="Комментарий для студента..."
-                                  maxLength={1500}
                                   value={revisionComment} onChange={(e) => setRevisionComment(e.target.value)} />
-                                <div className={`comment-char-counter ${revisionComment.length > 1400 ? 'comment-char-warn' : ''}`}>
-                                  {revisionComment.length} / 1500
+                                <div className="comment-char-counter">
+                                  {revisionComment.length} символов
                                 </div>
                                 {revisionSuggestions.length > 0 && (
                                   <div className="comment-suggestions">
