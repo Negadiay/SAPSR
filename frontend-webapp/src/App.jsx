@@ -1217,6 +1217,10 @@ function App() {
               <div className="tab-view">
                 <h2 className="view-title">Работы студентов</h2>
                 <button className="refresh-btn" onClick={fetchTeacherSubmissions}>Обновить</button>
+                <input className="teacher-search" type="search"
+                  placeholder="Поиск по группе, студенту или файлу..."
+                  ref={refs.teacherSearch}
+                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
                 <div className="notif-window" ref={refs.submissions}>
                   {teacherSubmissions.length === 0 && <p className="notif-empty">Нет работ, ожидающих проверки</p>}
                   {teacherSubmissions.length > 0 && filteredTeacherSubmissions.length === 0 && (
@@ -1283,10 +1287,6 @@ function App() {
                     );
                   })}
                 </div>
-                <input className="teacher-search" type="search"
-                  placeholder="Поиск по группе, студенту или файлу..."
-                  ref={refs.teacherSearch}
-                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
               </div>
             )}
 
