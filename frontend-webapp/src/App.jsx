@@ -604,22 +604,40 @@ function App() {
   const fetchSubmissions = async () => {
     try {
       const res = await fetch(`${API_BASE}/submissions`, { headers: apiHeaders() });
-      if (res.ok) setSubmissions(await res.json());
-    } catch (err) { console.warn('Submissions error:', err); }
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissions(Array.isArray(data) ? data : []);
+      } else {
+        const body = await res.text().catch(() => '');
+        console.error('[SAPSR] GET /submissions →', res.status, body);
+      }
+    } catch (err) { console.error('[SAPSR] fetchSubmissions network error:', err); }
   };
 
   const fetchTeacherSubmissions = async () => {
     try {
       const res = await fetch(`${API_BASE}/teacher/submissions`, { headers: apiHeaders() });
-      if (res.ok) setTeacherSubmissions(await res.json());
-    } catch (err) { console.warn('Teacher submissions error:', err); }
+      if (res.ok) {
+        const data = await res.json();
+        setTeacherSubmissions(Array.isArray(data) ? data : []);
+      } else {
+        const body = await res.text().catch(() => '');
+        console.error('[SAPSR] GET /teacher/submissions →', res.status, body);
+      }
+    } catch (err) { console.error('[SAPSR] fetchTeacherSubmissions network error:', err); }
   };
 
   const fetchTeacherHistory = async () => {
     try {
       const res = await fetch(`${API_BASE}/teacher/history`, { headers: apiHeaders() });
-      if (res.ok) setTeacherHistory(await res.json());
-    } catch (err) { console.warn('Teacher history error:', err); }
+      if (res.ok) {
+        const data = await res.json();
+        setTeacherHistory(Array.isArray(data) ? data : []);
+      } else {
+        const body = await res.text().catch(() => '');
+        console.error('[SAPSR] GET /teacher/history →', res.status, body);
+      }
+    } catch (err) { console.error('[SAPSR] fetchTeacherHistory network error:', err); }
   };
 
   // --- Туториал ---
