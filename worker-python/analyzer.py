@@ -66,8 +66,10 @@ _RE_REF_HEADING = re.compile(
 _RE_REF_ENTRY_A = re.compile(r"^\s*\[?\d+\]?[\.\)]?\s+\S", re.MULTILINE)
 _RE_REF_ENTRY_B = re.compile(r"^\s*\d+\s+\S", re.MULTILINE)
 _RE_REF_ENTRY_INLINE = re.compile(r"(?=(?:^|\s)(?:\[\d{1,3}\]|\d{1,3}[\.\)])\s+\S)")
-_RE_REF_YEAR    = re.compile(r"\b(19|20)\d{2}\b")
-_RE_REF_URL     = re.compile(r"https?://")
+_RE_REF_YEAR        = re.compile(r"\b(19|20)\d{2}\b")
+_RE_REF_URL         = re.compile(r"https?://")
+_RE_REF_ACCESS_DATE = re.compile(r"дата обращения|date of access", re.IGNORECASE)
+_RE_REF_SITE_MARKER = re.compile(r":\s*\[сайт\]|\[Электронный ресурс\]", re.IGNORECASE)
 _RE_AFTER_REFS_HEADING = re.compile(r"^\s*(?:приложени[ея]|appendix)\b", re.IGNORECASE | re.MULTILINE)
 
 # Рисунки — все падежные формы + сокращение «рис.»
@@ -593,26 +595,54 @@ def _check_references_count(full_text: str) -> list:
 
 
 def _check_bibliography_format(full_text: str) -> list:
-    """Мягкая проверка: каждый источник должен содержать год или URL."""
+    """Проверяет соответствие источников правилам ГОСТ 7.0.5-2008 (редакция 2025)."""
     entries = _extract_reference_entries(full_text)
     if not entries:
         return []
-    suspicious = [
-        entry for entry in entries
-        if not _RE_REF_YEAR.search(entry) and not _RE_REF_URL.search(entry)
-    ]
-    if not suspicious:
-        return []
-    snippet = " | ".join(s[:60] for s in suspicious[:2])
-    return [_make_error(
-        "minor", None,
-        f"{len(suspicious)} источник(ов) не содержат года или URL.",
-        "Каждый источник должен содержать год публикации или гиперссылку.",
-        f"Подозрительных строк: {len(suspicious)}.",
-        "Оформите источники по ГОСТ 7.0.5-2008.",
-        "Список использованных источников", "warning",
-        context=snippet,
-    )]
+
+    no_year_url: list[str] = []
+    url_no_date: list[str] = []
+
+    for entry in entries:
+        has_year = bool(_RE_REF_YEAR.search(entry))
+        has_url  = bool(_RE_REF_URL.search(entry))
+        has_site = bool(_RE_REF_SITE_MARKER.search(entry))
+        has_date = bool(_RE_REF_ACCESS_DATE.search(entry))
+
+        if not has_year and not has_url:
+            no_year_url.append(entry)
+
+        # Электронные ресурсы (URL или маркер [сайт]) обязаны содержать дату обращения
+        if (has_url or has_site) and not has_date:
+            url_no_date.append(entry)
+
+    result: list = []
+
+    if no_year_url:
+        snippet = " | ".join(s[:60] for s in no_year_url[:2])
+        result.append(_make_error(
+            "minor", None,
+            f"{len(no_year_url)} источник(ов) не содержат года публикации или URL.",
+            "Каждый источник должен содержать год публикации или гиперссылку.",
+            f"Источников без года и URL: {len(no_year_url)}.",
+            "Оформите источники по ГОСТ 7.0.5-2008.",
+            "Список использованных источников", "warning",
+            context=snippet,
+        ))
+
+    if url_no_date:
+        snippet = " | ".join(s[:80] for s in url_no_date[:2])
+        result.append(_make_error(
+            "minor", None,
+            f"{len(url_no_date)} электронных источников не содержат даты обращения.",
+            "По ГОСТ 7.0.5-2008 каждый электронный источник должен содержать дату обращения: «(дата обращения: ДД.ММ.ГГГГ)».",
+            f"Источников без даты обращения: {len(url_no_date)}.",
+            "Добавьте дату обращения в формате «(дата обращения: ДД.ММ.ГГГГ)» к каждому электронному источнику.",
+            "Список использованных источников", "warning",
+            context=snippet,
+        ))
+
+    return result
 
 
 def _check_simple_lists(full_text: str) -> list:

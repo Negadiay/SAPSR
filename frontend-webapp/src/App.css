@@ -633,6 +633,37 @@ input[type="file"] {
   color: #fff;
 }
 
+/* --- Отправка кода — экран ожидания --- */
+.code-sending-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px 20px;
+}
+
+.code-sending-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--tg-theme-button-color, #2e8d8a);
+  border-radius: 50%;
+  animation: spinnerRotate 0.9s linear infinite;
+}
+
+@keyframes spinnerRotate {
+  to { transform: rotate(360deg); }
+}
+
+.code-sending-text {
+  font-size: 15px;
+  color: var(--tg-theme-text-color, #1c3a38);
+  text-align: center;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
 /* --- 11. ССЫЛКИ И АНИМАЦИИ --- */
 .skip-btn, .back-link-bottom {
   background: none;

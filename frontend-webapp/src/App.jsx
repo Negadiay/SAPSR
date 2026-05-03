@@ -158,32 +158,6 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   );
 }
 
-// --- Авторы ---
-const AUTHORS = [
-  { name: 'Бузычков Н.Ф.',  role: 'Менеджер проекта' },
-  { name: 'Жерко Н.А.',     role: 'Бэкенд-разработчик' },
-  { name: 'Котко П.А.',     role: 'Фронтенд-разработчик' },
-  { name: 'Халилов Р.Э.',   role: 'Интеграция сервисов' },
-];
-
-function AuthorsModal({ onClose }) {
-  return (
-    <div className="confirm-overlay" onClick={onClose}>
-      <div className="authors-dialog" onClick={e => e.stopPropagation()}>
-        <h3 className="authors-title">✨ Авторы</h3>
-        <div className="authors-list">
-          {AUTHORS.map(a => (
-            <div key={a.name} className="authors-item">
-              <span className="authors-name">{a.name}</span>
-              <span className="authors-role">{a.role}</span>
-            </div>
-          ))}
-        </div>
-        <button className="secondary-btn authors-close-btn" onClick={onClose}>Закрыть</button>
-      </div>
-    </div>
-  );
-}
 
 function App() {
   const [step, setStep]               = useState('loading');
@@ -238,8 +212,6 @@ function App() {
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
   const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
 
-  // Авторы
-  const [showAuthors, setShowAuthors] = useState(false);
 
   // Туториал
   const [tutorialActive, setTutorialActive] = useState(false);
@@ -981,8 +953,6 @@ function App() {
   return (
     <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''} ${keyboardOpen ? 'keyboard-open' : ''}`}>
 
-      {/* Модальное окно авторов */}
-      {showAuthors && <AuthorsModal onClose={() => setShowAuthors(false)} />}
 
       {/* Диалог подтверждения удаления заметки */}
       {deleteConfirmNoteId !== null && (
@@ -1091,19 +1061,26 @@ function App() {
 
         {step === 'register' && userRole === 'teacher' && (
           <MotionDiv key="reg-teacher" className="screen" exit={{ opacity: 0 }}>
-            <p className="description">Регистрация преподавателя</p>
-            <form onSubmit={handleTeacherSendCode} className="register-form">
-              <input type="email" className="reg-input" placeholder="ivanov@bsuir.by"
-                value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} autoFocus />
-              <p className="reg-hint">Введите корпоративную почту @bsuir.by. ФИО будет заполнено автоматически из IIS.</p>
-              {regError && <div className="reg-error">{regError}</div>}
-              <div className="vertical-button-group">
-                <button type="submit" className="submit-btn" disabled={sendingCode}>
-                  {sendingCode ? 'Отправка...' : 'Отправить код'}
-                </button>
-                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
+            {sendingCode ? (
+              <div className="code-sending-wait">
+                <div className="code-sending-spinner" />
+                <p className="code-sending-text">Пожалуйста, подождите.<br />Это может занять несколько минут.</p>
               </div>
-            </form>
+            ) : (
+              <>
+                <p className="description">Регистрация преподавателя</p>
+                <form onSubmit={handleTeacherSendCode} className="register-form">
+                  <input type="email" className="reg-input" placeholder="ivanov@bsuir.by"
+                    value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} autoFocus />
+                  <p className="reg-hint">Введите корпоративную почту @bsuir.by. ФИО будет заполнено автоматически из IIS.</p>
+                  {regError && <div className="reg-error">{regError}</div>}
+                  <div className="vertical-button-group">
+                    <button type="submit" className="submit-btn">Отправить код</button>
+                    <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
+                  </div>
+                </form>
+              </>
+            )}
           </MotionDiv>
         )}
 
@@ -1499,7 +1476,6 @@ function App() {
               </button>
             ))}
           </div>
-          <button className="authors-link" onClick={() => setShowAuthors(true)}>Авторы</button>
         </div>
       )}
     </div>
