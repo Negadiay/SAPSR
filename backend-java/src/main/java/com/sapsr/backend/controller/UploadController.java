@@ -144,8 +144,7 @@ public class UploadController {
             try {
                 Optional<BsuirApiService.TeacherInfo> info = bsuirApiService.findTeacherByEmail(email);
                 if (info.isEmpty()) {
-                    return ResponseEntity.badRequest().body(Map.of("error",
-                            "Преподаватель с почтой " + email + " не найден в IIS БГУИР. Проверьте правильность адреса."));
+                    return ResponseEntity.badRequest().body(Map.of("error", "Почта не обнаружена в ИИС БГУИР"));
                 }
                 fullName   = info.get().fio();
                 urlIdToSave = info.get().urlId();

@@ -75,10 +75,10 @@ const STUDENT_STEPS = [
 const TEACHER_STEPS = [
   { refKey: null,            text: 'Добро пожаловать! В SAPSR студенты присылают работы, уже прошедшие автоматическую проверку оформления по ГОСТу.' },
   { refKey: 'submissions',   text: 'Здесь отображаются работы, ожидающие вашей проверки. Нажмите на карточку, чтобы раскрыть действия: скачать PDF, принять или отправить на доработку.' },
-  { refKey: 'teacherSearch', text: 'Нечёткий поиск фильтрует работы по имени студента, группе или файлу — даже при опечатках. Попробуйте ввести фамилию или номер группы.' },
+  { refKey: 'teacherSearch', text: 'Поиск фильтрует работы по имени студента, группе или файлу. Для имён работает нечёткий поиск, а номер группы ищется по точной комбинации цифр.' },
   { refKey: 'navHistory',    text: 'Во вкладке «История» хранятся все ранее проверенные вами работы — удобно проверить, действительно ли студент сдавал работу.' },
   { refKey: 'navNotes',      text: 'Во вкладке «Заметки» записывайте напоминания о студентах. Кнопка 🔍 в заметке автоматически найдёт работы упомянутого студента.' },
-  { refKey: 'addNoteBtn',    text: 'Попробуйте прямо сейчас: нажмите «+ Новая заметка» и создайте первую заметку — например, напишите имя студента. Затем нажмите в любое место для продолжения.' },
+  { refKey: 'addNoteBtn',    text: 'Кнопка «+ Новая заметка» создаёт новую заметку — например, напоминание со сведениями о студенте или работе.' },
   { refKey: null,            text: 'Вы получаете уведомление в Telegram каждый раз, когда студент присылает новую работу.' },
   { refKey: 'navSettings',   text: 'В настройках можно изменить тему оформления, размер шрифта и включить контрастный режим.' },
 ];
@@ -497,14 +497,16 @@ function App() {
 
   const teacherHistoryGroups = buildTeacherHistoryGroups();
 
-  // Нечёткий поиск по работам преподавателя (OR: достаточно совпасть хотя бы одному слову)
+  // В именах допускаем опечатки, а цифровые токены (группа) ищем строго.
   const filteredTeacherSubmissions = teacherSubmissions.filter((s) => {
     const query = teacherSearch.trim().toLowerCase();
     if (!query) return true;
     const tokens = query.split(/\s+/).filter(Boolean);
     const haystack = [s.student_name, s.file_name, s.created_at]
       .filter(Boolean).map(v => String(v).toLowerCase()).join(' ');
-    return tokens.some(token => fuzzyToken(token, haystack));
+    return tokens.every(token => (
+      /^\d+$/.test(token) ? haystack.includes(token) : fuzzyToken(token, haystack)
+    ));
   });
 
   useEffect(() => {
