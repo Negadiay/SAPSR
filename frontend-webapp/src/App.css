@@ -433,8 +433,8 @@ input[type="file"] {
 .teacher-search {
   width: 90vw;
   max-width: 340px;
-  margin-top: 10px;
-  margin-bottom: 4px;
+  margin-top: 0;
+  margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--tg-theme-button-color, #2e8d8a);
@@ -551,6 +551,21 @@ input[type="file"] {
   opacity: 0.8;
 }
 
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+.btn-spinner-secondary {
+  border-color: rgba(46, 141, 138, 0.28);
+  border-top-color: var(--tg-theme-button-color, #2e8d8a);
+}
+
 /* --- 10. НИЖНЯЯ НАВИГАЦИЯ --- */
 .nav-wrapper {
   position: fixed;
@@ -559,7 +574,6 @@ input[type="file"] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
   z-index: 1000;
 }
 
@@ -621,22 +635,6 @@ input[type="file"] {
   color: white;
 }
 
-/* Кнопка «Авторы» под навигацией */
-.authors-link {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 2px 8px;
-  transition: color 0.2s;
-}
-
-.authors-link:active {
-  color: #fff;
-}
-
 /* --- 11. ССЫЛКИ И АНИМАЦИИ --- */
 .skip-btn, .back-link-bottom {
   background: none;
@@ -660,6 +658,10 @@ input[type="file"] {
 @keyframes fadeInAnim {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* --- 12. ВЕРДИКТ (СТУДЕНТ) --- */
@@ -1715,76 +1717,7 @@ input[type="file"] {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
-/* --- 27. АВТОРЫ --- */
-.authors-dialog {
-  background: var(--tg-theme-bg-color, #f0f9f5);
-  color: var(--tg-theme-text-color, #1c3a38);
-  border-radius: 20px;
-  padding: 24px 20px 20px;
-  max-width: 320px;
-  width: 88vw;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-}
-
-.authors-title {
-  margin: 0 0 20px;
-  font-size: 20px;
-  font-weight: 800;
-  text-align: center;
-  color: var(--tg-theme-button-color, #2e8d8a);
-}
-
-.authors-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.authors-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 14px;
-  background: var(--tg-theme-secondary-bg-color, #dff0e9);
-  border-radius: 12px;
-  border-left: 3px solid var(--tg-theme-button-color, #2e8d8a);
-}
-
-.authors-name {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--tg-theme-text-color, #1c3a38);
-}
-
-.authors-role {
-  font-size: 12px;
-  color: var(--tg-theme-hint-color, #6a8a88);
-}
-
-.authors-close-btn {
-  width: 100%;
-}
-
-.app-dark .authors-dialog {
-  background: #2a3a3c !important;
-  color: #d1dbd8 !important;
-}
-
-.app-dark .authors-item {
-  background: #1e2a2c !important;
-  border-left-color: #63c9a0 !important;
-}
-
-.app-dark .authors-name {
-  color: #d1dbd8 !important;
-}
-
-.app-dark .authors-title {
-  color: #63c9a0 !important;
-}
-
-/* --- 28. КОНТРАСТНАЯ СВЕТЛАЯ: заметки, диалоги --- */
+/* --- 27. КОНТРАСТНАЯ СВЕТЛАЯ: заметки, диалоги --- */
 .app-contrast:not(.app-dark) .note-card {
   background: #d8f2ff !important;
   border: 2px solid #38a7e8 !important;
@@ -1822,23 +1755,13 @@ input[type="file"] {
   color: #ffffff !important;
 }
 
-.app-contrast:not(.app-dark) .confirm-dialog,
-.app-contrast:not(.app-dark) .authors-dialog {
+.app-contrast:not(.app-dark) .confirm-dialog {
   background: #eaf7ff !important;
   color: #03233f !important;
   border: 2px solid #38a7e8;
 }
 
-.app-contrast:not(.app-dark) .authors-item {
-  background: #d8f2ff !important;
-  border-left-color: #006bb6 !important;
-}
-
-.app-contrast:not(.app-dark) .authors-title {
-  color: #006bb6 !important;
-}
-
-/* --- 29. КОНТРАСТНАЯ ТЁМНАЯ: заметки, диалоги --- */
+/* --- 28. КОНТРАСТНАЯ ТЁМНАЯ: заметки, диалоги --- */
 .app-contrast.app-dark .note-card {
   background: #000000 !important;
   border: 2px solid #ffffff !important;
@@ -1876,22 +1799,8 @@ input[type="file"] {
   color: #000000 !important;
 }
 
-.app-contrast.app-dark .confirm-dialog,
-.app-contrast.app-dark .authors-dialog {
+.app-contrast.app-dark .confirm-dialog {
   background: #000000 !important;
   color: #ffffff !important;
   border: 2px solid #ffffff !important;
-}
-
-.app-contrast.app-dark .authors-item {
-  background: #111 !important;
-  border-left-color: #ff8c00 !important;
-}
-
-.app-contrast.app-dark .authors-title {
-  color: #ff8c00 !important;
-}
-
-.app-contrast.app-dark .authors-role {
-  color: #ccaa77 !important;
 }

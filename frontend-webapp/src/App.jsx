@@ -51,7 +51,7 @@ const levenshtein = (a, b) => {
 
 const fuzzyToken = (token, haystack) => {
   if (haystack.includes(token)) return true;
-  const words = haystack.split(/[\s,._\-]+/).filter(Boolean);
+  const words = haystack.split(/[\s,._-]+/).filter(Boolean);
   const threshold = token.length <= 3 ? 0 : token.length <= 5 ? 1 : 2;
   return words.some(word => {
     if (word.startsWith(token)) return true;
@@ -100,7 +100,7 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   const PAD = 8;
   const TOOLTIP_W = Math.min(300, window.innerWidth - 24);
   const TOOLTIP_H = 210;
-  const NAV_SAFE = 150;   // space for bottom nav + authors link
+  const NAV_SAFE = 130;   // space for bottom nav
   const TOOLTIP_GAP = 16; // gap between spotlight and tooltip
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -158,33 +158,6 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   );
 }
 
-// --- Авторы ---
-const AUTHORS = [
-  { name: 'Бузычков Н.Ф.',  role: 'Менеджер проекта' },
-  { name: 'Жерко Н.А.',     role: 'Бэкенд-разработчик' },
-  { name: 'Котко П.А.',     role: 'Фронтенд-разработчик' },
-  { name: 'Халилов Р.Э.',   role: 'Интеграция сервисов' },
-];
-
-function AuthorsModal({ onClose }) {
-  return (
-    <div className="confirm-overlay" onClick={onClose}>
-      <div className="authors-dialog" onClick={e => e.stopPropagation()}>
-        <h3 className="authors-title">✨ Авторы</h3>
-        <div className="authors-list">
-          {AUTHORS.map(a => (
-            <div key={a.name} className="authors-item">
-              <span className="authors-name">{a.name}</span>
-              <span className="authors-role">{a.role}</span>
-            </div>
-          ))}
-        </div>
-        <button className="secondary-btn authors-close-btn" onClick={onClose}>Закрыть</button>
-      </div>
-    </div>
-  );
-}
-
 function App() {
   const [step, setStep]               = useState('loading');
   const [activeTab, setActiveTab]     = useState(0);
@@ -237,9 +210,6 @@ function App() {
   const [theme, setTheme]       = useState(() => localStorage.getItem('sapsr_theme') === 'dark' ? 'dark' : 'light');
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
   const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
-
-  // Авторы
-  const [showAuthors, setShowAuthors] = useState(false);
 
   // Туториал
   const [tutorialActive, setTutorialActive] = useState(false);
@@ -787,7 +757,7 @@ function App() {
 
   // --- Скачивание ---
   // Открываем URL в браузере — позволяет просмотреть/скачать файл на всех платформах
-  const openDownloadUrl = (apiPath, _filename) => {
+  const openDownloadUrl = (apiPath) => {
     const url = `${API_BASE}${apiPath}?tg_auth=${encodeURIComponent(initData)}`;
     window.open(url, '_blank');
   };
@@ -977,9 +947,6 @@ function App() {
   return (
     <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''} ${keyboardOpen ? 'keyboard-open' : ''}`}>
 
-      {/* Модальное окно авторов */}
-      {showAuthors && <AuthorsModal onClose={() => setShowAuthors(false)} />}
-
       {/* Диалог подтверждения удаления заметки */}
       {deleteConfirmNoteId !== null && (
         <div className="confirm-overlay" onClick={() => setDeleteConfirmNoteId(null)}>
@@ -1095,7 +1062,12 @@ function App() {
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={sendingCode}>
-                  {sendingCode ? 'Отправка...' : 'Отправить код'}
+                  {sendingCode ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden="true" />
+                      Отправка...
+                    </>
+                  ) : 'Отправить код'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
               </div>
@@ -1118,10 +1090,20 @@ function App() {
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering || codeTimeLeft <= 0}>
-                  {registering ? 'Проверка...' : 'Подтвердить'}
+                  {registering ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden="true" />
+                      Проверка...
+                    </>
+                  ) : 'Подтвердить'}
                 </button>
                 <button type="button" className="secondary-btn" disabled={sendingCode} onClick={handleResendCode}>
-                  {sendingCode ? 'Отправка...' : 'Отправить код повторно'}
+                  {sendingCode ? (
+                    <>
+                      <span className="btn-spinner btn-spinner-secondary" aria-hidden="true" />
+                      Отправка...
+                    </>
+                  ) : 'Отправить код повторно'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => {
                   setStep('register'); setRegError(''); setRegCode(''); setCodeExpiresAt(null); setCodeTimeLeft(0);
@@ -1236,6 +1218,10 @@ function App() {
               <div className="tab-view">
                 <h2 className="view-title">Работы студентов</h2>
                 <button className="refresh-btn" onClick={fetchTeacherSubmissions}>Обновить</button>
+                <input className="teacher-search" type="search"
+                  placeholder="Поиск по группе, студенту или файлу..."
+                  ref={refs.teacherSearch}
+                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
                 <div className="notif-window" ref={refs.submissions}>
                   {teacherSubmissions.length === 0 && <p className="notif-empty">Нет работ, ожидающих проверки</p>}
                   {teacherSubmissions.length > 0 && filteredTeacherSubmissions.length === 0 && (
@@ -1302,10 +1288,6 @@ function App() {
                     );
                   })}
                 </div>
-                <input className="teacher-search" type="search"
-                  placeholder="Поиск по группе, студенту или файлу..."
-                  ref={refs.teacherSearch}
-                  value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
               </div>
             )}
 
@@ -1495,7 +1477,6 @@ function App() {
               </button>
             ))}
           </div>
-          <button className="authors-link" onClick={() => setShowAuthors(true)}>Авторы</button>
         </div>
       )}
     </div>

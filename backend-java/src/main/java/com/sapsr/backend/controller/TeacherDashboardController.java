@@ -40,14 +40,14 @@ public class TeacherDashboardController {
             return ResponseEntity.status(403).body(Map.of("error", "Доступ запрещён"));
         }
 
-        List<Submission> submissions = submissionRepository
-                .findByTeacher_TelegramIdAndStatusAndTeacherVerdictIsNullOrderByCreatedAtDesc(telegramId, "SUCCESS");
+        List<Submission> submissions = submissionRepository.findPendingForTeacher(telegramId);
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Submission s : submissions) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", s.getId());
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            item.put("status", normalizeDbCode(s.getStatus()));
             item.put("format_errors", s.getFormatErrors());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
 
@@ -121,15 +121,14 @@ public class TeacherDashboardController {
             return ResponseEntity.status(403).body(Map.of("error", "Доступ запрещён"));
         }
 
-        List<Submission> submissions = submissionRepository
-                .findByTeacher_TelegramIdAndTeacherVerdictIsNotNullOrderByCreatedAtDesc(telegramId);
+        List<Submission> submissions = submissionRepository.findHistoryForTeacher(telegramId);
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Submission s : submissions) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", s.getId());
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
-            item.put("teacher_verdict", s.getTeacherVerdict());
+            item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
             item.put("file_name", submissionFileName(s));
@@ -175,5 +174,14 @@ public class TeacherDashboardController {
         name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
         if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
         return name;
+    }
+
+    private String normalizeDbCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeNullableDbCode(String value) {
+        String normalized = normalizeDbCode(value);
+        return normalized.isBlank() ? null : normalized;
     }
 }

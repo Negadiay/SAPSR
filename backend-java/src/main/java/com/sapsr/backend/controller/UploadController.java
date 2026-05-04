@@ -195,10 +195,10 @@ public class UploadController {
         for (Submission s : submissions) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", s.getId());
-            item.put("status", s.getStatus());
+            item.put("status", normalizeDbCode(s.getStatus()));
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
             item.put("format_errors", s.getFormatErrors());
-            item.put("teacher_verdict", s.getTeacherVerdict());
+            item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
 
             String fp = s.getFilePath();
@@ -455,6 +455,15 @@ public class UploadController {
             return node.get(field).asText();
         }
         return fallback;
+    }
+
+    private String normalizeDbCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeNullableDbCode(String value) {
+        String normalized = normalizeDbCode(value);
+        return normalized.isBlank() ? null : normalized;
     }
 
     private String severityLabel(String severity) {
