@@ -355,6 +355,14 @@ function App() {
 
   const getTemplateStorageKey = () => `sapsr_revision_templates_${currentUserId || userRole || 'teacher'}`;
 
+  const registrationErrorText = (message, fallback) => {
+    const text = String(message || '').toLowerCase();
+    if (text.includes('не найден') && (text.includes('iis') || text.includes('иис'))) {
+      return 'Почта не обнаружена в ИИС БГУИР';
+    }
+    return message || fallback;
+  };
+
   const sortTemplates = (templates) => [...templates]
     .sort((a, b) => (b.count - a.count) || (b.lastUsed - a.lastUsed))
     .slice(0, COMMENT_TEMPLATE_LIMIT);
@@ -699,7 +707,7 @@ function App() {
         setRegCode('');
       } else {
         const err = await res.json().catch(() => ({}));
-        setRegError(err.error || 'Ошибка отправки кода');
+        setRegError(registrationErrorText(err.error, 'Ошибка отправки кода'));
       }
     } catch { setRegError('Сервер недоступен'); }
     finally { setSendingCode(false); }
@@ -721,7 +729,7 @@ function App() {
         setRegCode('');
       } else {
         const err = await res.json().catch(() => ({}));
-        setRegError(err.error || 'Ошибка отправки кода');
+        setRegError(registrationErrorText(err.error, 'Ошибка отправки кода'));
       }
     } catch { setRegError('Сервер недоступен'); }
     finally { setSendingCode(false); }

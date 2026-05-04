@@ -55,8 +55,7 @@ public class VerificationController {
         try {
             Optional<BsuirApiService.TeacherInfo> info = bsuirApiService.findTeacherByEmail(email);
             if (info.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error",
-                        "Почта " + email + " не найдена среди преподавателей IIS БГУИР"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Почта не обнаружена в ИИС БГУИР"));
             }
         } catch (BsuirApiService.IisUnavailableException e) {
             return ResponseEntity.status(503).body(Map.of("error",
