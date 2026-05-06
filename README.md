@@ -123,7 +123,7 @@ SAPSR/
 │
 ├── docker-compose.yml          # PostgreSQL + RabbitMQ
 ├── init.sql                    # Схема базы данных
-├── start.bat                   # Скрипт автозапуска (Windows)
+├── start2.bat                   # Скрипт автозапуска (Windows)
 └── test-fixtures/              # Тестовые PDF-файлы
 ```
 
