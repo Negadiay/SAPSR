@@ -65,7 +65,7 @@ def on_message(channel, method, properties, body):
 
     if result["errors"]:
         for err in result["errors"]:
-            print(f"   ❌ Стр. {err['page']}: {err['message']}")
+            print(f"   [{err.get('severity','?').upper()}] стр.{err['page']}: {err['message']}")
     else:
         print("   ✅ Документ соответствует требованиям")
 

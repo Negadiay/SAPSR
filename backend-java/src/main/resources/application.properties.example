@@ -10,12 +10,10 @@ spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=true
 
 # Telegram Bot
-telegram.bot.token=ТОКЕН
-# URL мини-приложения (GitHub Pages, Vercel, или ngrok для локальной разработки)
-# ВАЖНО: замени на реальный HTTPS-адрес, иначе кнопка "Открыть кабинет" откроет не то
+telegram.bot.token=ВАШ_ТОКЕН
 bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 
-# Подключение к RabbitMQ
+# RabbitMQ
 spring.rabbitmq.host=localhost
 spring.rabbitmq.port=5672
 spring.rabbitmq.username=rmq_user
@@ -23,10 +21,17 @@ spring.rabbitmq.password=rmq_password
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
 
-# Режим разработки (true = не проверять подпись Telegram, для локального тестирования)
-# ОТКЛЮЧИ в продакшене!
-sapsr.security.dev-mode=true
-sapsr.security.dev-telegram-id=123456789
+# Email (Gmail SMTP для верификации преподавателей)
+# Используй App Password: Google Account -> Security -> 2FA -> App passwords
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=YOUR_GMAIL@gmail.com
+spring.mail.password=YOUR_APP_PASSWORD
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+
+# Допустимый домен для регистрации преподавателей.
+# Оставить пустым чтобы принимать любой email (для тестирования).
+sapsr.teacher.allowed-domain=@bsuir.by
 
 logging.level.org.telegram=INFO
-
