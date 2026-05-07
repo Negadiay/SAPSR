@@ -51,7 +51,7 @@ const levenshtein = (a, b) => {
 
 const fuzzyToken = (token, haystack) => {
   if (haystack.includes(token)) return true;
-  const words = haystack.split(/[\s,._\-]+/).filter(Boolean);
+  const words = haystack.split(/[\s,._-]+/).filter(Boolean);
   const threshold = token.length <= 3 ? 0 : token.length <= 5 ? 1 : 2;
   return words.some(word => {
     if (word.startsWith(token)) return true;
@@ -75,10 +75,10 @@ const STUDENT_STEPS = [
 const TEACHER_STEPS = [
   { refKey: null,            text: 'Добро пожаловать! В SAPSR студенты присылают работы, уже прошедшие автоматическую проверку оформления по ГОСТу.' },
   { refKey: 'submissions',   text: 'Здесь отображаются работы, ожидающие вашей проверки. Нажмите на карточку, чтобы раскрыть действия: скачать PDF, принять или отправить на доработку.' },
-  { refKey: 'teacherSearch', text: 'Нечёткий поиск фильтрует работы по имени студента, группе или файлу — даже при опечатках. Попробуйте ввести фамилию или номер группы.' },
+  { refKey: 'teacherSearch', text: 'Поиск фильтрует работы по имени студента, группе или файлу. Для имён работает нечёткий поиск, а номер группы ищется по точной комбинации цифр.' },
   { refKey: 'navHistory',    text: 'Во вкладке «История» хранятся все ранее проверенные вами работы — удобно проверить, действительно ли студент сдавал работу.' },
   { refKey: 'navNotes',      text: 'Во вкладке «Заметки» записывайте напоминания о студентах. Кнопка 🔍 в заметке автоматически найдёт работы упомянутого студента.' },
-  { refKey: 'addNoteBtn',    text: 'Попробуйте прямо сейчас: нажмите «+ Новая заметка» и создайте первую заметку — например, напишите имя студента. Затем нажмите в любое место для продолжения.' },
+  { refKey: 'addNoteBtn',    text: 'Кнопка «+ Новая заметка» создаёт новую заметку — например, напоминание со сведениями о студенте или работе.' },
   { refKey: null,            text: 'Вы получаете уведомление в Telegram каждый раз, когда студент присылает новую работу.' },
   { refKey: 'navSettings',   text: 'В настройках можно изменить тему оформления, размер шрифта и включить контрастный режим.' },
 ];
@@ -100,7 +100,7 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   const PAD = 8;
   const TOOLTIP_W = Math.min(300, window.innerWidth - 24);
   const TOOLTIP_H = 210;
-  const NAV_SAFE = 150;   // space for bottom nav + authors link
+  const NAV_SAFE = 130;   // space for bottom nav
   const TOOLTIP_GAP = 16; // gap between spotlight and tooltip
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -158,7 +158,10 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   );
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
 function App() {
   const [step, setStep]               = useState('loading');
   const [activeTab, setActiveTab]     = useState(0);
@@ -212,7 +215,10 @@ function App() {
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
   const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
   // Туториал
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep]     = useState(0);
@@ -361,6 +367,14 @@ function App() {
 
   const getTemplateStorageKey = () => `sapsr_revision_templates_${currentUserId || userRole || 'teacher'}`;
 
+  const registrationErrorText = (message, fallback) => {
+    const text = String(message || '').toLowerCase();
+    if (text.includes('не найден') && (text.includes('iis') || text.includes('иис'))) {
+      return 'Почта не обнаружена в ИИС БГУИР';
+    }
+    return message || fallback;
+  };
+
   const sortTemplates = (templates) => [...templates]
     .sort((a, b) => (b.count - a.count) || (b.lastUsed - a.lastUsed))
     .slice(0, COMMENT_TEMPLATE_LIMIT);
@@ -503,14 +517,16 @@ function App() {
 
   const teacherHistoryGroups = buildTeacherHistoryGroups();
 
-  // Нечёткий поиск по работам преподавателя (OR: достаточно совпасть хотя бы одному слову)
+  // В именах допускаем опечатки, а цифровые токены (группа) ищем строго.
   const filteredTeacherSubmissions = teacherSubmissions.filter((s) => {
     const query = teacherSearch.trim().toLowerCase();
     if (!query) return true;
     const tokens = query.split(/\s+/).filter(Boolean);
     const haystack = [s.student_name, s.file_name, s.created_at]
       .filter(Boolean).map(v => String(v).toLowerCase()).join(' ');
-    return tokens.some(token => fuzzyToken(token, haystack));
+    return tokens.every(token => (
+      /^\d+$/.test(token) ? haystack.includes(token) : fuzzyToken(token, haystack)
+    ));
   });
 
   useEffect(() => {
@@ -721,7 +737,7 @@ function App() {
         setRegCode('');
       } else {
         const err = await res.json().catch(() => ({}));
-        setRegError(err.error || 'Ошибка отправки кода');
+        setRegError(registrationErrorText(err.error, 'Ошибка отправки кода'));
       }
     } catch { setRegError('Сервер недоступен'); }
     finally { setSendingCode(false); }
@@ -743,7 +759,7 @@ function App() {
         setRegCode('');
       } else {
         const err = await res.json().catch(() => ({}));
-        setRegError(err.error || 'Ошибка отправки кода');
+        setRegError(registrationErrorText(err.error, 'Ошибка отправки кода'));
       }
     } catch { setRegError('Сервер недоступен'); }
     finally { setSendingCode(false); }
@@ -781,7 +797,7 @@ function App() {
 
   // --- Скачивание ---
   // Открываем URL в браузере — позволяет просмотреть/скачать файл на всех платформах
-  const openDownloadUrl = (apiPath, _filename) => {
+  const openDownloadUrl = (apiPath) => {
     const url = `${API_BASE}${apiPath}?tg_auth=${encodeURIComponent(initData)}`;
     window.open(url, '_blank');
   };
@@ -971,7 +987,10 @@ function App() {
   return (
     <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''} ${keyboardOpen ? 'keyboard-open' : ''}`}>
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
       {/* Диалог подтверждения удаления заметки */}
       {deleteConfirmNoteId !== null && (
         <div className="confirm-overlay" onClick={() => setDeleteConfirmNoteId(null)}>
@@ -1079,10 +1098,29 @@ function App() {
 
         {step === 'register' && userRole === 'teacher' && (
           <MotionDiv key="reg-teacher" className="screen" exit={{ opacity: 0 }}>
+<<<<<<< HEAD
             {sendingCode ? (
               <div className="code-sending-wait">
                 <div className="code-sending-spinner" />
                 <p className="code-sending-text">Пожалуйста, подождите.<br />Это может занять несколько минут.</p>
+=======
+            <p className="description">Регистрация преподавателя</p>
+            <form onSubmit={handleTeacherSendCode} className="register-form">
+              <input type="email" className="reg-input" placeholder="ivanov@bsuir.by"
+                value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} autoFocus />
+              <p className="reg-hint">Введите корпоративную почту @bsuir.by. ФИО будет заполнено автоматически из IIS.</p>
+              {regError && <div className="reg-error">{regError}</div>}
+              <div className="vertical-button-group">
+                <button type="submit" className="submit-btn" disabled={sendingCode}>
+                  {sendingCode ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden="true" />
+                      Отправка...
+                    </>
+                  ) : 'Отправить код'}
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
               </div>
             ) : (
               <>
@@ -1117,10 +1155,20 @@ function App() {
               {regError && <div className="reg-error">{regError}</div>}
               <div className="vertical-button-group">
                 <button type="submit" className="submit-btn" disabled={registering || codeTimeLeft <= 0}>
-                  {registering ? 'Проверка...' : 'Подтвердить'}
+                  {registering ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden="true" />
+                      Проверка...
+                    </>
+                  ) : 'Подтвердить'}
                 </button>
                 <button type="button" className="secondary-btn" disabled={sendingCode} onClick={handleResendCode}>
-                  {sendingCode ? 'Отправка...' : 'Отправить код повторно'}
+                  {sendingCode ? (
+                    <>
+                      <span className="btn-spinner btn-spinner-secondary" aria-hidden="true" />
+                      Отправка...
+                    </>
+                  ) : 'Отправить код повторно'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => {
                   setStep('register'); setRegError(''); setRegCode(''); setCodeExpiresAt(null); setCodeTimeLeft(0);

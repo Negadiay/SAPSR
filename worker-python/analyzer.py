@@ -66,10 +66,26 @@ _RE_REF_HEADING = re.compile(
 _RE_REF_ENTRY_A = re.compile(r"^\s*\[?\d+\]?[\.\)]?\s+\S", re.MULTILINE)
 _RE_REF_ENTRY_B = re.compile(r"^\s*\d+\s+\S", re.MULTILINE)
 _RE_REF_ENTRY_INLINE = re.compile(r"(?=(?:^|\s)(?:\[\d{1,3}\]|\d{1,3}[\.\)])\s+\S)")
+<<<<<<< HEAD
 _RE_REF_YEAR        = re.compile(r"\b(19|20)\d{2}\b")
 _RE_REF_URL         = re.compile(r"https?://")
 _RE_REF_ACCESS_DATE = re.compile(r"дата обращения|date of access", re.IGNORECASE)
 _RE_REF_SITE_MARKER = re.compile(r":\s*\[сайт\]|\[Электронный ресурс\]", re.IGNORECASE)
+=======
+_RE_REF_YEAR    = re.compile(r"\b(19|20)\d{2}\b")
+_RE_REF_URL     = re.compile(r"https?://")
+_RE_REF_DASH    = re.compile(r"\s[–—-]\s")
+_RE_REF_ACCESS  = re.compile(r"\((?:дата\s+(?:обращения|звароту)|date\s+of\s+access)\s*:", re.IGNORECASE)
+_RE_REF_PAGES   = re.compile(r"(?:[–—-]\s*(?:[IVXLCDM]+,\s*)?\d+\s*(?:с\.|p\.|l\.|S\.|л\.)|[–—-]\s*(?:С\.|P\.|Л\.)\s*\d+)", re.IGNORECASE)
+_RE_REF_LOCAL_MEDIA = re.compile(r"\b(?:CD-ROM|DVD-ROM|диск|атлас|карта|л\.|к\.)\b", re.IGNORECASE)
+_RE_REF_OFFICIAL = re.compile(
+    r"\b(?:конституц|кодекс|закон|декрет|указ|постановлен|приказ|распоряжен|"
+    r"конвенц|договор|соглашен|стандарт|ГОСТ|СТБ|патент|свидетельств|заявк)\b",
+    re.IGNORECASE,
+)
+_RE_REF_SITE_MARK = re.compile(r":\s*\[(?:сайт|bibliographic database|database)\]", re.IGNORECASE)
+_RE_REF_DOI = re.compile(r"\bDOI\s*:", re.IGNORECASE)
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
 _RE_AFTER_REFS_HEADING = re.compile(r"^\s*(?:приложени[ея]|appendix)\b", re.IGNORECASE | re.MULTILINE)
 
 # Рисунки — все падежные формы + сокращение «рис.»
@@ -595,11 +611,21 @@ def _check_references_count(full_text: str) -> list:
 
 
 def _check_bibliography_format(full_text: str) -> list:
+<<<<<<< HEAD
     """Проверяет соответствие источников правилам ГОСТ 7.0.5-2008 (редакция 2025)."""
+=======
+    """Проверяет источники по образцам библиографического описания 2025 года.
+
+    Правило остаётся мягким: разные типы источников имеют разные схемы, поэтому
+    проверяем только общие обязательные признаки из образца, а не пытаемся
+    полностью распарсить ГОСТ.
+    """
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
     entries = _extract_reference_entries(full_text)
     if not entries:
         return []
 
+<<<<<<< HEAD
     no_year_url: list[str] = []
     url_no_date: list[str] = []
 
@@ -643,6 +669,60 @@ def _check_bibliography_format(full_text: str) -> list:
         ))
 
     return result
+=======
+    suspicious: list[tuple[int, str, list[str]]] = []
+    for idx, raw_entry in enumerate(entries, start=1):
+        entry = re.sub(r"^\s*\[?\d+\]?[\.\)]?\s*", "", raw_entry).strip()
+        normalized = re.sub(r"\s+", " ", entry)
+
+        issues: list[str] = []
+        has_url = bool(_RE_REF_URL.search(normalized))
+        has_doi = bool(_RE_REF_DOI.search(normalized))
+        has_year = bool(_RE_REF_YEAR.search(normalized))
+        is_composite = "//" in normalized
+        is_site = bool(_RE_REF_SITE_MARK.search(normalized))
+        is_official = bool(_RE_REF_OFFICIAL.search(normalized))
+        has_media_descriptor = bool(_RE_REF_LOCAL_MEDIA.search(normalized))
+
+        if not _RE_REF_DASH.search(normalized):
+            issues.append("нет разделителя зон описания через длинное тире")
+
+        if not has_year and not has_url and not has_doi:
+            issues.append("нет года публикации, URL или DOI")
+
+        if has_url and not _RE_REF_ACCESS.search(normalized) and not has_doi:
+            issues.append("для URL нет даты обращения")
+
+        if is_composite:
+            if not _RE_REF_PAGES.search(normalized) and not has_url and not has_doi and not has_media_descriptor:
+                issues.append("для составной части нет страниц, URL, DOI или носителя")
+        elif not is_site and not is_official and not has_url and not has_doi:
+            if "/" not in normalized:
+                issues.append("нет сведений об ответственности после «/»")
+            if not _RE_REF_PAGES.search(normalized) and not has_media_descriptor:
+                issues.append("нет объёма источника: «– 44 с.» или аналога")
+
+        if issues:
+            suspicious.append((idx, normalized, issues))
+
+    if not suspicious:
+        return []
+
+    sample = "; ".join(
+        f"#{idx}: {', '.join(issues)}"
+        for idx, _, issues in suspicious[:3]
+    )
+    snippet = " | ".join(entry[:90] for _, entry, _ in suspicious[:2])
+    return [_make_error(
+        "minor", None,
+        f"{len(suspicious)} источник(ов) оформлены не по новому образцу.",
+        "Источники должны соответствовать образцам 2025 года: автор/заглавие, сведения об ответственности, зоны через «–», год, объём или страницы; для URL — дата обращения.",
+        sample,
+        "Сверьте подозрительные записи с новым образцом библиографического описания и добавьте недостающие элементы.",
+        "Список использованных источников", "warning",
+        context=snippet,
+    )]
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
 
 
 def _check_simple_lists(full_text: str) -> list:
