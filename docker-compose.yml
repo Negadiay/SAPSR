@@ -11,6 +11,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sapsr_user -d sapsr_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -21,6 +26,62 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  worker:
+    build: ./worker-python
+    container_name: sapsr-worker
+    restart: unless-stopped
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  backend:
+    build: ./backend-java
+    container_name: sapsr-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/sapsr_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Укажи TELEGRAM_BOT_TOKEN в файле .env}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-YOUR_GMAIL@gmail.com}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-YOUR_APP_PASSWORD}
+      BOT_WEBAPP_URL: ${BOT_WEBAPP_URL:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      tunnel:
+        condition: service_started
+
+  frontend:
+    build: ./frontend-webapp
+    container_name: sapsr-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: sapsr-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --protocol http2 --metrics 0.0.0.0:2000 --url http://frontend:80
 
 volumes:
   pgdata:
+  storage:

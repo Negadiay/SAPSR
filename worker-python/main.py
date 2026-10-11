@@ -1,10 +1,11 @@
 import json
+import os
 import time
 import pika
 
 from analyzer import analyze_pdf
 
-RABBITMQ_HOST = "localhost"
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
 RABBITMQ_PORT = 5672
 RABBITMQ_USER = "rmq_user"
 RABBITMQ_PASS = "rmq_password"
