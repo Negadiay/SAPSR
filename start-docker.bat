@@ -21,8 +21,20 @@ if not exist ".env" (
     powershell -NoProfile -Command "(Get-Content '.env') -replace '^TELEGRAM_BOT_TOKEN=.*', 'TELEGRAM_BOT_TOKEN=%TOKEN%' | Set-Content '.env'"
 )
 
+findstr /r /b /c:"NGROK_AUTHTOKEN=." ".env" >nul
+if %errorlevel% equ 0 goto NGROK_OK
+echo.
+echo Нужны данные ngrok (https://dashboard.ngrok.com): authtoken и бесплатный постоянный адрес (Domains).
+set /p NG_TOKEN=Вставь ngrok authtoken: 
+set /p NG_DOMAIN=Вставь адрес (например name.ngrok-free.app, без https://): 
+set "NG_DOMAIN=%NG_DOMAIN:https://=%"
+>> ".env" echo.
+>> ".env" echo NGROK_AUTHTOKEN=%NG_TOKEN%
+>> ".env" echo NGROK_DOMAIN=%NG_DOMAIN%
+:NGROK_OK
+
 echo Сборка и запуск контейнеров (первый раз - несколько минут)...
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 if %errorlevel% neq 0 (
     echo ОШИБКА запуска. Смотри сообщения выше.
     pause

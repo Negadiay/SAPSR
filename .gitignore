@@ -2,4 +2,5 @@
 .vscode/
 application.properties
 test.pdf
-Buzychkov_6sem
+Buzychkov_6sem.env
+.env
