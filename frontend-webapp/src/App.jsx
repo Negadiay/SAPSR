@@ -158,6 +158,10 @@ function TutorialOverlay({ steps, step, onNext, onSkip, refs }) {
   );
 }
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
 function App() {
   const [step, setStep]               = useState('loading');
   const [activeTab, setActiveTab]     = useState(0);
@@ -211,6 +215,10 @@ function App() {
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('sapsr_fontsize') || 'normal');
   const [contrast, setContrast] = useState(() => localStorage.getItem('sapsr_contrast') === '1');
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
   // Туториал
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep]     = useState(0);
@@ -279,7 +287,7 @@ function App() {
     };
   }, [step, userRole]);
 
-  // На мобильных скрываем нижнюю панель при вводе, чтобы клавиатура перекрывала её.
+  // На мобильных клавиатура перекрывает нижнюю панель, а активное поле прокручивается выше.
   useEffect(() => {
     const vp = window.visualViewport;
     const isEditable = (target) => target instanceof HTMLElement
@@ -290,7 +298,11 @@ function App() {
         || window.matchMedia?.('(pointer: coarse)').matches;
     };
     const onFocusIn = (e) => {
-      if (isMobileInput() && isEditable(e.target)) setKeyboardOpen(true);
+      if (!isMobileInput() || !isEditable(e.target)) return;
+      setKeyboardOpen(true);
+      window.setTimeout(() => {
+        e.target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      }, 250);
     };
     const onFocusOut = () => {
       window.setTimeout(() => {
@@ -608,22 +620,40 @@ function App() {
   const fetchSubmissions = async () => {
     try {
       const res = await fetch(`${API_BASE}/submissions`, { headers: apiHeaders() });
-      if (res.ok) setSubmissions(await res.json());
-    } catch (err) { console.warn('Submissions error:', err); }
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissions(Array.isArray(data) ? data : []);
+      } else {
+        const body = await res.text().catch(() => '');
+        console.error('[SAPSR] GET /submissions →', res.status, body);
+      }
+    } catch (err) { console.error('[SAPSR] fetchSubmissions network error:', err); }
   };
 
   const fetchTeacherSubmissions = async () => {
     try {
       const res = await fetch(`${API_BASE}/teacher/submissions`, { headers: apiHeaders() });
-      if (res.ok) setTeacherSubmissions(await res.json());
-    } catch (err) { console.warn('Teacher submissions error:', err); }
+      if (res.ok) {
+        const data = await res.json();
+        setTeacherSubmissions(Array.isArray(data) ? data : []);
+      } else {
+        const body = await res.text().catch(() => '');
+        console.error('[SAPSR] GET /teacher/submissions →', res.status, body);
+      }
+    } catch (err) { console.error('[SAPSR] fetchTeacherSubmissions network error:', err); }
   };
 
   const fetchTeacherHistory = async () => {
     try {
       const res = await fetch(`${API_BASE}/teacher/history`, { headers: apiHeaders() });
-      if (res.ok) setTeacherHistory(await res.json());
-    } catch (err) { console.warn('Teacher history error:', err); }
+      if (res.ok) {
+        const data = await res.json();
+        setTeacherHistory(Array.isArray(data) ? data : []);
+      } else {
+        const body = await res.text().catch(() => '');
+        console.error('[SAPSR] GET /teacher/history →', res.status, body);
+      }
+    } catch (err) { console.error('[SAPSR] fetchTeacherHistory network error:', err); }
   };
 
   // --- Туториал ---
@@ -957,6 +987,10 @@ function App() {
   return (
     <div className={`App ${resolvedTheme === 'dark' ? 'app-dark' : ''} font-${fontSize} ${contrast ? 'app-contrast' : ''} ${keyboardOpen ? 'keyboard-open' : ''}`}>
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
       {/* Диалог подтверждения удаления заметки */}
       {deleteConfirmNoteId !== null && (
         <div className="confirm-overlay" onClick={() => setDeleteConfirmNoteId(null)}>
@@ -1064,6 +1098,12 @@ function App() {
 
         {step === 'register' && userRole === 'teacher' && (
           <MotionDiv key="reg-teacher" className="screen" exit={{ opacity: 0 }}>
+<<<<<<< HEAD
+            {sendingCode ? (
+              <div className="code-sending-wait">
+                <div className="code-sending-spinner" />
+                <p className="code-sending-text">Пожалуйста, подождите.<br />Это может занять несколько минут.</p>
+=======
             <p className="description">Регистрация преподавателя</p>
             <form onSubmit={handleTeacherSendCode} className="register-form">
               <input type="email" className="reg-input" placeholder="ivanov@bsuir.by"
@@ -1080,8 +1120,23 @@ function App() {
                   ) : 'Отправить код'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
               </div>
-            </form>
+            ) : (
+              <>
+                <p className="description">Регистрация преподавателя</p>
+                <form onSubmit={handleTeacherSendCode} className="register-form">
+                  <input type="email" className="reg-input" placeholder="ivanov@bsuir.by"
+                    value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} autoFocus />
+                  <p className="reg-hint">Введите корпоративную почту @bsuir.by. ФИО будет заполнено автоматически из IIS.</p>
+                  {regError && <div className="reg-error">{regError}</div>}
+                  <div className="vertical-button-group">
+                    <button type="submit" className="submit-btn">Отправить код</button>
+                    <button type="button" className="secondary-btn" onClick={() => setStep('role')}>Назад</button>
+                  </div>
+                </form>
+              </>
+            )}
           </MotionDiv>
         )}
 

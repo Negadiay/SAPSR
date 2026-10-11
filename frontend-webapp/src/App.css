@@ -433,7 +433,11 @@ input[type="file"] {
 .teacher-search {
   width: 90vw;
   max-width: 340px;
+<<<<<<< HEAD
+  margin-top: 10px;
+=======
   margin-top: 0;
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
   margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: 12px;
@@ -577,10 +581,6 @@ input[type="file"] {
   z-index: 1000;
 }
 
-.App.keyboard-open .nav-wrapper {
-  display: none;
-}
-
 .bottom-nav {
   background: rgba(28, 58, 56, 0.92);
   backdrop-filter: blur(10px);
@@ -635,6 +635,56 @@ input[type="file"] {
   color: white;
 }
 
+<<<<<<< HEAD
+/* Кнопка «Авторы» под навигацией */
+.authors-link {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 8px;
+  transition: color 0.2s;
+}
+
+.authors-link:active {
+  color: #fff;
+}
+
+/* --- Отправка кода — экран ожидания --- */
+.code-sending-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px 20px;
+}
+
+.code-sending-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--tg-theme-button-color, #2e8d8a);
+  border-radius: 50%;
+  animation: spinnerRotate 0.9s linear infinite;
+}
+
+@keyframes spinnerRotate {
+  to { transform: rotate(360deg); }
+}
+
+.code-sending-text {
+  font-size: 15px;
+  color: var(--tg-theme-text-color, #1c3a38);
+  text-align: center;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+=======
+>>>>>>> 4e54535c5f3e08388617399a53fda84837af0013
 /* --- 11. ССЫЛКИ И АНИМАЦИИ --- */
 .skip-btn, .back-link-bottom {
   background: none;

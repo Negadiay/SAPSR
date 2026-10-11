@@ -23,6 +23,7 @@ VALUES (1816771555, 'TEACHER', 'Гракова Н.В.', 'grakova@bsuir.by')
 ON CONFLICT (telegram_id) DO NOTHING;
 
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS teacher_message_id INTEGER;
+ALTER TABLE submissions ALTER COLUMN teacher_comment TYPE TEXT;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS url_id VARCHAR(100);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_groups TEXT;
