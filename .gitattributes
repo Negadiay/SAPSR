@@ -1,0 +1,3 @@
+# cmd.exe разбирает .bat/.cmd только с окончаниями строк CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
