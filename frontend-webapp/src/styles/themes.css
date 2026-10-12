@@ -1,0 +1,221 @@
+/* --- ТЁМНАЯ ТЕМА (серые и мятно-зелёные, как Telegram dark) --- */
+.app-dark {
+  --tg-theme-bg-color:            #212d2f;
+  --tg-theme-secondary-bg-color:  #1e2a2c;
+  --tg-theme-button-color:        #63c9a0;
+  --tg-theme-button-text-color:   #0f1f1d;
+  --tg-theme-text-color:          #d1dbd8;
+  --tg-theme-hint-color:          #8aa09e;
+  background-color: #212d2f !important;
+  color: #d1dbd8 !important;
+}
+
+.app-dark .teacher-submission-card,
+.app-dark .ts-card-compact,
+.app-dark .notif-line,
+.app-dark .settings-section,
+.app-dark .error-card,
+.app-dark .upload-container,
+.app-dark .notif-window {
+  background: #2a3a3c !important;
+  border-color: rgba(99, 201, 160, 0.12) !important;
+}
+
+.app-dark .notif-line {
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 10px;
+  padding: 12px !important;
+}
+
+.app-dark .reg-input,
+.app-dark .revision-input,
+.app-dark .teacher-select,
+.app-dark .teacher-search {
+  background: #2a3a3c !important;
+  color: #d1dbd8 !important;
+  border-color: rgba(99, 201, 160, 0.25) !important;
+}
+
+.app-dark .secondary-btn {
+  background: #2a3a3c !important;
+  color: #63c9a0 !important;
+}
+
+.app-dark .bottom-nav {
+  background: rgba(15, 22, 24, 0.95) !important;
+}
+
+.app-dark .error-card {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.app-dark .role-card {
+  background: #2a3a3c !important;
+  border-color: rgba(99, 201, 160, 0.15) !important;
+}
+
+.app-dark .download-btn-sm {
+  border-color: #63c9a0 !important;
+  color: #63c9a0 !important;
+}
+
+.app-dark .refresh-btn {
+  border-color: #63c9a0 !important;
+  color: #63c9a0 !important;
+}
+
+.app-dark .refresh-btn:active {
+  background: #63c9a0 !important;
+  color: #0f1f1d !important;
+}
+
+.app-dark .teacher-search {
+  background: #2a3a3c !important;
+}
+
+.app-dark .view-title {
+  color: #63c9a0 !important;
+}
+
+.app-dark h1 {
+  color: #63c9a0 !important;
+}
+
+.app-dark .iteration-step,
+.app-dark .iteration-final {
+  background: rgba(99, 201, 160, 0.1) !important;
+}
+
+/* --- КОНТРАСТНЫЙ РЕЖИМ: светлый --- */
+.app-contrast:not(.app-dark) {
+  --tg-theme-text-color:           #03233f !important;
+  --tg-theme-bg-color:             #eaf7ff !important;
+  --tg-theme-secondary-bg-color:   #cfefff !important;
+  --tg-theme-button-color:         #006bb6 !important;
+  --tg-theme-button-text-color:    #ffffff !important;
+  --tg-theme-hint-color:           #275f86 !important;
+  background: linear-gradient(180deg, #eaf7ff 0%, #d6f0ff 100%) !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .upload-container,
+.app-contrast:not(.app-dark) .settings-section,
+.app-contrast:not(.app-dark) .notif-window,
+.app-contrast:not(.app-dark) .ts-card-compact,
+.app-contrast:not(.app-dark) .notif-line {
+  background: #d8f2ff !important;
+  border-color: #38a7e8 !important;
+  outline: 2px solid #38a7e8;
+  outline-offset: -2px;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .reg-input,
+.app-contrast:not(.app-dark) .revision-input,
+.app-contrast:not(.app-dark) .teacher-select,
+.app-contrast:not(.app-dark) .teacher-search {
+  background: #ffffff !important;
+  border-color: #38a7e8 !important;
+  color: #03233f !important;
+}
+
+.app-contrast:not(.app-dark) .bottom-nav {
+  background: rgba(0, 70, 120, 0.95) !important;
+  outline: 2px solid #7fd3ff;
+}
+
+.app-contrast:not(.app-dark) .bottom-nav button.active .nav-icon-bg,
+.app-contrast:not(.app-dark) .submit-btn,
+.app-contrast:not(.app-dark) .toggle-switch.on {
+  background: #007ad1 !important;
+  color: #ffffff !important;
+}
+
+.app-contrast:not(.app-dark) .secondary-btn,
+.app-contrast:not(.app-dark) .refresh-btn,
+.app-contrast:not(.app-dark) .download-btn-sm {
+  background: #ffffff !important;
+  border: 2px solid #007ad1 !important;
+  color: #005f9f !important;
+}
+
+.app-contrast:not(.app-dark) .refresh-btn:active {
+  background: #007ad1 !important;
+  color: #ffffff !important;
+}
+
+.app-contrast:not(.app-dark) .view-title {
+  color: #006bb6 !important;
+}
+
+.app-contrast:not(.app-dark) .history-badge-ok {
+  background: rgba(0, 107, 182, 0.12) !important;
+  color: #006bb6 !important;
+}
+
+/* --- КОНТРАСТНЫЙ РЕЖИМ: тёмный --- */
+.app-contrast.app-dark {
+  --tg-theme-text-color:           #ffffff !important;
+  --tg-theme-bg-color:             #000000 !important;
+  --tg-theme-secondary-bg-color:   #050505 !important;
+  --tg-theme-button-color:         #ff8c00 !important;
+  --tg-theme-button-text-color:    #000000 !important;
+  --tg-theme-hint-color:           #ccaa77 !important;
+  background: #000 !important;
+  color: #fff !important;
+}
+
+.app-contrast.app-dark .teacher-submission-card,
+.app-contrast.app-dark .ts-card-compact,
+.app-contrast.app-dark .notif-line,
+.app-contrast.app-dark .settings-section,
+.app-contrast.app-dark .upload-container,
+.app-contrast.app-dark .notif-window {
+  background: #000 !important;
+  border-color: #fff !important;
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+  color: #fff !important;
+}
+
+.app-contrast.app-dark .reg-input,
+.app-contrast.app-dark .revision-input,
+.app-contrast.app-dark .teacher-select,
+.app-contrast.app-dark .teacher-search {
+  background: #000 !important;
+  border-color: #555 !important;
+  color: #fff !important;
+}
+
+.app-contrast.app-dark .bottom-nav {
+  background: #000 !important;
+  outline: 2px solid #fff;
+}
+
+.app-contrast.app-dark .bottom-nav button.active .nav-icon-bg,
+.app-contrast.app-dark .submit-btn,
+.app-contrast.app-dark .toggle-switch.on {
+  background: #ff8c00 !important;
+  color: #000 !important;
+}
+
+.app-contrast.app-dark .secondary-btn,
+.app-contrast.app-dark .refresh-btn,
+.app-contrast.app-dark .download-btn-sm {
+  background: #000 !important;
+  border: 2px solid #ff8c00 !important;
+  color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark .refresh-btn:active {
+  background: #ff8c00 !important;
+  color: #000 !important;
+}
+
+.app-contrast.app-dark .view-title {
+  color: #ff8c00 !important;
+}
+
+.app-contrast.app-dark h1 {
+  color: #ff8c00 !important;
+}

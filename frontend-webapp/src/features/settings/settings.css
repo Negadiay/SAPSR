@@ -1,0 +1,94 @@
+/* --- НАСТРОЙКИ --- */
+.settings-section {
+  width: 100%;
+  max-width: 340px;
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.settings-label {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 10px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-row-spaced {
+  margin-top: 14px;
+}
+
+.settings-desc { font-size: 14px; }
+
+.settings-divider {
+  width: 100%;
+  max-width: 340px;
+  height: 1px;
+  background: rgba(46, 141, 138, 0.15);
+  margin: 16px 0;
+}
+
+.settings-wide-btn {
+  width: 100%;
+  max-width: 340px;
+}
+
+.toggle-switch {
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background: #ccc;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-switch.on { background: var(--tg-theme-button-color, #2e8d8a); }
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+}
+
+.toggle-switch.on .toggle-thumb { left: 23px; }
+
+/* --- ПОЛЗУНОК РАЗМЕРА ШРИФТА --- */
+.fontsize-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.fontsize-slider {
+  flex: 1;
+  accent-color: var(--tg-theme-button-color, #2e8d8a);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.fontsize-marker {
+  font-weight: 800;
+  color: var(--tg-theme-button-color, #2e8d8a);
+}
+
+.fontsize-marker-large {
+  font-size: calc(var(--app-font-size) * 1.2) !important;
+}

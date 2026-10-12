@@ -1,0 +1,75 @@
+/* --- СЕЛЕКТ ПРЕПОДАВАТЕЛЯ --- */
+.teacher-select-wrapper {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.select-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  opacity: 0.7;
+}
+
+.teacher-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+  font-size: 14px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%232e8d8a' fill='none' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+/* --- ЗАГРУЗКА ФАЙЛА --- */
+.upload-container {
+  width: 90vw;
+  max-width: 350px;
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.custom-file-upload {
+  border: 2px dashed var(--tg-theme-button-color, #2e8d8a);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 15px;
+  cursor: pointer;
+  background: rgba(46, 141, 138, 0.05);
+  transition: background 0.2s;
+}
+
+.custom-file-upload span:first-child {
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.custom-file-upload span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+.status-msg {
+  margin-top: 15px;
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--tg-theme-button-color);
+}
