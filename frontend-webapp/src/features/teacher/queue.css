@@ -1,0 +1,247 @@
+/* --- ПОИСК ПО РАБОТАМ --- */
+.teacher-search {
+  width: 90vw;
+  max-width: 340px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+  outline: none;
+}
+
+/* --- ДАШБОРД ПРЕПОДАВАТЕЛЯ --- */
+.teacher-submission-card {
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-student {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.ts-date {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+}
+
+.ts-file {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-score {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ts-verdict {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ts-comment {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.ts-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.download-btn-sm {
+  background: none;
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-color, #2e8d8a);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.approve-btn {
+  background: #43a047;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.revision-btn {
+  background: #fb8c00;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.revision-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.revision-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(46, 141, 138, 0.3);
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+}
+
+.comment-char-counter {
+  font-size: 11px;
+  text-align: right;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  margin-top: -4px;
+}
+
+.comment-char-warn {
+  color: #e53935;
+  font-weight: 600;
+}
+
+.revision-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.revision-btns .submit-btn,
+.revision-btns .secondary-btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 10px;
+}
+
+/* --- КОМПАКТНЫЕ КАРТОЧКИ ПРЕПОДАВАТЕЛЯ --- */
+.ts-card-compact {
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.ts-card-main {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ts-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-row-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-width: 0;
+}
+
+.ts-student { font-weight: 700; font-size: 13px; }
+.ts-date    { font-size: 11px; color: var(--tg-theme-hint-color, #6a8a88); }
+.ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #6a8a88); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-chevron { font-size: 11px; color: var(--tg-theme-hint-color, #6a8a88); margin-left: 8px; }
+
+.ts-card-expanded .ts-card-main { border-bottom: 1px solid rgba(0,0,0,0.08); }
+
+.ts-card-expanded .ts-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+/* --- ШАБЛОНЫ КОММЕНТАРИЕВ --- */
+.comment-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(46, 141, 138, 0.18);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(46, 141, 138, 0.06);
+}
+
+.App .comment-suggestions-title {
+  font-size: calc(var(--app-font-size) * 0.8);
+  font-weight: 700;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.comment-suggestion {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+  cursor: pointer;
+  text-align: left;
+}
+
+.comment-suggestion span {
+  flex: 1;
+}
+
+.comment-suggestion small {
+  color: var(--tg-theme-hint-color, #6a8a88);
+  white-space: nowrap;
+}
+
+.app-dark .comment-suggestions {
+  background: rgba(99, 201, 160, 0.06);
+  border-color: rgba(99, 201, 160, 0.15);
+}
+
+.app-dark .comment-suggestion {
+  background: #2a3a3c;
+  color: #d1dbd8;
+}

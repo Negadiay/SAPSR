@@ -1,0 +1,209 @@
+/* --- СПИСОК РАБОТ СТУДЕНТА --- */
+.student-works-window {
+  width: 96vw;
+  max-width: 430px;
+  height: 64vh;
+}
+
+.notif-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding-bottom: 12px;
+}
+
+.notif-line-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.notif-row-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.notif-info {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-file-subject {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--tg-theme-text-color);
+  margin-top: 3px;
+  max-width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-teacher {
+  font-size: 13px;
+  opacity: 0.6;
+  color: var(--tg-theme-text-color);
+}
+
+.download-btn {
+  background: var(--tg-theme-button-color, #2e8d8a);
+  border: none;
+  color: white;
+  width:  calc(var(--app-font-size) * 2.71);
+  height: calc(var(--app-font-size) * 2.71);
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.1s;
+  flex-shrink: 0;
+}
+
+.download-btn:active {
+  transform: scale(0.9);
+}
+
+.notif-status {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notif-errors {
+  font-size: 12px;
+  color: #e53935;
+  font-weight: 500;
+}
+
+.iteration-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  color: var(--tg-theme-hint-color, #6a8a88);
+}
+
+.iteration-step,
+.iteration-final {
+  background: rgba(46, 141, 138, 0.08);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: calc(var(--app-font-size) * 0.8);
+}
+
+.result-explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.error-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.error-group-title {
+  font-weight: 700;
+  font-size: calc(var(--app-font-size) * 0.9);
+}
+
+.error-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.62);
+  font-size: calc(var(--app-font-size) * 0.86);
+}
+
+.error-message {
+  font-weight: 700;
+}
+
+.notif-error {
+  border-left: 3px solid #e53935;
+  padding-left: 12px;
+}
+
+.notif-success {
+  border-left: 3px solid #43a047;
+  padding-left: 12px;
+}
+
+/* --- ВЕРДИКТ (СТУДЕНТ) --- */
+.notif-score {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.notif-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.notif-comment {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.verdict-ok { color: #43a047; }
+.verdict-revision { color: #fb8c00; }
+
+/* --- КНОПКА ОТОЗВАТЬ --- */
+.notif-btn-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-right: 8px;
+  flex-shrink: 0;
+}
+
+.withdraw-btn {
+  background: none;
+  border: 1px solid #e53935;
+  color: #e53935;
+  width:  calc(var(--app-font-size) * 2.71);
+  height: calc(var(--app-font-size) * 2.71);
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.withdraw-btn:active {
+  background: #e53935;
+  color: #fff;
+}
+
+.withdraw-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

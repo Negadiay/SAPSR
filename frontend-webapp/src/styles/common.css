@@ -1,0 +1,120 @@
+/* --- ПОДСКАЗКА ПОД ПОЛЕМ (общая для форм) --- */
+.reg-hint {
+  font-size: 12px;
+  opacity: 0.5;
+  margin: 0;
+  text-align: center;
+}
+
+/* --- СПИСКИ РАБОТ (ОБЩЕЕ) --- */
+.notif-window {
+  width: 90vw;
+  max-width: 340px;
+  height: 50vh;
+  background: var(--tg-theme-secondary-bg-color, #dff0e9);
+  border: 1px solid rgba(46, 141, 138, 0.15);
+  border-radius: 15px;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.refresh-btn {
+  background: none;
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-color, #2e8d8a);
+  padding: 6px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.refresh-btn:active {
+  background: var(--tg-theme-button-color, #2e8d8a);
+  color: #fff;
+}
+
+.notif-empty {
+  text-align: center;
+  opacity: 0.5;
+  font-size: 14px;
+  padding: 30px 0;
+}
+
+/* --- КНОПКИ (ОБЩИЕ) --- */
+.submit-btn, .secondary-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.submit-btn {
+  background-color: var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-text-color, #ffffff);
+  font-size: 16px;
+}
+
+.secondary-btn {
+  background-color: var(--tg-theme-secondary-bg-color, #dff0e9);
+  color: var(--tg-theme-button-color, #2e8d8a);
+  font-size: 14px;
+}
+
+.submit-btn:active, .secondary-btn:active {
+  transform: scale(0.98);
+  opacity: 0.8;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+.btn-spinner-secondary {
+  border-color: rgba(46, 141, 138, 0.28);
+  border-top-color: var(--tg-theme-button-color, #2e8d8a);
+}
+
+/* --- ССЫЛКИ И АНИМАЦИИ --- */
+.skip-btn, .back-link-bottom {
+  background: none;
+  border: none;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  margin-top: 40px;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.skip-btn:active, .back-link-bottom:active {
+  color: var(--tg-theme-button-color);
+}
+
+.fade-in {
+  animation: fadeInAnim 0.3s ease forwards;
+}
+
+@keyframes fadeInAnim {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
