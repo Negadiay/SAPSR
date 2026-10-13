@@ -2,6 +2,5 @@
 .vscode/
 application.properties
 test.pdf
-docs/
+docs/plan-7sem/llm-bench
 .env
-CONTRIBUTING.md
