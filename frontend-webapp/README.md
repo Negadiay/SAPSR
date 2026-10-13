@@ -1,16 +1,139 @@
-# React + Vite
+# SAPSR — фронтенд
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Telegram Mini App для студентов и преподавателей: студент загружает PDF и следит за проверкой, преподаватель разбирает очередь работ и выносит вердикты. Общее описание системы и запуск остальных сервисов — в [корневом README](../README.md).
 
-Currently, two official plugins are available:
+Стек: React 19, Vite 8, Framer Motion (анимации переходов), Vitest + Testing Library (тесты). Чистый JavaScript, без TypeScript и без роутера — экраны переключаются состоянием.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Запуск
 
-## React Compiler
+Нужен Node.js 20+.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Dev-сервер поднимается на `http://localhost:5173` и проксирует `/api` на бэкенд `http://localhost:8080` (см. [vite.config.js](vite.config.js)). Без запущенного бэкенда приложение откроется, но остановится на экране выбора роли.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Команда | Что делает |
+|---------|-----------|
+| `npm run dev` | Dev-сервер с HMR |
+| `npm run build` | Сборка в `dist/` |
+| `npm run preview` | Локальный просмотр собранной версии |
+| `npm test` | Один прогон тестов |
+| `npm run test:watch` | Тесты в режиме наблюдения |
+| `npm run lint` | ESLint |
+| `npm run deploy` | Сборка и публикация `dist/` в ветку `gh-pages` |
+
+### Адрес API
+
+По умолчанию запросы идут на `/api/v1` того же хоста. Другой адрес задаётся переменной окружения `VITE_API_BASE` при сборке или запуске:
+
+```bash
+VITE_API_BASE=https://example.com/api/v1 npm run build
+```
+
+### Вне Telegram
+
+Приложение открывается и в обычном браузере: обёртка [src/telegram/webApp.js](src/telegram/webApp.js) в этом случае ничего не делает, а заголовок авторизации уходит пустым. Бэкенд такие запросы не примет, поэтому для полноценной проверки нужен запуск из Telegram — через туннель до dev-сервера (ngrok в `docker-compose.yml` или `cloudflared`).
+
+## Структура
+
+```
+src/
+├── main.jsx              # Точка входа
+├── App.jsx               # Каркас: собирает блоки из features/ и решает, какой экран показать
+│
+├── api/                  # Запросы к бэкенду
+│   ├── client.js         # apiFetch, postJson, fetchList — базовый адрес и заголовок авторизации
+│   ├── auth.js           # /me, /register, /register/send-code
+│   ├── submissions.js    # Студент: преподаватели, загрузка, список работ, отзыв, отчёт
+│   ├── teacher.js        # Преподаватель: очередь, история, вердикт, скачивание PDF
+│   └── download.js       # Скачивание файлов
+│
+├── features/             # Блоки интерфейса: экраны, их хуки и стили лежат рядом
+│   ├── registration/     # Выбор роли, регистрация студента и преподавателя, код из письма
+│   ├── student/          # Вкладки «Загрузка» и «Работы»
+│   ├── teacher/          # Вкладки «Работы» (очередь), «История», «Заметки»
+│   ├── settings/         # Тема, размер шрифта, контраст, выход
+│   └── tutorial/         # Обучение с подсветкой элементов
+│
+├── navigation/           # Нижняя панель, список вкладок по ролям, свайпы, поведение при клавиатуре
+├── components/           # Общие компоненты: Screen, ConfirmDialog
+├── lib/                  # Функции без React: нечёткий поиск, форматирование дат, группировка версий
+├── telegram/             # Обёртка над window.Telegram.WebApp
+├── styles/               # Общие стили, темы, размеры шрифта
+└── test/                 # Настройка тестов и заглушки API и Telegram
+```
+
+### Как это устроено
+
+**Экраны.** Хук `useSession` хранит текущий шаг: `loading → role → register → confirm_code → main`. При запуске он спрашивает у бэкенда `/me`: зарегистрированный пользователь сразу попадает в `main`, остальные — на выбор роли. [App.jsx](src/App.jsx) по шагу и роли выбирает, что отрисовать.
+
+**Вкладки.** Набор вкладок зависит от роли и описан в [src/navigation/tabs.js](src/navigation/tabs.js): у студента — «Загрузка», «Работы», «Настройки»; у преподавателя — «Работы», «История», «Заметки», «Настройки». Чтобы добавить вкладку, нужно дописать её в этот список и отрисовать по `id` в `App.jsx`.
+
+**Состояние.** Библиотеки состояния нет. Вся логика кабинета собрана в двух хуках — `useStudentWorkspace` и `useTeacherWorkspace`, которые вызываются в `App.jsx`, выше вкладок. Поэтому выбранный файл или текст поиска не теряются при переключении. Сами вкладки (`UploadTab`, `QueueTab` и другие) получают готовое состояние через пропсы и только отображают его.
+
+**Авторизация.** Каждый запрос несёт в заголовке `Authorization` строку `initData` из Telegram; бэкенд по ней определяет пользователя. Отдельного входа с паролем нет.
+
+**Что хранится в браузере.** В `localStorage` лежит то, чего нет на сервере:
+
+| Ключ | Содержимое |
+|------|-----------|
+| `sapsr_theme`, `sapsr_fontsize`, `sapsr_contrast` | Настройки оформления |
+| `sapsr_last_teacher_id` | Последний выбранный студентом преподаватель |
+| `sapsr_onboarded_<роль>` | Отметка, что обучение пройдено |
+| `sapsr_notes_<id>` | Заметки преподавателя |
+| `sapsr_revision_templates_<id>` | Шаблоны комментариев к доработке |
+
+Заметки и шаблоны привязаны к устройству: на другом телефоне их не будет.
+
+**Стили.** Обычный CSS без препроцессоров и модулей. Файл стилей лежит рядом со своим блоком, а подключаются все они в [src/styles/app.css](src/styles/app.css). Порядок там важен: темы и размеры шрифта идут последними, чтобы перекрывать остальное. Тема, контраст и размер шрифта включаются классами на корневом элементе (`app-dark`, `app-contrast`, `font-<размер>`).
+
+## Тесты
+
+```bash
+npm test
+```
+
+Тесты лежат рядом с кодом в файлах `*.test.js` и `*.test.jsx`, запускаются в jsdom. Сеть и Telegram не нужны — они подменяются заглушками.
+
+| Файл | Что проверяет |
+|------|--------------|
+| [src/App.test.jsx](src/App.test.jsx) | Сценарии целиком, через интерфейс: вход, регистрация студента и преподавателя, загрузка и отзыв работы, очередь, вердикты, история, заметки, настройки, обучение |
+| [src/api/client.test.js](src/api/client.test.js) | Заголовок авторизации, отправка JSON, поведение `fetchList` при ошибках сервера и сети |
+| [src/lib/lib.test.js](src/lib/lib.test.js) | Нечёткий поиск, форматирование дат и таймера, группировка версий одной работы |
+| [src/features/teacher/teacher.test.js](src/features/teacher/teacher.test.js) | Поисковый запрос из текста заметки, шаблоны комментариев, заметки |
+| [src/features/tutorial/steps.test.js](src/features/tutorial/steps.test.js) | Согласованность шагов обучения со списком вкладок |
+| [src/components/ConfirmDialog.test.jsx](src/components/ConfirmDialog.test.jsx) | Подтверждение, отмена, нажатие на фон |
+
+### Как писать новый тест
+
+В [src/test/mockApi.js](src/test/mockApi.js) есть две заглушки:
+
+- `mockApi(routes)` подменяет `fetch`. Маршруты задаются как `'МЕТОД /путь'` без префикса `/api/v1`; значение — данные ответа, готовый `Response` или функция от тела запроса. Запрос без заглушки получает 404. Возвращает журнал вызовов, по которому проверяется, что ушло на сервер.
+- `stubTelegram({ userId })` изображает приложение, открытое пользователем Telegram.
+
+```jsx
+stubTelegram();
+const api = mockApi({
+  'GET /me': { role: 'STUDENT', telegram_id: 42 },
+  'GET /teachers': [{ telegram_id: 7, full_name: 'Петров П.П.' }],
+  'GET /submissions': [],
+  'POST /upload': { id: 1 },
+});
+render(<App />);
+
+// ...действия пользователя...
+
+expect(api.find('POST', '/upload')).toHaveLength(1);
+```
+
+После каждого теста [src/test/setup.js](src/test/setup.js) сам очищает DOM, `localStorage`, заглушки и `window.Telegram`. Framer Motion в `App.test.jsx` подменён, потому что анимации в jsdom не идут.
+
+## Сборка и деплой
+
+- **Docker.** [Dockerfile](Dockerfile) собирает приложение и отдаёт его через nginx; [nginx.conf](nginx.conf) проксирует `/api/` на контейнер `backend:8080`. В `docker-compose.yml` фронтенд доступен на `http://localhost:5173`.
+- **GitHub Pages.** При каждом пуше в `main` workflow [static.yml](../.github/workflows/static.yml) собирает проект и публикует `dist/`. Вручную то же делает `npm run deploy`.
+
+В `vite.config.js` задано `base: './'`, поэтому сборка работает из любой подпапки — пути к файлам относительные.
