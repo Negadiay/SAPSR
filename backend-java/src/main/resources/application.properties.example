@@ -6,8 +6,19 @@ spring.datasource.username=sapsr_user
 spring.datasource.password=sapsr_password
 
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+# Схему меняют только миграции Flyway (src/main/resources/db/migration); Hibernate её лишь сверяет.
 spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=true
+
+# Базы, созданные до Flyway старым init.sql, принимаются как версия 1 — см. config/FlywayConfig.java.
+
+# Корень хранилища файлов работ. В Docker рабочая папка бэкенда /app/backend, так что это /app/storage —
+# общий том с обработчиком. Файлы лежат под ключами вида 2026/10/<UUID>.pdf (docs/contracts/queue-v2.md).
+sapsr.storage.root=../storage
+
+# Тайм-аут содержательной проверки (решение 5): работа уходит преподавателю после фазы content
+# либо через это время после фазы format. Величина не утверждена; читать её будет приём двух фаз.
+sapsr.pipeline.content-timeout=5m
 
 # Telegram Bot
 telegram.bot.token=ВАШ_ТОКЕН

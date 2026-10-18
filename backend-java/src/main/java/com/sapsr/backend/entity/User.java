@@ -25,6 +25,19 @@ public class User {
     @Column(name = "teacher_groups")
     private String teacherGroups; // JSON-массив номеров групп: '["321701","321702"]'
 
+    // ФИО и группа по отдельности (решение 4). У старых студентов first_name пуст: известны только инициалы.
+    @Column(name = "last_name")
+    private String lastName;
+
+    @Column(name = "first_name")
+    private String firstName;
+
+    @Column(name = "middle_name")
+    private String middleName;
+
+    @Column(name = "group_number")
+    private String groupNumber;
+
     public User() {}
 
     public Long getTelegramId() { return telegramId; }
@@ -39,4 +52,12 @@ public class User {
     public void setUrlId(String urlId) { this.urlId = urlId; }
     public String getTeacherGroups() { return teacherGroups; }
     public void setTeacherGroups(String teacherGroups) { this.teacherGroups = teacherGroups; }
+    public String getLastName() { return lastName; }
+    public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getFirstName() { return firstName; }
+    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public String getMiddleName() { return middleName; }
+    public void setMiddleName(String middleName) { this.middleName = middleName; }
+    public String getGroupNumber() { return groupNumber; }
+    public void setGroupNumber(String groupNumber) { this.groupNumber = groupNumber; }
 }

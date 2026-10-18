@@ -8,9 +8,10 @@ services:
       POSTGRES_DB: sapsr_db
     ports:
       - "5433:5432"
+    # Схему создаёт бэкенд миграциями Flyway (backend-java/src/main/resources/db/migration).
+    # Тестовые данные для разработки — свой dev-seed.sql (не в git, образец — dev-seed.example.sql), загружается вручную.
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sapsr_user -d sapsr_db"]
       interval: 5s

@@ -46,7 +46,7 @@ public class ResultListenerService {
 
             if (submission.getStudent() != null) {
                 Long chatId = submission.getStudent().getTelegramId();
-                String fileName = submissionFileName(submission);
+                String fileName = submission.displayFileName();
                 int warningCount = countReportWarnings(errorsJson);
                 int errorCount = countReportErrors(errorsJson);
                 String warningLine = warningCount > 0
@@ -135,14 +135,5 @@ public class ResultListenerService {
         } catch (Exception e) {
             return "";
         }
-    }
-
-    private String submissionFileName(Submission submission) {
-        String fp = submission.getFilePath();
-        if (fp == null || fp.isBlank()) return "file.pdf";
-        String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
-        name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
-        if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
-        return name;
     }
 }

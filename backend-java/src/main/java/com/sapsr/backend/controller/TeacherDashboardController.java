@@ -5,12 +5,15 @@ import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.storage.FileStorage;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 @CrossOrigin(origins = "*")
@@ -21,13 +24,16 @@ public class TeacherDashboardController {
     private final SubmissionRepository submissionRepository;
     private final UserRepository userRepository;
     private final SapsrTelegramBot bot;
+    private final FileStorage fileStorage;
 
     public TeacherDashboardController(SubmissionRepository submissionRepository,
                                       UserRepository userRepository,
-                                      SapsrTelegramBot bot) {
+                                      SapsrTelegramBot bot,
+                                      FileStorage fileStorage) {
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.bot = bot;
+        this.fileStorage = fileStorage;
     }
 
     @GetMapping("/submissions")
@@ -50,16 +56,7 @@ public class TeacherDashboardController {
             item.put("status", normalizeDbCode(s.getStatus()));
             item.put("format_errors", s.getFormatErrors());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
-
-            String fp = s.getFilePath();
-            if (fp != null) {
-                String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
-                name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
-                if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
-                item.put("file_name", name);
-            } else {
-                item.put("file_name", "file.pdf");
-            }
+            item.put("file_name", s.displayFileName());
             result.add(item);
         }
         return ResponseEntity.ok(result);
@@ -101,7 +98,7 @@ public class TeacherDashboardController {
 
         if (submission.getStudent() != null) {
             String teacherName = teacher.get().getFullName() != null ? teacher.get().getFullName() : "Преподаватель";
-            String fileName = submissionFileName(submission);
+            String fileName = submission.displayFileName();
             String text = "APPROVED".equals(verdict)
                     ? "✅ Преподаватель " + teacherName + " принял вашу работу!\n\nРабота: " + fileName
                     : "🔄 Преподаватель " + teacherName + " отправил работу на доработку.\n\nРабота: " + fileName + "\nКомментарий: " + comment;
@@ -131,7 +128,7 @@ public class TeacherDashboardController {
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
-            item.put("file_name", submissionFileName(s));
+            item.put("file_name", s.displayFileName());
             result.add(item);
         }
         return ResponseEntity.ok(result);
@@ -150,30 +147,25 @@ public class TeacherDashboardController {
             return ResponseEntity.status(403).build();
         }
 
-        try {
-            File file = new File(submission.getFilePath());
-            if (!file.exists()) return ResponseEntity.notFound().build();
+        if (submission.getStorageKey() == null) return ResponseEntity.notFound().build();
 
-            byte[] content = Files.readAllBytes(file.toPath());
-            String fileName = file.getName();
-            if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
+        try {
+            Path file = fileStorage.resolve(submission.getStorageKey());
+            if (!Files.exists(file)) return ResponseEntity.notFound().build();
+
+            byte[] content = Files.readAllBytes(file);
+            // Имя для скачивания — исходное, из базы; кириллица передаётся по RFC 5987.
+            ContentDisposition disposition = ContentDisposition.attachment()
+                    .filename(submission.displayFileName(), StandardCharsets.UTF_8)
+                    .build();
 
             return ResponseEntity.ok()
                     .header("Content-Type", "application/pdf")
-                    .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+                    .header("Content-Disposition", disposition.toString())
                     .body(content);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
-    }
-
-    private String submissionFileName(Submission submission) {
-        String fp = submission.getFilePath();
-        if (fp == null || fp.isBlank()) return "file.pdf";
-        String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
-        name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
-        if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
-        return name;
     }
 
     private String normalizeDbCode(String value) {

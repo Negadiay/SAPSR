@@ -105,7 +105,8 @@
 SAPSR/
 ├── backend-java/               # Spring Boot REST API и Telegram Bot
 │   ├── src/main/java/          # Контроллеры, сервисы, сущности
-│   ├── src/main/resources/     # application.properties
+│   ├── src/main/resources/     # application.properties.example
+│   │   └── db/migration/       # Схема базы данных: миграции Flyway
 │   └── pom.xml
 │
 ├── worker-python/              # Сервис анализа PDF
@@ -121,8 +122,14 @@ SAPSR/
 │   ├── package.json
 │   └── vite.config.js
 │
+├── docs/
+│   ├── decisions.md            # Журнал решений
+│   ├── decision-tasks.md       # Задачи по решениям: кто и что делает
+│   ├── contracts/              # Контракты: протокол очередей, REST API
+│   └── plan-7sem/              # Планы участников
+│
 ├── docker-compose.yml          # PostgreSQL + RabbitMQ
-├── init.sql                    # Схема базы данных
+├── dev-seed.example.sql        # Образец тестовых данных; свой dev-seed.sql — не в git
 ├── start.bat                   # Скрипт автозапуска (Windows)
 └── test-fixtures/              # Тестовые PDF-файлы
 ```
@@ -172,7 +179,9 @@ cd backend-java
 ./mvnw spring-boot:run
 ```
 
-API запустится на `http://localhost:8080`.
+API запустится на `http://localhost:8080`. При первом запуске бэкенд сам создаёт схему базы миграциями Flyway.
+
+Тестовые данные (необязательно): скопируйте `dev-seed.example.sql` в `dev-seed.sql`, впишите свои данные и загрузите командами из начала файла. `dev-seed.sql` в `.gitignore` — настоящие Telegram ID и почты в репозиторий не попадают.
 
 **3. Python Worker**
 
@@ -193,6 +202,38 @@ npm run dev
 ```
 
 Dev-сервер запустится на `http://localhost:5173`.
+
+---
+
+## Тесты
+
+### Backend
+
+> ⚠️ **Не запускайте `BackendApplicationTests`.** Он поднимает приложение целиком с вашим `application.properties`: бот подключается с настоящим токеном, а при старте рассылает сообщение **всем пользователям из базы**. Пока для Telegram нет заглушки, этот тест исключаем при каждом запуске.
+
+PowerShell и cmd:
+
+```bat
+cd backend-java
+.\mvnw.cmd test "-Dtest=!BackendApplicationTests" "-Dsurefire.failIfNoSpecifiedTests=false"
+```
+
+bash (в двойных кавычках bash принимает `!` за команду истории, поэтому кавычки одинарные):
+
+```bash
+cd backend-java
+./mvnw test '-Dtest=!BackendApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Тесты миграций (`FreshDatabaseMigrationTest`, `LegacyDatabaseMigrationTest`) поднимают временный PostgreSQL в Docker через Testcontainers. Нужен запущенный Docker Desktop; без него эти тесты пропускаются, остальные идут как обычно.
+
+### Frontend
+
+```bash
+cd frontend-webapp
+npm test
+npm run lint
+```
 
 ---
 
@@ -242,9 +283,11 @@ npm run deploy
 
 ```bash
 cd backend-java
-./mvnw clean package
+./mvnw clean package '-Dtest=!BackendApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
 java -jar target/backend-*.jar
 ```
+
+Почему тест исключён — в разделе «Тесты».
 
 
 

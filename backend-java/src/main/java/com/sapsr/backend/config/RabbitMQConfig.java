@@ -1,7 +1,9 @@
 package com.sapsr.backend.config;
 
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -22,5 +24,15 @@ public class RabbitMQConfig {
     @Bean
     public Queue pdfResultsQueue() {
         return new Queue(resultsQueue, true);
+    }
+
+    /**
+     * Исходящие сообщения — классы-записи, сериализуемые Jackson (content_type = application/json).
+     * Конвертер ставится только на RabbitTemplate, а не общим бином: слушатель результатов получает
+     * от обработчика сообщения без content_type и читает их строкой, общий JSON-конвертер это сломал бы.
+     */
+    @Bean
+    public RabbitTemplateCustomizer jsonOutgoingMessages() {
+        return template -> template.setMessageConverter(new JacksonJsonMessageConverter());
     }
 }
