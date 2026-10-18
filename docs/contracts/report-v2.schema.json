@@ -1,0 +1,922 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Negadiay/SAPSR/docs/contracts/report-v2.schema.json",
+  "title": "Отчёт v2 SAPSR",
+  "description": "Отчёт о проверке пояснительной записки. Описание полей — docs/contracts/report-v2.md.",
+  "$defs": {
+    "DocumentInfo": {
+      "properties": {
+        "pages": {
+          "title": "Pages",
+          "type": "integer"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "source_format": {
+          "default": "pdf",
+          "title": "Source Format",
+          "type": "string"
+        },
+        "main_font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Main Font"
+        },
+        "main_size": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Main Size"
+        },
+        "title_page": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TitlePageInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "pages"
+      ],
+      "title": "DocumentInfo",
+      "type": "object"
+    },
+    "Evidence": {
+      "properties": {
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Страница PDF-версии работы, с 1",
+          "title": "Page"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Дословный фрагмент документа",
+          "title": "Quote"
+        },
+        "block_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Блок модели документа, b-NNNN",
+          "title": "Block Id"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Номер или заголовок раздела",
+          "title": "Section"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Прямоугольник на странице, пт: x0, top, x1, bottom; начало — левый верхний угол",
+          "title": "Bbox"
+        }
+      },
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Finding": {
+      "properties": {
+        "id": {
+          "description": "Номер замечания в отчёте: f-001…; стабилен при повторной проверке того же файла",
+          "title": "Id",
+          "type": "string"
+        },
+        "requirement_id": {
+          "description": "Идентификатор правила или требования из базы знаний",
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "format",
+            "structure",
+            "content",
+            "requirements",
+            "integrity"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "status": {
+          "default": "violated",
+          "enum": [
+            "violated",
+            "not_established",
+            "disputed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "major",
+            "minor",
+            "info"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "origin": {
+          "description": "symbolic — правило; neural — модель; hybrid — правило над фактами модели",
+          "enum": [
+            "symbolic",
+            "neural",
+            "hybrid"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Только у neural и hybrid",
+          "title": "Confidence"
+        },
+        "needs_teacher_review": {
+          "default": false,
+          "title": "Needs Teacher Review",
+          "type": "boolean"
+        },
+        "blocking": {
+          "description": "Блокирует сдачу. Бывает только у origin: symbolic",
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Краткое название правила",
+          "title": "Title"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        },
+        "found": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Found"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fix"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "v1: страница или диапазон «3–5, 9»",
+          "title": "Page"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "v1: место в документе словами",
+          "title": "Location"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "v1: требование словами (то же, что expected)",
+          "title": "Rule"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "v1: фрагмент текста",
+          "title": "Context"
+        }
+      },
+      "required": [
+        "id",
+        "requirement_id",
+        "category",
+        "severity",
+        "origin",
+        "blocking",
+        "message"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "ModelInfo": {
+      "properties": {
+        "role": {
+          "enum": [
+            "layout",
+            "llm",
+            "embeddings",
+            "nli"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        },
+        "quantization": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantization"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "cloud": {
+          "default": false,
+          "title": "Cloud",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "ModelInfo",
+      "type": "object"
+    },
+    "Pipeline": {
+      "properties": {
+        "mode": {
+          "enum": [
+            "symbolic",
+            "hybrid",
+            "neural"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "worker_version": {
+          "title": "Worker Version",
+          "type": "string"
+        },
+        "kb_version": {
+          "title": "Kb Version",
+          "type": "string"
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelInfo"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "prompts": {
+          "items": {
+            "$ref": "#/$defs/PromptInfo"
+          },
+          "title": "Prompts",
+          "type": "array"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/StageInfo"
+          },
+          "title": "Stages",
+          "type": "array"
+        },
+        "skipped": {
+          "items": {
+            "$ref": "#/$defs/SkippedCheck"
+          },
+          "title": "Skipped",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/PipelineWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "metrics": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Metrics",
+          "type": "object"
+        }
+      },
+      "required": [
+        "mode",
+        "worker_version",
+        "kb_version"
+      ],
+      "title": "Pipeline",
+      "type": "object"
+    },
+    "PipelineWarning": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "PipelineWarning",
+      "type": "object"
+    },
+    "ProfileInfo": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "work_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Work Type"
+        },
+        "semester": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semester"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "is_default": {
+          "default": false,
+          "title": "Is Default",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "ProfileInfo",
+      "type": "object"
+    },
+    "PromptInfo": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "PromptInfo",
+      "type": "object"
+    },
+    "RequirementStatus": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "satisfied",
+            "violated",
+            "not_applicable",
+            "not_established",
+            "disputed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "needs_teacher_review": {
+          "default": false,
+          "title": "Needs Teacher Review",
+          "type": "boolean"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "title": "RequirementStatus",
+      "type": "object"
+    },
+    "SkippedCheck": {
+      "properties": {
+        "id": {
+          "description": "Правило, требование или этап, который не выполнялся",
+          "title": "Id",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Код причины: IIS_UNAVAILABLE, LLM_UNAVAILABLE, LLM_SCHEMA, TIMEOUT…",
+          "title": "Reason",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "stage",
+        "reason",
+        "message"
+      ],
+      "title": "SkippedCheck",
+      "type": "object"
+    },
+    "SourceRef": {
+      "properties": {
+        "doc": {
+          "description": "Нормативный документ",
+          "title": "Doc",
+          "type": "string"
+        },
+        "clause": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Пункт; null — ещё не сверен с документом",
+          "title": "Clause"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "StageInfo": {
+      "properties": {
+        "stage": {
+          "enum": [
+            "extract",
+            "structure",
+            "format",
+            "claims",
+            "reasoning",
+            "report"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "done",
+            "skipped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ms"
+        }
+      },
+      "required": [
+        "stage",
+        "status"
+      ],
+      "title": "StageInfo",
+      "type": "object"
+    },
+    "Summary": {
+      "properties": {
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "integer"
+        },
+        "findings": {
+          "title": "Findings",
+          "type": "integer"
+        },
+        "by_category": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "By Category",
+          "type": "object"
+        },
+        "by_severity": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "By Severity",
+          "type": "object"
+        },
+        "needs_teacher_review": {
+          "default": 0,
+          "title": "Needs Teacher Review",
+          "type": "integer"
+        },
+        "content_checked": {
+          "default": false,
+          "title": "Content Checked",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "passed",
+        "blocking",
+        "findings"
+      ],
+      "title": "Summary",
+      "type": "object"
+    },
+    "TitlePageInfo": {
+      "properties": {
+        "student_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ФИО студента с титульного листа, как написано",
+          "title": "Student Name"
+        },
+        "matches_registration": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Совпадает ли фамилия с зарегистрированной; null — сравнить не с чем",
+          "title": "Matches Registration"
+        }
+      },
+      "title": "TitlePageInfo",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema",
+      "type": "integer"
+    },
+    "phase": {
+      "enum": [
+        "format",
+        "content"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileInfo"
+    },
+    "summary": {
+      "$ref": "#/$defs/Summary"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/RequirementStatus"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "document": {
+      "$ref": "#/$defs/DocumentInfo"
+    },
+    "pipeline": {
+      "$ref": "#/$defs/Pipeline"
+    }
+  },
+  "required": [
+    "phase",
+    "profile",
+    "summary",
+    "document",
+    "pipeline"
+  ],
+  "type": "object"
+}

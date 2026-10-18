@@ -1,0 +1,152 @@
+{
+  "schema": 2,
+  "phase": "content",
+  "profile": {
+    "id": "base",
+    "title": "Базовые требования к оформлению",
+    "is_default": true
+  },
+  "summary": {
+    "passed": true,
+    "blocking": 0,
+    "findings": 1,
+    "by_category": {
+      "content": 1
+    },
+    "by_severity": {
+      "major": 1
+    },
+    "needs_teacher_review": 0,
+    "content_checked": true
+  },
+  "findings": [
+    {
+      "id": "f-001",
+      "requirement_id": "CNT-CONSIST-002",
+      "category": "content",
+      "status": "violated",
+      "severity": "major",
+      "origin": "hybrid",
+      "confidence": 1.0,
+      "needs_teacher_review": false,
+      "blocking": false,
+      "title": "Согласованность перечней",
+      "message": "«Форматы входных файлов»: перечни в разных частях записки не совпадают.",
+      "expected": "Одинаковый перечень во всех разделах.",
+      "found": "Введение: DOCX, PDF; подраздел 1.2: PDF.",
+      "evidence": [
+        {
+          "page": 3,
+          "quote": "Система принимает файлы в форматах DOCX и PDF",
+          "block_id": "b-0028",
+          "section": "Введение"
+        },
+        {
+          "page": 4,
+          "quote": "Входные данные системы — только файл пояснительной записки в формате PDF",
+          "block_id": "b-0038",
+          "section": "1.2"
+        }
+      ],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      },
+      "fix": "Приведите описание к одному варианту.",
+      "page": "3–4",
+      "location": "Страницы: 3–4",
+      "rule": "Одинаковый перечень во всех разделах.",
+      "context": "Система принимает файлы в форматах DOCX и PDF | Входные данные системы — только файл пояснительной записки в формате PDF"
+    }
+  ],
+  "requirements": [],
+  "document": {
+    "pages": 8,
+    "sha256": "…",
+    "source_format": "pdf",
+    "main_font": "AAAAAA+TimesNewRomanPSMT",
+    "main_size": 14.0,
+    "title_page": {
+      "student_name": "И.И. Иванов",
+      "matches_registration": true
+    }
+  },
+  "pipeline": {
+    "mode": "hybrid",
+    "worker_version": "2.0.0",
+    "kb_version": "2026.10.18+bb2be05b",
+    "models": [
+      {
+        "role": "layout",
+        "name": "rule-labeler",
+        "version": "1",
+        "cloud": false
+      },
+      {
+        "role": "llm",
+        "name": "qwen3.5:4b",
+        "provider": "ollama",
+        "cloud": false,
+        "quantization": "Q4_K_M"
+      }
+    ],
+    "prompts": [
+      {
+        "id": "claims",
+        "version": "1"
+      }
+    ],
+    "stages": [
+      {
+        "stage": "extract",
+        "status": "done"
+      },
+      {
+        "stage": "structure",
+        "status": "done"
+      },
+      {
+        "stage": "format",
+        "status": "done"
+      },
+      {
+        "stage": "claims",
+        "status": "done"
+      },
+      {
+        "stage": "reasoning",
+        "status": "done"
+      },
+      {
+        "stage": "report",
+        "status": "done"
+      }
+    ],
+    "skipped": [],
+    "warnings": [
+      {
+        "code": "DEFAULT_PROFILE",
+        "message": "Вид работы, семестр и этап не указаны — применены базовые требования к оформлению; требования семестра не проверялись."
+      }
+    ],
+    "metrics": {
+      "blocks": 63,
+      "claims_accepted": 6,
+      "claims_extracted": 7,
+      "claims_fragments": 6,
+      "claims_fragments_failed": 0,
+      "claims_hallucinated_quote_share": 0.143,
+      "claims_rejected_quote": 1,
+      "claims_rejected_value": 0,
+      "content_chars_dropped": 0,
+      "content_fragments": 6,
+      "llm_cache_hits": 0,
+      "llm_calls": 6,
+      "llm_errors": 0,
+      "llm_schema_failures": 0,
+      "llm_schema_retries": 0,
+      "pages": 8,
+      "reasoning_firings": 1,
+      "sections": 10
+    }
+  }
+}

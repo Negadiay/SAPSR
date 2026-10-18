@@ -1,0 +1,192 @@
+# Словарь понятий предметной области — единая система идентификаторов (план, З3, шаг 4).
+# На эти идентификаторы ссылаются правила (kb/rules), профили (kb/profiles),
+# требования семестра (kb/requirements) и подсказки языковой модели (kb/prompts).
+#
+# Все шаблоны — регулярные выражения Python; сравниваются с текстом в нижнем регистре,
+# «ё» заменена на «е», латинские двойники кириллицы исправлены.
+
+version: "2026.10.18"
+
+# Части пояснительной записки. Порядок важен: раздел получает первую подошедшую часть.
+doc_parts:
+  - id: part.title_page
+    title: Титульный лист
+    page_patterns: ["министерство", "белорусский", "кафедра"]
+
+  - id: part.toc
+    title: Содержание
+    structural_titles: ["содержание", "оглавление"]
+    heading_patterns: ["^содержание$", "^оглавление$"]
+
+  - id: part.abstract
+    title: Реферат
+    structural_titles: ["реферат"]
+    heading_patterns: ["^реферат$"]
+
+  - id: part.definitions
+    title: Перечень условных обозначений
+    structural_titles:
+      - "перечень условных обозначений(,? символов)?( и (сокращений|терминов))?"
+      - "перечень (сокращений|терминов)( и обозначений)?"
+      - "список (сокращений|терминов)( и обозначений)?"
+      - "(термины и )?определения(,? обозначения и сокращения)?"
+      - "обозначения и сокращения"
+    heading_patterns: ["условных обозначений", "сокращени", "^определения", "^термины и определения"]
+
+  - id: part.intro
+    title: Введение
+    structural_titles: ["введение"]
+    heading_patterns: ["^введение$"]
+
+  - id: part.conclusion
+    title: Заключение
+    structural_titles: ["заключение"]
+    heading_patterns: ["^заключение$"]
+
+  - id: part.references
+    title: Список использованных источников
+    structural_titles:
+      - "(с|c)писок\\s+(использованн(ых|ой)|используемых)\\s+(источников|литературы)"
+      - "(с|c)писок\\s+литературы"
+      - "библиографический\\s+список"
+    heading_patterns:
+      - "(с|c)писок\\s+(использованн(ых|ой)|используемых)\\s+(источников|литературы)"
+      - "(с|c)писок\\s+литературы"
+      - "библиографическ"
+
+  - id: part.appendix
+    title: Приложение
+    structural_titles: ["приложение\\s+[а-яa-z](\\s*\\((обязательное|справочное|рекомендуемое)\\))?"]
+    heading_patterns: ["^приложение\\b"]
+
+  # Содержательные части — по ключевым словам в заголовке раздела.
+  - id: part.requirements
+    title: Требования
+    heading_patterns: ["требовани", "постановка задачи", "техническое задание", "спецификаци"]
+
+  - id: part.testing
+    title: Тестирование и оценка
+    heading_patterns: ["тестировани", "испытани", "апробаци", "оценка эффективности", "экспериментальн"]
+
+  - id: part.implementation
+    title: Реализация
+    heading_patterns: ["реализаци", "разработка программ", "программная разработка"]
+
+  - id: part.architecture
+    title: Проектирование и архитектура
+    heading_patterns: ["архитектур", "проектировани", "структура системы", "модель системы", "разработка структуры"]
+
+  - id: part.analysis
+    title: Анализ предметной области
+    heading_patterns: ["анализ", "обзор", "предметн", "аналог"]
+
+# Атрибуты описываемой системы и работы. Языковая модель заполняет только их (план, З4);
+# значения сводятся к идентификаторам по синонимам — это шаг 3, символьная нормализация.
+#
+# cardinality:
+#   single — у системы одно значение (противоречие: разные значения в разных разделах);
+#   multi  — множество значений (противоречие: разные полные перечни);
+#   text   — свободный текст, противоречия правилами не ищутся.
+attributes:
+  - id: system.input_formats
+    title: Форматы входных файлов
+    description: форматы файлов, которые система принимает на вход от пользователя
+    cardinality: multi
+    values:
+      - { id: PDF, synonyms: ["\\bpdf\\b", "пдф"] }
+      - { id: DOCX, synonyms: ["\\bdocx\\b", "\\bword\\b", "\\bворд"] }
+      - { id: DOC, synonyms: ["\\bdoc\\b"] }
+      - { id: ODT, synonyms: ["\\bodt\\b", "openoffice", "libreoffice"] }
+      - { id: RTF, synonyms: ["\\brtf\\b"] }
+      - { id: TXT, synonyms: ["\\btxt\\b", "простой текст", "текстов\\w* файл"] }
+      - { id: LATEX, synonyms: ["latex", "\\btex\\b", "латех"] }
+      - { id: HTML, synonyms: ["\\bhtml?\\b"] }
+      - { id: MARKDOWN, synonyms: ["markdown", "\\bmd\\b"] }
+      - { id: IMAGE, synonyms: ["\\bjpe?g\\b", "\\bpng\\b", "изображени", "скан"] }
+
+  - id: system.kb_representation
+    title: Представление базы знаний
+    description: как в системе хранятся знания и правила (одно основное представление)
+    cardinality: single
+    values:
+      - { id: ontology, title: "онтология", synonyms: ["онтологи", "\\bowl\\b", "\\brdf\\b"] }
+      - { id: semantic_network, title: "семантическая сеть", synonyms: ["семантическ\\w* сет"] }
+      - { id: knowledge_graph, title: "граф знаний", synonyms: ["граф\\w* знаний", "knowledge graph"] }
+      - { id: production_rules, title: "продукционные правила", synonyms: ["продукционн", "правил\\w* вида", "если.{0,40}\\bто\\b"] }
+      - { id: frames, title: "фреймы", synonyms: ["фрейм"] }
+      - { id: config_file, title: "конфигурационный файл", synonyms: ["конфигурационн", "файл\\w* настро", "\\byaml\\b", "\\bjson\\b", "\\bini\\b", "\\btoml\\b"] }
+      - { id: relational_db, title: "реляционная база данных", synonyms: ["реляционн", "postgresql", "mysql", "sqlite", "таблиц\\w* баз"] }
+      - { id: source_code, title: "исходный код", synonyms: ["в коде", "в исходном коде", "зашит"] }
+
+  - id: system.solver_type
+    title: Механизм вывода
+    description: чем система выводит решение из знаний
+    cardinality: multi
+    values:
+      - { id: production_inference, title: "продукционный вывод", synonyms: ["продукционн\\w* вывод", "машин\\w* (логического )?вывода", "\\bclips\\b", "experta", "drools", "прям\\w* вывод", "обратн\\w* вывод"] }
+      - { id: logic_programming, title: "логическое программирование", synonyms: ["prolog", "пролог", "datalog"] }
+      - { id: neural_network, title: "нейронная сеть", synonyms: ["нейросет", "нейронн\\w* сет", "языков\\w* модел", "\\bllm\\b", "трансформер"] }
+      - { id: case_based, title: "вывод по прецедентам", synonyms: ["прецедент"] }
+      - { id: procedural, title: "процедурные алгоритмы", synonyms: ["процедурн", "алгоритмическ", "регулярн\\w* выражени"] }
+
+  - id: system.neural_component
+    title: Нейросетевой компонент
+    description: какая нейросетевая или статистическая модель участвует в решении задачи
+    cardinality: multi
+    # Заявлен в одной части записки — должен быть описан в проектировании или реализации (дефект 3 из записки).
+    must_be_described_in: [part.architecture, part.implementation]
+    values:
+      - { id: llm, title: "языковая модель", synonyms: ["языков\\w* модел", "\\bllm\\b", "\\bgpt", "qwen", "llama", "gemma", "t-lite", "gigachat", "yandexgpt"] }
+      - { id: layout_model, title: "модель разметки документа", synonyms: ["разметк\\w* (макета|блоков|структур|документ)", "модел\\w* разметки", "docling", "\\blayout\\b", "распознавани\\w* структур"] }
+      - { id: classifier, title: "классификатор", synonyms: ["классификатор", "бустинг", "catboost", "lightgbm", "xgboost"] }
+      - { id: embeddings, title: "векторные представления", synonyms: ["эмбеддинг", "векторн\\w* представлени", "embedding"] }
+      - { id: nli, title: "модель логического следования", synonyms: ["\\bnli\\b", "логическ\\w* следовани"] }
+      - { id: ocr, title: "распознавание текста", synonyms: ["\\bocr\\b", "распознавани\\w* текст"] }
+      - { id: neural_network, title: "нейронная сеть", synonyms: ["нейросет", "нейронн\\w* сет", "нейросетев"] }
+
+  - id: system.interface_type
+    title: Интерфейс пользователя
+    description: через какой интерфейс пользователь работает с системой
+    cardinality: multi
+    values:
+      - { id: telegram, title: "Telegram", synonyms: ["telegram", "телеграм", "mini app", "мини-приложени"] }
+      - { id: web, title: "веб-интерфейс", synonyms: ["\\bweb\\b", "\\bвеб", "браузер", "сайт"] }
+      - { id: desktop, title: "настольное приложение", synonyms: ["десктоп", "настольн", "desktop"] }
+      - { id: mobile, title: "мобильное приложение", synonyms: ["мобильн", "android", "\\bios\\b"] }
+      - { id: cli, title: "командная строка", synonyms: ["командн\\w* строк", "консол", "\\bcli\\b"] }
+      - { id: rest_api, title: "REST API", synonyms: ["\\brest\\b", "\\bapi\\b", "программн\\w* интерфейс"] }
+
+  - id: system.languages
+    title: Языки программирования
+    description: на каких языках программирования реализована система
+    cardinality: multi
+    values:
+      - { id: python, title: "Python", synonyms: ["python", "питон"] }
+      - { id: java, title: "Java", synonyms: ["\\bjava\\b"] }
+      - { id: javascript, title: "JavaScript", synonyms: ["javascript", "\\bjs\\b"] }
+      - { id: typescript, title: "TypeScript", synonyms: ["typescript", "\\bts\\b"] }
+      - { id: cpp, title: "C++", synonyms: ["c\\+\\+", "\\bcpp\\b"] }
+      - { id: csharp, title: "C#", synonyms: ["c#", "c sharp"] }
+      - { id: kotlin, title: "Kotlin", synonyms: ["kotlin"] }
+      - { id: go, title: "Go", synonyms: ["golang", "\\bgo\\b"] }
+
+  - id: system.users
+    title: Пользователи системы
+    description: кто работает с системой
+    cardinality: multi
+    values:
+      - { id: student, title: "студент", synonyms: ["студент"] }
+      - { id: teacher, title: "преподаватель", synonyms: ["преподавател"] }
+      - { id: admin, title: "администратор", synonyms: ["администратор"] }
+      - { id: methodologist, title: "методист", synonyms: ["методист"] }
+      - { id: norm_controller, title: "нормоконтролёр", synonyms: ["нормоконтрол"] }
+
+  - id: work.goal
+    title: Цель работы
+    description: цель курсовой работы или проекта, как она сформулирована в тексте
+    cardinality: text
+
+  - id: work.tasks
+    title: Задачи работы
+    description: задачи, которые решаются для достижения цели
+    cardinality: text

@@ -1,0 +1,50 @@
+{
+  "_comment": "Ожидаемые результаты для документов этой папки (generate.py). Режим hybrid, ИИС — справочник с вымышленными Сидоренко С.С. и Петровым П.П. и кодом 6-05-0611-03, модель — сценарная заглушка worker-python/tests/scripted_llm.py. Сверяет worker-python/tests/test_fixtures_expected.py.",
+  "content-formats.pdf": {
+    "group": "typical",
+    "scenario": "Дефект 1 из записки: DOCX и PDF во введении, только PDF в требованиях",
+    "passed": true,
+    "findings": ["CNT-CONSIST-002"]
+  },
+  "content-kb.pdf": {
+    "group": "typical",
+    "scenario": "Дефект 2: онтология во введении, конфигурационный файл в реализации",
+    "passed": true,
+    "findings": ["CNT-CONSIST-001"]
+  },
+  "content-neural.pdf": {
+    "group": "typical",
+    "scenario": "Дефект 3: нейросетевой компонент заявлен, но не описан в проектировании и реализации",
+    "passed": true,
+    "findings": ["CNT-SUPPORT-001"]
+  },
+  "content-clean.pdf": {
+    "group": "negative",
+    "scenario": "Согласованная записка — содержательных замечаний нет",
+    "passed": true,
+    "findings": []
+  },
+  "hidden-text.pdf": {
+    "group": "negative",
+    "scenario": "Белая инструкция для модели и микроскопический текст — вырезаны из входа модели, замечание преподавателю",
+    "passed": true,
+    "findings": ["INT-HIDDEN-TEXT"]
+  },
+  "narrow-margin.pdf": {
+    "group": "boundary",
+    "scenario": "Левое поле 15 мм на страницах 2–8",
+    "passed": true,
+    "findings": ["FMT-MARGIN-LEFT"]
+  },
+  "scan-no-text.pdf": {
+    "group": "negative",
+    "scenario": "Скан без текстового слоя",
+    "passed": false,
+    "findings": ["DOC-NO-TEXT"]
+  },
+  "encrypted.pdf": {
+    "group": "negative",
+    "scenario": "PDF с паролем",
+    "failure": "PDF_ENCRYPTED"
+  }
+}

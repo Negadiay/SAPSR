@@ -1,0 +1,125 @@
+{
+  "schema": 2,
+  "phase": "format",
+  "profile": {
+    "id": "sem7",
+    "title": "7-й семестр — курсовой проект по гибридной интеллектуальной системе",
+    "work_type": "course_project",
+    "semester": 7,
+    "stage": 2,
+    "is_default": false
+  },
+  "summary": {
+    "passed": true,
+    "blocking": 0,
+    "findings": 1,
+    "by_category": {
+      "format": 1
+    },
+    "by_severity": {
+      "minor": 1
+    },
+    "needs_teacher_review": 0,
+    "content_checked": false
+  },
+  "findings": [
+    {
+      "id": "f-001",
+      "requirement_id": "FMT-MARGIN-LEFT",
+      "category": "format",
+      "status": "violated",
+      "severity": "minor",
+      "origin": "symbolic",
+      "needs_teacher_review": false,
+      "blocking": false,
+      "title": "Левое поле",
+      "message": "Нарушено левое поле страницы.",
+      "expected": "Левое поле должно быть 30 мм.",
+      "found": "Наименьшее левое поле — 15.0 мм; страниц с нарушением: 7.",
+      "evidence": [
+        {
+          "page": 2
+        },
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        },
+        {
+          "page": 5
+        },
+        {
+          "page": 6
+        },
+        {
+          "page": 7
+        },
+        {
+          "page": 8
+        }
+      ],
+      "source": {
+        "doc": "СТП 01-2024"
+      },
+      "fix": "Установите левое поле 30 мм: \\geometry{left=3cm} в LaTeX или «Макет → Поля» в Word.",
+      "page": "2–8",
+      "location": "Страницы: 2–8",
+      "rule": "Левое поле должно быть 30 мм."
+    }
+  ],
+  "requirements": [],
+  "document": {
+    "pages": 8,
+    "sha256": "…",
+    "source_format": "pdf",
+    "main_font": "AAAAAA+TimesNewRomanPSMT",
+    "main_size": 14.0,
+    "title_page": {
+      "student_name": "И.И. Иванов",
+      "matches_registration": true
+    }
+  },
+  "pipeline": {
+    "mode": "hybrid",
+    "worker_version": "2.0.0",
+    "kb_version": "2026.10.18+bb2be05b",
+    "models": [
+      {
+        "role": "layout",
+        "name": "rule-labeler",
+        "version": "1",
+        "cloud": false
+      },
+      {
+        "role": "llm",
+        "name": "qwen3.5:4b",
+        "provider": "ollama",
+        "cloud": false,
+        "quantization": "Q4_K_M"
+      }
+    ],
+    "prompts": [],
+    "stages": [
+      {
+        "stage": "extract",
+        "status": "done"
+      },
+      {
+        "stage": "structure",
+        "status": "done"
+      },
+      {
+        "stage": "format",
+        "status": "done"
+      }
+    ],
+    "skipped": [],
+    "warnings": [],
+    "metrics": {
+      "blocks": 63,
+      "pages": 8,
+      "sections": 10
+    }
+  }
+}

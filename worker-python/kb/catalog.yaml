@@ -1,0 +1,16 @@
+# Каталог базы знаний SAPSR. Версия каталога попадает в отчёт (pipeline.kb_version)
+# вместе с хэшем содержимого всех файлов kb/ — по ней видно, какими правилами проверена работа.
+version: "2026.10.18"
+title: База знаний нормоконтроля и содержательной проверки SAPSR
+base_profile: base
+
+# Действующие версии подсказок языковой модели (kb/prompts/<id>.v<номер>.md).
+prompts:
+  claims: claims.v1
+  requirements: requirements.v1
+  neural: neural.v1
+
+# Продукционные правила CLIPS над утверждениями и свидетельствами.
+reasoning:
+  - claims.clp
+  - requirements.clp
