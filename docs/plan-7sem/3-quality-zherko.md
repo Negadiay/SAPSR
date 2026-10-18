@@ -77,7 +77,7 @@ Mini App (React) ──REST──► Backend (Spring Boot) ──► PostgreSQL
 
 ## 2. Что сейчас в коде
 
-- **Тесты:** один — `BackendApplicationTests` (пустая проверка, что контекст поднимается). В `test-fixtures` два PDF и генератор эталонного образца.
+- **Тесты:** в бэкенде — модульные тесты хранилища, задания и загрузки и тесты миграций на Testcontainers (добавлены 18.10.2026, см. ниже) плюс `BackendApplicationTests` — его запускать нельзя. Во фронте — Vitest. В `test-fixtures` два PDF и генератор эталонного образца.
 - **Логи:** `System.out.println` и `e.printStackTrace()` в бэкенде, `print` в обработчике. `spring.jpa.show-sql=true`. Связать запрос в бэкенде с его обработкой в Python нечем.
 - **Ошибки:** общего обработчика исключений нет; в `main.py` анализ не обёрнут в `try/except` — исключение роняет обработчик, сообщение возвращается в очередь и роняет его снова после перезапуска.
 - **Запуск:** `start-docker.bat` поднимает всё через Docker Compose: база, очередь, бэкенд, обработчик, интерфейс (nginx) и ngrok с закреплённым адресом. Осталось: пароли базы и очереди зашиты в `docker-compose.yml` и `worker-python/main.py`, порты базы и очереди открыты на всех интерфейсах, в репозитории лежит `cloudflared.exe`, в `docker-entrypoint.sh` остался код ожидания туннеля Cloudflare, Ollama в составе нет.
@@ -85,6 +85,21 @@ Mini App (React) ──REST──► Backend (Spring Boot) ──► PostgreSQL
 - **CI:** только выкладка фронтенда на GitHub Pages (`.github/workflows/static.yml`).
 
 Про безопасность — отдельный список в задаче Ж5.
+
+### Что уже сделано у Котко (18.10.2026) и как это учесть
+
+- **Testcontainers в бэкенде уже подключены** (`pom.xml`: `testcontainers-postgresql`, `testcontainers-junit-jupiter`, `spring-boot-testcontainers`, `spring-boot-starter-data-jpa-test`). Образец — `FreshDatabaseMigrationTest` и `LegacyDatabaseMigrationTest`: `@DataJpaTest` + `@ServiceConnection`, без Docker тест пропускается (`disabledWithoutDocker`). RabbitMQ подключается так же, модулем `testcontainers-rabbitmq`.
+- **`BackendApplicationTests` опасен:** поднимает бота с настоящим токеном из локального `application.properties`, а `StartupNotificationService` при старте рассылает сообщение всем пользователям базы. В README он исключён из всех команд. Починить в Ж1: тестовый профиль с фальшивым токеном и исключённой автоконфигурацией `TelegramBotStarterConfiguration`, потом — заглушка `Notifier` (К6). Так уже проходил сквозной прогон: jar с `application.properties.example`, фальшивым токеном и `--spring.autoconfigure.exclude=org.telegram.telegrambots.longpolling.starter.TelegramBotStarterConfiguration` — готовая основа для тестового профиля Compose (Ж2).
+- **Контрактные тесты.** Примеры сообщений лежат файлами в `docs/contracts/examples/queue-v2/`; `TaskMessageTest` уже сверяет задание с `task.json`. JSON Schema удобно строить по этим же файлам — тогда pytest и JUnit проверяют одно и то же.
+- **`trace_id`** уже создаётся при загрузке, хранится в `submissions.trace_id` и едет в задании. Когда появится фильтр с MDC (Ж4), пусть загрузка берёт `trace_id` из MDC, а не генерирует свой — это одна строка в `UploadController.uploadFile`. Из лога загрузки ФИО уже убраны.
+- **Схему базы создаёт Flyway** при старте бэкенда; `init.sql` и его монтирование в Compose убраны. Тестовые данные — локальный `dev-seed.sql` (в `.gitignore`, образец — `dev-seed.example.sql`); загружается после первого старта бэкенда. Учесть в профиле `dev` (Ж6).
+- **Хранилище.** Файлы лежат в общем томе `storage` по ключу `<год>/<месяц>/<UUID>.pdf`; корень у бэкенда — настройка `sapsr.storage.root`. Когда обработчик перейдёт на ключи, ему понадобится `SAPSR_STORAGE_ROOT=/app/storage` в `docker-compose.yml`.
+- **Безопасность (Ж5):**
+  - пункт 1 закрыт: имя файла не попадает ни на диск, ни в сообщение, ключ проверяется на выход за корень хранилища — модульные тесты есть в `LocalFileStorageTest`, отрицательный тест через API — за тобой;
+  - пункт 14 — удаление при отзыве сделано, очистка по сроку — задача 7.1;
+  - пункт 2 (проверка типа файла) не сделан.
+- **Очередь недоставленных** — в протоколе предложено подключать её политикой RabbitMQ, а не аргументами очереди (`queue-v2.md`, раздел 7): аргументы уже объявленной очереди менять нельзя, а объявляют её оба сервиса.
+- **Корпус.** `valid-format-sample.pdf` сейчас отклоняется: проверки титульного листа не находят вымышленные ФИО в ИИС. Эталон обновить вместе с Бузычковым.
 
 ## 3. Задачи
 
@@ -291,7 +306,7 @@ GitHub Actions, отдельный файл рядом с существующи
 
 | От кого | Что нужно тебе | Когда |
 |---|---|---|
-| Котко | настраиваемые адреса ИИС и Telegram, `Notifier`; протокол очередей v2; `POST /client-log` | этап 0–1 |
+| Котко | настраиваемые адреса ИИС и Telegram, `Notifier`; ✅ черновик протокола очередей v2 (`docs/contracts/queue-v2.md`, ждёт твоего согласования); `POST /client-log` | этап 0–1 |
 | Бузычков | схема отчёта v2; режимы клиента модели `stub/replay/live`; режимы ядра для сравнения; участие в разметке корпуса | этап 0–1 |
 | Халилов | атрибуты `data-testid` на ключевых элементах | этап 1–2 |
 
