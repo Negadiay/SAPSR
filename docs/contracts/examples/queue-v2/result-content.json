@@ -1,0 +1,41 @@
+{
+  "schema": 2,
+  "task_id": 153,
+  "phase": "content",
+  "passed": true,
+  "final": true,
+  "report": {
+    "schema": 2,
+    "findings": [
+      {
+        "id": "f-003",
+        "requirement_id": "FMT-MARGIN-LEFT",
+        "category": "format",
+        "severity": "major",
+        "origin": "symbolic",
+        "blocking": false,
+        "message": "Левое поле меньше допустимого.",
+        "evidence": [ { "page": 4 } ],
+        "fix": "Установите левое поле 30 мм."
+      },
+      {
+        "id": "f-017",
+        "requirement_id": "CNT-CONSIST-001",
+        "category": "content",
+        "severity": "major",
+        "origin": "hybrid",
+        "confidence": 0.82,
+        "needs_teacher_review": false,
+        "blocking": false,
+        "message": "Форматы входных файлов описаны по-разному.",
+        "evidence": [
+          { "quote": "Система принимает файлы в форматах DOCX и PDF", "page": 4, "block_id": "b-0412", "section": "Введение" },
+          { "quote": "Входные данные — файл в формате PDF", "page": 17, "block_id": "b-1630", "section": "1.5" }
+        ],
+        "fix": "Приведите описание к одному варианту."
+      }
+    ],
+    "pipeline": { "skipped": [] }
+  },
+  "trace_id": "4b1e0c7a-2f3d-4a5b-8c6d-7e8f9a0b1c2d"
+}

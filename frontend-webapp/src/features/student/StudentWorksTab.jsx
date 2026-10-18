@@ -1,20 +1,27 @@
 import { downloadReport } from '../../api/submissions';
 import { groupByFileName } from '../../lib/submissions';
 
+// QUEUED и FAILED сервер начнёт отдавать вместе с протоколом очередей v2 (docs/contracts/queue-v2.md, раздел 6).
 const iterationMark = (submission) => {
-  if (submission.status === 'PROCESSING') return '⏳';
+  if (submission.status === 'QUEUED' || submission.status === 'PROCESSING') return '⏳';
   if (submission.status === 'REJECTED') return '❌';
+  if (submission.status === 'FAILED') return '⚠️';
   if (submission.teacher_verdict === 'REVISION') return '🔄';
   if (submission.status === 'SUCCESS') return '✅';
   return '•';
 };
 
 const autoStatusLabel = (s) => {
+  if (s === 'QUEUED')     return '⏳ В очереди на проверку';
   if (s === 'PROCESSING') return '⏳ На авто-проверке';
   if (s === 'SUCCESS')    return '✅ Оформление ОК';
   if (s === 'REJECTED')   return '❌ Ошибки оформления';
+  if (s === 'FAILED')     return '⚠️ Проверка не удалась — загрузите работу снова';
   return s;
 };
+
+// Отчёт есть только у проверенных работ: у работы в очереди или со сбоем проверки его нет.
+const hasReport = (s) => s === 'SUCCESS' || s === 'REJECTED';
 
 const verdictLabel = (v) => {
   if (v === 'APPROVED') return '✅ Принято преподавателем';
@@ -36,7 +43,7 @@ export default function StudentWorksTab({ works }) {
           const s = group.latest;
           const timeline = [...group.items].reverse();
           return (
-            <div key={group.key} className={`notif-line notif-line-stacked ${s.status === 'REJECTED' ? 'notif-error' : ''} ${s.status === 'SUCCESS' ? 'notif-success' : ''}`}>
+            <div key={group.key} className={`notif-line notif-line-stacked ${s.status === 'REJECTED' || s.status === 'FAILED' ? 'notif-error' : ''} ${s.status === 'SUCCESS' ? 'notif-success' : ''}`}>
               <div className="notif-row-main">
                 <div className="notif-info">
                   <div className="notif-file-subject"><b>{group.fileName}</b></div>
@@ -57,7 +64,7 @@ export default function StudentWorksTab({ works }) {
                   {s.teacher_comment && <div className="notif-comment">💬 {s.teacher_comment}</div>}
                 </div>
                 <div className="notif-btn-group">
-                  {s.status !== 'PROCESSING' && (
+                  {hasReport(s.status) && (
                     <button className="download-btn" title="Скачать отчёт" onClick={() => downloadReport(s.id)}>📥</button>
                   )}
                   {s.status === 'SUCCESS' && !s.teacher_verdict && (

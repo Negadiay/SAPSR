@@ -14,10 +14,12 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.sapsr.backend.SapsrTelegramBot;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.messaging.TaskMessage;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.service.BsuirApiService;
 import com.sapsr.backend.service.EmailVerificationService;
+import com.sapsr.backend.storage.FileStorage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,9 +33,7 @@ import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
 @RequestMapping("/api/v1")
 public class UploadController {
 
-    private final String UPLOAD_DIR = "../storage/";
+    private static final Pattern WORK_TYPE_PATTERN = Pattern.compile("[a-z_]{1,32}");
 
     private final RabbitTemplate rabbitTemplate;
     private final SubmissionRepository submissionRepository;
@@ -51,6 +51,7 @@ public class UploadController {
     private final EmailVerificationService emailVerificationService;
     private final BsuirApiService bsuirApiService;
     private final SapsrTelegramBot bot;
+    private final FileStorage fileStorage;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
@@ -60,13 +61,15 @@ public class UploadController {
                             UserRepository userRepository,
                             EmailVerificationService emailVerificationService,
                             BsuirApiService bsuirApiService,
-                            SapsrTelegramBot bot) {
+                            SapsrTelegramBot bot,
+                            FileStorage fileStorage) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.emailVerificationService = emailVerificationService;
         this.bsuirApiService = bsuirApiService;
         this.bot = bot;
+        this.fileStorage = fileStorage;
     }
 
     @GetMapping("/me")
@@ -106,6 +109,7 @@ public class UploadController {
             return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
         }
 
+        String groupNumber = null;
         if ("STUDENT".equals(role)) {
             if (!fullName.matches("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ]\\.[А-ЯЁ]\\. \\(гр\\. \\d{6}\\)$")) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Укажите ФИО и группу в формате: Иванов И.И., 123456"));
@@ -114,7 +118,7 @@ public class UploadController {
             if (!groupMatcher.find()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Укажите номер группы в формате: Иванов И.И., 123456"));
             }
-            String groupNumber = groupMatcher.group(1);
+            groupNumber = groupMatcher.group(1);
             if (!bsuirApiService.groupExists(groupNumber)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Группа " + groupNumber + " не найдена в IIS БГУИР"));
             }
@@ -159,6 +163,7 @@ public class UploadController {
         user.setTelegramId(telegramId);
         user.setRole(role);
         user.setFullName(fullName);
+        setNameParts(user, fullName, groupNumber);
         if (email != null) user.setEmail(email);
         if (urlIdToSave != null) {
             user.setUrlId(urlIdToSave);
@@ -181,6 +186,21 @@ public class UploadController {
         ));
     }
 
+    /**
+     * Раскладывает ФИО по полям пользователя — так же, как миграция V2 для уже зарегистрированных.
+     * Студент пока вводит «Иванов И.И.»: известна только фамилия, имя и отчество остаются пустыми.
+     * У преподавателя ФИО из ИИС полное: «Фамилия Имя Отчество».
+     */
+    static void setNameParts(User user, String fullName, String groupNumber) {
+        String[] parts = fullName.strip().split("\\s+");
+        boolean initialsOnly = parts.length < 2 || parts[1].contains(".");
+        user.setLastName(parts[0].isEmpty() ? null : parts[0]);
+        user.setFirstName(initialsOnly ? null : parts[1]);
+        user.setMiddleName(initialsOnly || parts.length < 3
+                ? null : String.join(" ", Arrays.copyOfRange(parts, 2, parts.length)));
+        user.setGroupNumber(groupNumber);
+    }
+
     @GetMapping("/submissions")
     public ResponseEntity<?> getSubmissions(HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
@@ -199,16 +219,7 @@ public class UploadController {
             item.put("format_errors", s.getFormatErrors());
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
-
-            String fp = s.getFilePath();
-            if (fp != null) {
-                String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
-                name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
-                if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
-                item.put("file_name", name);
-            } else {
-                item.put("file_name", "file.pdf");
-            }
+            item.put("file_name", s.displayFileName());
             result.add(item);
         }
 
@@ -236,7 +247,18 @@ public class UploadController {
         }
 
         submissionRepository.deleteById(id);
+        deleteStoredFile(s);
         return ResponseEntity.ok(Map.of("status", "OK"));
+    }
+
+    // Файл удаляется вместе с записью (решение 7). Если удалить не вышло, работа всё равно считается отозванной.
+    private void deleteStoredFile(Submission s) {
+        if (s.getStorageKey() == null) return;
+        try {
+            fileStorage.delete(s.getStorageKey());
+        } catch (IOException | IllegalArgumentException e) {
+            System.err.println("[WITHDRAW] Не удалось удалить файл работы #" + s.getId() + ": " + e.getMessage());
+        }
     }
 
     @GetMapping("/submissions/{id}/report")
@@ -292,10 +314,7 @@ public class UploadController {
 
         String studentName = (s.getStudent() != null && s.getStudent().getFullName() != null)
                 ? s.getStudent().getFullName() : "—";
-        String fp = s.getFilePath();
-        String fileName = fp != null ? fp.replace('\\', '/') : "file.pdf";
-        fileName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
-        if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
+        String fileName = s.displayFileName();
 
         boolean isSuccess = "SUCCESS".equals(s.getStatus());
 
@@ -505,55 +524,66 @@ public class UploadController {
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
                                         @RequestParam(value = "teacher_id", required = false) Long teacherId,
+                                        @RequestParam(value = "work_type", required = false) String workType,
+                                        @RequestParam(value = "semester", required = false) Integer semester,
+                                        @RequestParam(value = "stage", required = false) Integer stage,
                                         HttpServletRequest request) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой!"));
         }
+        // Профиль проверки необязателен: без него обработчик применяет базовый профиль.
+        if (workType != null && !WORK_TYPE_PATTERN.matcher(workType).matches()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Неизвестный вид работы"));
+        }
+        if (semester != null && (semester < 1 || semester > 12)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Семестр должен быть от 1 до 12"));
+        }
+        if (stage != null && (stage < 1 || stage > 3)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Этап опроцентовки должен быть от 1 до 3"));
+        }
 
-        try {
-            File directory = new File(UPLOAD_DIR);
-            if (!directory.exists()) {
-                directory.mkdirs();
-            }
-
-            String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = Paths.get(UPLOAD_DIR + fileName);
-            Files.write(filePath, file.getBytes());
-
-            Submission submission = new Submission();
-            submission.setFilePath(filePath.toAbsolutePath().toString());
-            submission.setStatus("PROCESSING");
-
-            Long telegramId = (Long) request.getAttribute("telegram_id");
-            if (telegramId != null) {
-                Optional<User> student = userRepository.findById(telegramId);
-                student.ifPresent(submission::setStudent);
-            }
-
-            if (teacherId != null) {
-                Optional<User> teacher = userRepository.findById(teacherId);
-                teacher.ifPresent(submission::setTeacher);
-            }
-
-            Submission savedSubmission = submissionRepository.save(submission);
-
-            String jsonMessage = String.format(
-                    "{\"task_id\": %d, \"file_path\": \"%s\", \"status\": \"PROCESSING\"}",
-                    savedSubmission.getId(),
-                    filePath.toAbsolutePath().toString().replace("\\", "/"));
-
-            rabbitTemplate.convertAndSend(tasksQueue, jsonMessage);
-            System.out.println("Отправлено задание Питону: " + jsonMessage);
-
-            return ResponseEntity.ok(Map.of(
-                    "status", "SUCCESS",
-                    "message", "Файл успешно загружен в систему SAPSR!",
-                    "db_id", savedSubmission.getId()
-            ));
-
+        // На диск файл попадает под сгенерированным ключом; имя от пользователя — только в базу.
+        FileStorage.StoredFile stored;
+        try (InputStream content = file.getInputStream()) {
+            stored = fileStorage.store(content, TaskMessage.SOURCE_FORMAT_PDF);
         } catch (IOException e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(Map.of("error", "Ошибка при сохранении файла"));
         }
+
+        Submission submission = new Submission();
+        submission.setStorageKey(stored.key());
+        submission.setFileSha256(stored.sha256());
+        submission.setOriginalFileName(Submission.cleanFileName(file.getOriginalFilename()));
+        submission.setWorkType(workType);
+        submission.setSemester(semester);
+        submission.setStage(stage);
+        submission.setTraceId(UUID.randomUUID());
+        submission.setStatus("PROCESSING");
+
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId != null) {
+            Optional<User> student = userRepository.findById(telegramId);
+            student.ifPresent(submission::setStudent);
+        }
+
+        if (teacherId != null) {
+            Optional<User> teacher = userRepository.findById(teacherId);
+            teacher.ifPresent(submission::setTeacher);
+        }
+
+        Submission savedSubmission = submissionRepository.save(submission);
+
+        TaskMessage task = TaskMessage.check(savedSubmission, fileStorage.resolve(savedSubmission.getStorageKey()));
+        rabbitTemplate.convertAndSend(tasksQueue, task);
+        // ФИО студента в лог не пишем — только идентификаторы.
+        System.out.println("Отправлено задание обработчику: task_id=" + task.taskId()
+                + ", storage_key=" + task.file().storageKey() + ", trace_id=" + task.traceId());
+
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Файл успешно загружен в систему SAPSR!",
+                "db_id", savedSubmission.getId()
+        ));
     }
 }

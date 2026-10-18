@@ -1,0 +1,15 @@
+{
+  "schema": 2,
+  "task_id": 153,
+  "type": "CHECK",
+  "file": {
+    "storage_key": "2026/10/8f3a2c1e-5b7d-4e2a-9c4f-1a2b3c4d5e6f.pdf",
+    "sha256": "9f2c4e8a1b3d5f7092a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8",
+    "source_format": "pdf"
+  },
+  "profile": { "work_type": "course_work", "semester": 7, "stage": 2 },
+  "student": { "last_name": "Иванов", "first_name": "Иван", "group": "321702" },
+  "previous": null,
+  "trace_id": "4b1e0c7a-2f3d-4a5b-8c6d-7e8f9a0b1c2d",
+  "file_path": "/app/storage/2026/10/8f3a2c1e-5b7d-4e2a-9c4f-1a2b3c4d5e6f.pdf"
+}
