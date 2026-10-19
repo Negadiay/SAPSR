@@ -4,5 +4,6 @@ application.properties
 test.pdf
 docs/plan-7sem/llm-bench
 .env
+Отчёт/
 # Тестовые данные с настоящими Telegram ID и почтами — у каждого свои; образец — dev-seed.example.sql
 dev-seed.sql
