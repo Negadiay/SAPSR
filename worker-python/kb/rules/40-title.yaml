@@ -1,0 +1,187 @@
+# Титульный лист. Проверки по справочникам ИИС при недоступном справочнике пропускаются
+# (pipeline.skipped, причина IIS_UNAVAILABLE), а не дают замечание.
+
+- id: TTL-SPECIALTY
+  title: Код специальности в обозначении работы
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: critical
+  blocking: true
+  check: title.specialty_code
+  params:
+    designation_patterns:
+      - "БГУИР\\s+КП[3-7]\\s+((?:\\d[\\d\\s\\-]{3,40}\\d))\\s+(\\d{3})\\s+ПЗ\\b"
+      - "(\\d-\\d{2}[\\s\\-]\\d{4}-\\d{2}|\\d-\\d{2}[\\s\\-]\\d{2}[\\s\\-]\\d{2})\\s+(\\d{3})\\b"
+  message: "Код специальности «{code}» не найден в реестре БГУИР."
+  expected: "Код специальности должен существовать в реестре БГУИР."
+  found: "Найден код: {code}."
+  fix: "Проверьте код специальности на титульном листе."
+
+- id: TTL-CITY-YEAR
+  title: Город и год на титульном листе
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.city_year_present
+  params: &city_year
+    city_year_pattern: "минск[^\\n]*?(\\d{4})|(\\d{4})[^\\n]*?минск"
+    year_pattern: "\\b(20\\d{2})\\b"
+  message: "На титульном листе не найден год рядом со словом «Минск»."
+  expected: "Должна быть строка вида «Минск {current_year}»."
+  found: "Не обнаружено."
+  fix: "Добавьте строку «Минск {current_year}» на титульный лист."
+
+- id: TTL-YEAR-CURRENT
+  title: Год на титульном листе — текущий
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.year_current
+  params: *city_year
+  message: "На титульном листе указан год {year}, но сейчас {current_year}."
+  expected: "Год на титульном листе должен совпадать с текущим годом."
+  found: "Год: {year}."
+  fix: "Исправьте год на {current_year}."
+
+- id: TTL-YEARS-CONSISTENT
+  title: Годы на титульном листе совпадают
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.years_consistent
+  params: *city_year
+  message: "На титульном листе указаны разные годы."
+  expected: "Все годы на титульном листе должны совпадать со строкой «Минск {year}»."
+  found: "Минск: {year}; другие годы: {other_years}."
+  fix: "Приведите все годы на титульном листе к {year}."
+
+# ── заведующий кафедрой ─────────────────────────────────────────────────────
+
+- id: TTL-HEAD-PRESENT
+  title: Заведующий кафедрой на титульном листе
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.role_present
+  params: &head
+    label_pattern: "(?:заведующ(?:ий|ая|его|ей)\\s+кафедр(?:ой|ы)|зав\\.\\s*кафедр(?:ой|ы)?|завкафедр(?:ой|ы)?)"
+    role_name: заведующий кафедрой
+    role_name_genitive: заведующего кафедрой
+    role_title: Заведующий кафедрой
+    person_patterns: &people
+      - "\\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\\s+[А-ЯЁ][а-яё]+\\s+[А-ЯЁ][а-яё]+"
+      - "\\b[А-ЯЁ]\\.\\s*[А-ЯЁ]\\.\\s*[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?"
+      - "\\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\\s+[А-ЯЁ]\\.\\s*[А-ЯЁ]\\."
+    lines_below: 2
+  message: "На титульном листе не найден {role_name}."
+  expected: "На титульном листе должен быть указан {role_name}."
+  found: "Не обнаружена строка с ролью «{role_name}»."
+  fix: "Добавьте ФИО {role_name_genitive} на титульный лист."
+
+- id: TTL-HEAD-NAME
+  title: ФИО заведующего кафедрой
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.role_name_parsed
+  params: *head
+  message: "Не удалось распознать ФИО {role_name_genitive}."
+  expected: "ФИО {role_name_genitive} указывается в формате «Фамилия И.О.» или «И.О. Фамилия»."
+  found: "Строка с ролью «{role_name}» найдена, ФИО не распознано."
+  fix: "Проверьте написание ФИО {role_name_genitive}."
+
+- id: TTL-HEAD-IIS
+  title: Заведующий кафедрой есть в ИИС
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.role_in_directory
+  params: *head
+  message: "{role_title} «{name}» не найден в ИИС БГУИР."
+  expected: "ФИО {role_name_genitive} должно соответствовать сотруднику из ИИС БГУИР."
+  found: "Найдено ФИО: {name}."
+  fix: "Проверьте ФИО {role_name_genitive} на титульном листе."
+
+# ── проверяющий (руководитель) ──────────────────────────────────────────────
+
+- id: TTL-REVIEWER-PRESENT
+  title: Проверяющий на титульном листе
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.role_present
+  params: &reviewer
+    label_pattern: "(?:провер(?:ил|ила|яющий|яющая|яющего|яющей)|руководител(?:ь|я|ем)|преподавател(?:ь|я|ем))"
+    role_name: проверяющий
+    role_name_genitive: проверяющего
+    role_title: Проверяющий
+    person_patterns: *people
+    lines_below: 2
+  message: "На титульном листе не найден {role_name}."
+  expected: "На титульном листе должен быть указан {role_name}."
+  found: "Не обнаружена строка с ролью «{role_name}»."
+  fix: "Добавьте ФИО {role_name_genitive} на титульный лист."
+
+- id: TTL-REVIEWER-NAME
+  title: ФИО проверяющего
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.role_name_parsed
+  params: *reviewer
+  message: "Не удалось распознать ФИО {role_name_genitive}."
+  expected: "ФИО {role_name_genitive} указывается в формате «Фамилия И.О.» или «И.О. Фамилия»."
+  found: "Строка с ролью «{role_name}» найдена, ФИО не распознано."
+  fix: "Проверьте написание ФИО {role_name_genitive}."
+
+- id: TTL-REVIEWER-IIS
+  title: Проверяющий есть в ИИС
+  category: structure
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: title.role_in_directory
+  params: *reviewer
+  message: "{role_title} «{name}» не найден в ИИС БГУИР."
+  expected: "ФИО {role_name_genitive} должно соответствовать сотруднику из ИИС БГУИР."
+  found: "Найдено ФИО: {name}."
+  fix: "Проверьте ФИО {role_name_genitive} на титульном листе."
+
+# ── студент ─────────────────────────────────────────────────────────────────
+
+- id: TTL-STUDENT-MATCH
+  title: Фамилия студента на титульном листе
+  category: integrity
+  source: { doc: "SAPSR: защита от сдачи чужой работы", note: "план Котко, К2" }
+  severity: minor
+  review: true
+  check: title.student_matches_registration
+  params:
+    label_pattern: "(?:студент(?:ка)?|выполнил(?:а)?|исполнитель)"
+    person_patterns: *people
+    lines_below: 2
+  message: "Фамилия студента на титульном листе не совпадает с зарегистрированной."
+  expected: "На титульном листе — фамилия студента, загрузившего работу."
+  found: "На титульном листе: {name}."
+  fix: "Проверьте, что загружена своя работа; если фамилия изменилась, исправьте её в «Мои данные»."
+
+- id: INT-HIDDEN-TEXT
+  title: Скрытый текст
+  category: integrity
+  source: { doc: "SAPSR: защита проверки от внедрения инструкций", note: "план, З9; модель угроз Жерко, п. 17" }
+  severity: major
+  review: true
+  check: integrity.hidden_text
+  message: "В документе есть текст, невидимый при чтении."
+  expected: "Весь текст работы должен быть видимым."
+  found: "Скрытых символов: {chars}; признаки: {reasons}; страницы: {pages}."
+  fix: "Удалите скрытый текст (белый, микроскопический или за краем страницы) и загрузите работу снова."
+  explanation: "Скрытый текст не участвует в проверке: он вырезается до анализа содержания. Преподаватель видит это замечание и решает, безобиден ли такой текст."

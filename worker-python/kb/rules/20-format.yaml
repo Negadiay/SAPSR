@@ -1,0 +1,162 @@
+# Шрифт, поля, номера страниц, интервалы. Числа — только здесь, не в коде проверок.
+# Внутри шаблонов фигурные скобки LaTeX удваиваются: \geometry{{left=3cm}}.
+
+- id: FMT-FONT-SIZE
+  title: Размер основного шрифта
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: fonts.main_size
+  # pdfLaTeX сообщает 13,28 пт вместо 14 пт — диапазон расширен, чтобы не было ложных замечаний.
+  params: { min_pt: 12, max_pt: 16, share_over_pct: 0, share_upto_pct: 30 }
+  message: "Размер основного шрифта вне допустимого диапазона."
+  expected: "Допустимый диапазон: {min_pt:g}–{max_pt:g} pt."
+  found: "Доминирующий размер: {dominant_pt:g} pt; затронуто {affected} стр. ({pct:.0f}%)."
+  fix: "Измените размер основного текста на 14 pt."
+
+- id: FMT-FONT-SIZE-MASS
+  title: Размер основного шрифта на большей части страниц
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: major
+  blocking: true
+  check: fonts.main_size
+  params: { min_pt: 12, max_pt: 16, share_over_pct: 30, share_upto_pct: 100 }
+  message: "Размер основного шрифта вне допустимого диапазона."
+  expected: "Допустимый диапазон: {min_pt:g}–{max_pt:g} pt."
+  found: "Доминирующий размер: {dominant_pt:g} pt; затронуто {affected} стр. ({pct:.0f}%)."
+  fix: "Измените размер основного текста на 14 pt."
+
+- id: FMT-FONT-FAMILY
+  title: Семейство шрифта
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: fonts.family
+  params:
+    # Сравнение — по подстроке в имени шрифта без префикса подмножества (VOAZZS+SFRM1440 → sfrm1440).
+    allowed: [sfrm, sfti, sfit, sfbx, cmr, cmtt, cmmi, lmroman, lmtt, lmsans, timesnewroman, times,
+              nimburom, nimburo, arial, helvetica, calibri, georgia, dejavuserif, freserif, ptserif,
+              paratype, cmu, ptsans]
+    # Если работа сдана в DOCX и сконвертирована, LibreOffice без Times New Roman подставляет
+    # метрически совместимый Liberation Serif (решение 3, задача 3.2) — это не ошибка студента.
+    docx_substitutes: [liberationserif, liberationsans, tinos, arimo]
+    min_share_pct: 0
+  message: "Обнаружен нестандартный шрифт."
+  expected: "Рекомендуется Times New Roman 14 pt (или Computer Modern для LaTeX)."
+  found: "Шрифт «{font}» на {affected} стр. ({pct:.0f}%)."
+  fix: "Убедитесь, что шрифт встроен и соответствует требованиям кафедры."
+
+- id: FMT-REF-FONT
+  title: Шрифт списка источников
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: fonts.reference_font
+  message: "Шрифт списка использованных источников отличается от основного текста."
+  expected: "Список источников должен быть оформлен тем же основным шрифтом, что и документ."
+  found: "Основной шрифт: «{main_font}»; в списке источников: «{ref_font}»."
+  fix: "Приведите список источников к общему стилю документа."
+
+# Поля: край текста — 2-й и 98-й процентили положения символов основного текста.
+# Допуск 5,3 мм ≈ 15 пт — как в прежнем анализаторе.
+- id: FMT-MARGIN-LEFT
+  title: Левое поле
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: margins.side
+  params: { side: left, norm_mm: 30, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
+  message: "Нарушено левое поле страницы."
+  expected: "Левое поле должно быть {norm_mm:g} мм."
+  found: "Наименьшее левое поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
+  fix: "Установите левое поле {norm_mm:g} мм: \\geometry{{left=3cm}} в LaTeX или «Макет → Поля» в Word."
+
+- id: FMT-MARGIN-RIGHT
+  title: Правое поле
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: margins.side
+  params: { side: right, norm_mm: 15, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
+  message: "Нарушено правое поле страницы."
+  expected: "Правое поле должно быть {norm_mm:g} мм."
+  found: "Наименьшее правое поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
+  fix: "Установите правое поле {norm_mm:g} мм: \\geometry{{right=1.5cm}} в LaTeX или «Макет → Поля» в Word."
+
+- id: FMT-MARGIN-TOP
+  title: Верхнее поле
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: margins.side
+  params: { side: top, norm_mm: 20, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
+  message: "Нарушено верхнее поле страницы."
+  expected: "Верхнее поле должно быть {norm_mm:g} мм."
+  found: "Наименьшее верхнее поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
+  fix: "Установите верхнее поле {norm_mm:g} мм: \\geometry{{top=2cm}} в LaTeX или «Макет → Поля» в Word."
+
+- id: FMT-MARGIN-BOTTOM
+  title: Нижнее поле
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: margins.side
+  params: { side: bottom, norm_mm: 27, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
+  message: "Нарушено нижнее поле страницы."
+  expected: "Нижнее поле должно быть {norm_mm:g} мм."
+  found: "Наименьшее нижнее поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
+  fix: "Установите нижнее поле {norm_mm:g} мм: \\geometry{{bottom=2.7cm}} в LaTeX или «Макет → Поля» в Word."
+
+- id: LAY-PAGE-NUMBERS
+  title: Нумерация страниц
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: layout.page_numbers
+  params: { start_page: 3, min_coverage: 0.5, min_checkable_pages: 3 }
+  message: "Номера страниц не обнаружены."
+  expected: "Нумерация должна быть в нижней части страниц начиная со стр. {start_page}."
+  found: "Найдено на {found} из {checkable} проверяемых страниц."
+  fix: "Проверьте настройки колонтитулов."
+
+- id: LAY-LINE-SPACING
+  title: Межстрочный интервал
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: layout.line_spacing
+  params:
+    min_font_pt: 8
+    size_tolerance_pt: 1.5
+    min_lines: 8
+    gap_min_ratio: 1.1
+    gap_max_ratio: 2.5
+    min_gaps: 5
+    allowed_min_ratio: 1.1
+    allowed_max_ratio: 2.2
+  message: "Межстрочный интервал (~{ratio:.2f}×) отличается от рекомендованного 1,5."
+  expected: "Основной текст должен быть набран с полуторным межстрочным интервалом."
+  found: "Медианное расстояние между строками: {gap_pt:.1f} pt при размере шрифта {size_pt:g} pt."
+  fix: "Установите \\linespread{{1.5}} в LaTeX или интервал 1,5 в Word."
+
+- id: LAY-PARAGRAPH-INDENT
+  title: Абзацный отступ
+  category: format
+  source: { doc: "СТП 01-2024", clause: null }
+  severity: minor
+  check: layout.paragraph_indent
+  params:
+    min_font_pt: 8
+    size_tolerance_pt: 1.5
+    min_lines: 10
+    indent_min_pt: 15
+    indent_max_pt: 60
+    flush_tolerance_pt: 5
+    indented_share_max: 0.03
+    flush_share_min: 0.4
+    left_edge_pt: 85
+  message: "Не обнаружены красные строки (отступ первой строки абзаца)."
+  expected: "Первая строка каждого абзаца должна иметь отступ 1,25 см."
+  found: "Строк с отступом: {indented} из {total}."
+  fix: "Добавьте \\setlength{{\\parindent}}{{1.25cm}} в LaTeX или настройте отступ первой строки в Word."
