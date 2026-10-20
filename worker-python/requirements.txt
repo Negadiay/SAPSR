@@ -1,5 +1,8 @@
-pika
-pdfplumber
-pydantic
-requests
-reportlab
+# Точные версии: образ собирается одинаково на любой машине (Python 3.12, см. Dockerfile).
+# Обновлять осознанно и проверять pytest. Позже — файл блокировки через pip-tools или uv (план Жерко, Ж6).
+pika==1.3.2
+pdfplumber==0.11.10
+pdfminer.six==20260107
+pydantic==2.13.5
+requests==2.34.2
+reportlab==5.0.1

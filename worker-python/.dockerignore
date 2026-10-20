@@ -1,3 +1,6 @@
 __pycache__
 *.pyc
 .idea
+tests
+.pytest_cache
+requirements-dev.txt

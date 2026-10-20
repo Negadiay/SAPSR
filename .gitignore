@@ -6,3 +6,9 @@ docs/plan-7sem/llm-bench
 .env
 # Тестовые данные с настоящими Telegram ID и почтами — у каждого свои; образец — dev-seed.example.sql
 dev-seed.sql
+# Исполняемые файлы (cloudflared, ngrok и т. п.) ставятся при развёртывании, не хранятся в git
+*.exe
+memory-*.txt
+__pycache__/
+.pytest_cache/
+check-result.log
