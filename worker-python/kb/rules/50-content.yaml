@@ -1,0 +1,99 @@
+# Содержательные правила. Срабатывают в продукционных правилах CLIPS
+# (kb/reasoning/*.clp) над утверждениями, которые извлекла языковая модель и проверили
+# символьные шаги (цитата есть в тексте, значение — в словаре). Поле check — имя правила
+# в sapsr/content/reasoning.py (CONTENT_RULES).
+#
+# Блокировать сдачу содержательные правила не могут (решение 5): у них stage: content,
+# а схема базы знаний запрещает blocking для таких правил.
+
+- id: CNT-CONSIST-001
+  title: Согласованность описания системы
+  category: content
+  stage: content
+  source: { doc: "Требования к системе, 7 семестр", note: "пункт не сверен с методичкой" }
+  severity: major
+  check: conflict_single
+  message: "«{attribute_title}»: в разных частях записки указаны разные варианты."
+  expected: "Одинаковое описание во всех разделах."
+  found: "{section_a}: {values_a}; {section_b}: {values_b}."
+  fix: "Приведите описание к одному варианту."
+  explanation: "Модель нашла в записке утверждения об одном и том же свойстве системы, правило сравнило их значения по словарю понятий и нашло расхождение. Обе цитаты проверены: они дословно есть в тексте."
+
+- id: CNT-CONSIST-002
+  title: Согласованность перечней
+  category: content
+  stage: content
+  source: { doc: "Требования к системе, 7 семестр", note: "пункт не сверен с методичкой" }
+  severity: major
+  check: conflict_multi
+  message: "«{attribute_title}»: перечни в разных частях записки не совпадают."
+  expected: "Одинаковый перечень во всех разделах."
+  found: "{section_a}: {values_a}; {section_b}: {values_b}."
+  fix: "Приведите описание к одному варианту."
+  explanation: "В одном месте записки перечень назван полным, в другом указано значение, которого в нём нет, или полный перечень другой."
+
+- id: CNT-SUPPORT-001
+  title: Заявленное описано в проектировании и реализации
+  category: content
+  stage: content
+  source: { doc: "Требования к системе, 7 семестр", note: "гибридность: нейросетевой компонент должен участвовать в решении, а не только упоминаться" }
+  severity: major
+  check: claim_without_support
+  message: "«{attribute_title}»: заявлено, но не описано в разделах {required_parts}."
+  expected: "То, что заявлено во введении или анализе, описано в проектировании или реализации: на каком шаге работает, что получает и что выдаёт."
+  found: "{section_a}: {values_a}; в разделах {required_parts} описания нет."
+  fix: "Опишите роль компонента в архитектуре и реализации или уберите это заявление."
+
+# ── требования семестра (З5): статус требования по свидетельствам ───────────
+
+- id: REQ-VIOLATED
+  title: Требование семестра нарушено
+  category: requirements
+  stage: content
+  source: { doc: "Требования к системе, 7 семестр" }
+  severity: major
+  check: requirement_violated
+  message: "Требование «{requirement_title}» нарушено."
+  expected: "{sufficient}"
+  found: "Фрагмент противоречит требованию."
+  fix: "Приведите описание в соответствие с требованием: {requirement_text}"
+
+- id: REQ-DISPUTED
+  title: Требование семестра — противоречивые свидетельства
+  category: requirements
+  stage: content
+  source: { doc: "Требования к системе, 7 семестр" }
+  severity: minor
+  review: true
+  check: requirement_disputed
+  message: "По требованию «{requirement_title}» найдены и подтверждающие, и противоречащие фрагменты."
+  expected: "{sufficient}"
+  found: "Есть фрагменты в пользу и против выполнения требования."
+  fix: "Проверьте фрагменты и уберите противоречие."
+
+- id: REQ-NOT-ESTABLISHED
+  title: Требование семестра — не удалось установить
+  category: requirements
+  stage: content
+  source: { doc: "Требования к системе, 7 семестр" }
+  severity: minor
+  review: true
+  check: requirement_not_established
+  message: "Не удалось установить, выполнено ли требование «{requirement_title}»."
+  expected: "{sufficient}"
+  found: "Подходящих фрагментов не найдено или уверенность модели ниже порога."
+  fix: "Если требование выполнено — опишите это явно в разделе, где его ожидают: {expected_parts}."
+
+# ── чисто нейросетевой режим (З10): замечания пишет сама модель ─────────────
+
+- id: NEURAL-FREEFORM
+  title: Замечание языковой модели
+  category: content
+  stage: content
+  source: { doc: "Режим сравнения: чисто нейросетевая проверка" }
+  severity: minor
+  review: true
+  check: neural_freeform
+  message: "{model_message}"
+  found: "{model_found}"
+  fix: "Проверьте замечание: его сформулировала модель без проверки правилами."

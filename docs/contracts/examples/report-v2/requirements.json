@@ -1,0 +1,327 @@
+{
+  "schema": 2,
+  "phase": "content",
+  "profile": {
+    "id": "sem7",
+    "title": "7-й семестр — курсовой проект по гибридной интеллектуальной системе",
+    "work_type": "course_project",
+    "semester": 7,
+    "stage": 2,
+    "is_default": false
+  },
+  "summary": {
+    "passed": true,
+    "blocking": 0,
+    "findings": 5,
+    "by_category": {
+      "content": 1,
+      "requirements": 4
+    },
+    "by_severity": {
+      "major": 1,
+      "minor": 4
+    },
+    "needs_teacher_review": 4,
+    "content_checked": true
+  },
+  "findings": [
+    {
+      "id": "f-001",
+      "requirement_id": "CNT-CONSIST-001",
+      "category": "content",
+      "status": "violated",
+      "severity": "major",
+      "origin": "hybrid",
+      "confidence": 1.0,
+      "needs_teacher_review": false,
+      "blocking": false,
+      "title": "Согласованность описания системы",
+      "message": "«Представление базы знаний»: в разных частях записки указаны разные варианты.",
+      "expected": "Одинаковое описание во всех разделах.",
+      "found": "Введение: онтология; раздел 3: конфигурационный файл.",
+      "evidence": [
+        {
+          "page": 3,
+          "quote": "База знаний системы представлена онтологией предметной области нормоконтроля",
+          "block_id": "b-0029",
+          "section": "Введение"
+        },
+        {
+          "page": 6,
+          "quote": "Правила и параметры проверки хранятся в конфигурационном файле YAML",
+          "block_id": "b-0048",
+          "section": "3"
+        }
+      ],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      },
+      "fix": "Приведите описание к одному варианту.",
+      "page": "3, 6",
+      "location": "Страницы: 3, 6",
+      "rule": "Одинаковое описание во всех разделах.",
+      "context": "База знаний системы представлена онтологией предметной области нормоконтроля | Правила и параметры проверки хранятся в конфигурационном файле YAML"
+    },
+    {
+      "id": "f-002",
+      "requirement_id": "REQ7-INTEGRATION",
+      "category": "requirements",
+      "status": "not_established",
+      "severity": "minor",
+      "origin": "hybrid",
+      "needs_teacher_review": true,
+      "blocking": false,
+      "title": "Требование семестра — не удалось установить",
+      "message": "Не удалось установить, выполнено ли требование «Точки интеграции описаны явно».",
+      "expected": "Для каждой передачи данных между компонентами указано, что передаётся, в каком формате и на каком шаге.",
+      "found": "Подходящих фрагментов не найдено или уверенность модели ниже порога.",
+      "evidence": [],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      },
+      "fix": "Если требование выполнено — опишите это явно в разделе, где его ожидают: «Проектирование и архитектура».",
+      "location": "Документ",
+      "rule": "Для каждой передачи данных между компонентами указано, что передаётся, в каком формате и на каком шаге."
+    },
+    {
+      "id": "f-003",
+      "requirement_id": "REQ7-MISMATCH",
+      "category": "requirements",
+      "status": "not_established",
+      "severity": "minor",
+      "origin": "hybrid",
+      "needs_teacher_review": true,
+      "blocking": false,
+      "title": "Требование семестра — не удалось установить",
+      "message": "Не удалось установить, выполнено ли требование «Обработка рассогласований».",
+      "expected": "Описано, что система делает при неуверенном ответе модели, при отсутствии знаний в базе и при противоречии правила и модели.",
+      "found": "Подходящих фрагментов не найдено или уверенность модели ниже порога.",
+      "evidence": [],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      },
+      "fix": "Если требование выполнено — опишите это явно в разделе, где его ожидают: «Проектирование и архитектура», «Реализация».",
+      "location": "Документ",
+      "rule": "Описано, что система делает при неуверенном ответе модели, при отсутствии знаний в базе и при противоречии правила и модели."
+    },
+    {
+      "id": "f-004",
+      "requirement_id": "REQ7-REPLACEABLE",
+      "category": "requirements",
+      "status": "not_established",
+      "severity": "minor",
+      "origin": "hybrid",
+      "needs_teacher_review": true,
+      "blocking": false,
+      "title": "Требование семестра — не удалось установить",
+      "message": "Не удалось установить, выполнено ли требование «Независимая замена компонентов».",
+      "expected": "Показано, что модель, база знаний и решатель можно заменить по отдельности, не меняя остальные части (например, общий интерфейс компонента).",
+      "found": "Подходящих фрагментов не найдено или уверенность модели ниже порога.",
+      "evidence": [],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      },
+      "fix": "Если требование выполнено — опишите это явно в разделе, где его ожидают: «Проектирование и архитектура».",
+      "location": "Документ",
+      "rule": "Показано, что модель, база знаний и решатель можно заменить по отдельности, не меняя остальные части (например, общий интерфейс компонента)."
+    },
+    {
+      "id": "f-005",
+      "requirement_id": "REQ7-SYMBOLIC-EXPLAIN",
+      "category": "requirements",
+      "status": "not_established",
+      "severity": "minor",
+      "origin": "hybrid",
+      "needs_teacher_review": true,
+      "blocking": false,
+      "title": "Требование семестра — не удалось установить",
+      "message": "Не удалось установить, выполнено ли требование «Символьный компонент обеспечивает объяснимость».",
+      "expected": "Описано, какие знания и правила хранятся в системе, как механизм вывода принимает итоговое решение и как это решение объясняется пользователю.",
+      "found": "Подходящих фрагментов не найдено или уверенность модели ниже порога.",
+      "evidence": [],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      },
+      "fix": "Если требование выполнено — опишите это явно в разделе, где его ожидают: «Проектирование и архитектура», «Реализация».",
+      "location": "Документ",
+      "rule": "Описано, какие знания и правила хранятся в системе, как механизм вывода принимает итоговое решение и как это решение объясняется пользователю."
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ7-NEURAL-ROLE",
+      "title": "Нейросетевой компонент участвует в решении",
+      "status": "satisfied",
+      "confidence": 0.9,
+      "needs_teacher_review": false,
+      "evidence": [
+        {
+          "page": 5,
+          "quote": "Нейросетевая модель разметки получает строки документа с координатами и возвращает типы логических блоков, которые затем",
+          "block_id": "b-0044",
+          "section": "2.1"
+        }
+      ],
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    },
+    {
+      "id": "REQ7-SYMBOLIC-EXPLAIN",
+      "title": "Символьный компонент обеспечивает объяснимость",
+      "status": "not_established",
+      "needs_teacher_review": true,
+      "evidence": [],
+      "note": "Подходящих фрагментов не найдено.",
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    },
+    {
+      "id": "REQ7-INTEGRATION",
+      "title": "Точки интеграции описаны явно",
+      "status": "not_established",
+      "needs_teacher_review": true,
+      "evidence": [],
+      "note": "Подходящих фрагментов не найдено.",
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    },
+    {
+      "id": "REQ7-MISMATCH",
+      "title": "Обработка рассогласований",
+      "status": "not_established",
+      "needs_teacher_review": true,
+      "evidence": [],
+      "note": "Подходящих фрагментов не найдено.",
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    },
+    {
+      "id": "REQ7-REPLACEABLE",
+      "title": "Независимая замена компонентов",
+      "status": "not_established",
+      "needs_teacher_review": true,
+      "evidence": [],
+      "note": "Подходящих фрагментов не найдено.",
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    },
+    {
+      "id": "REQ7-TESTING",
+      "title": "Методика тестирования",
+      "status": "not_applicable",
+      "needs_teacher_review": false,
+      "evidence": [],
+      "note": "Не применимо на этом этапе опроцентовки.",
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    },
+    {
+      "id": "REQ7-EFFICIENCY",
+      "title": "Оценка эффективности",
+      "status": "not_applicable",
+      "needs_teacher_review": false,
+      "evidence": [],
+      "note": "Не применимо на этом этапе опроцентовки.",
+      "source": {
+        "doc": "Требования к системе, 7 семестр"
+      }
+    }
+  ],
+  "document": {
+    "pages": 8,
+    "sha256": "…",
+    "source_format": "pdf",
+    "main_font": "AAAAAA+TimesNewRomanPSMT",
+    "main_size": 14.0,
+    "title_page": {
+      "student_name": "И.И. Иванов",
+      "matches_registration": true
+    }
+  },
+  "pipeline": {
+    "mode": "hybrid",
+    "worker_version": "2.0.0",
+    "kb_version": "2026.10.18+bb2be05b",
+    "models": [
+      {
+        "role": "layout",
+        "name": "rule-labeler",
+        "version": "1",
+        "cloud": false
+      },
+      {
+        "role": "llm",
+        "name": "qwen3.5:4b",
+        "provider": "ollama",
+        "cloud": false,
+        "quantization": "Q4_K_M"
+      }
+    ],
+    "prompts": [
+      {
+        "id": "claims",
+        "version": "1"
+      },
+      {
+        "id": "requirements",
+        "version": "1"
+      }
+    ],
+    "stages": [
+      {
+        "stage": "extract",
+        "status": "done"
+      },
+      {
+        "stage": "structure",
+        "status": "done"
+      },
+      {
+        "stage": "format",
+        "status": "done"
+      },
+      {
+        "stage": "claims",
+        "status": "done"
+      },
+      {
+        "stage": "reasoning",
+        "status": "done"
+      },
+      {
+        "stage": "report",
+        "status": "done"
+      }
+    ],
+    "skipped": [],
+    "warnings": [],
+    "metrics": {
+      "blocks": 64,
+      "claims_accepted": 6,
+      "claims_extracted": 7,
+      "claims_fragments": 6,
+      "claims_fragments_failed": 0,
+      "claims_hallucinated_quote_share": 0.143,
+      "claims_rejected_quote": 1,
+      "claims_rejected_value": 0,
+      "content_chars_dropped": 0,
+      "content_fragments": 6,
+      "llm_cache_hits": 0,
+      "llm_calls": 9,
+      "llm_errors": 0,
+      "llm_schema_failures": 0,
+      "llm_schema_retries": 0,
+      "pages": 8,
+      "reasoning_firings": 1,
+      "requirements_checked": 3,
+      "requirements_quotes_rejected": 0,
+      "sections": 10
+    }
+  }
+}

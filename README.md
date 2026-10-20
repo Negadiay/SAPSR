@@ -2,7 +2,7 @@
 
 ![Java](https://img.shields.io/badge/Java-21-blue?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.3-6db33f?logo=springboot)
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab?logo=python)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?logo=python)
 ![React](https://img.shields.io/badge/React-19-61dafb?logo=react)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?logo=docker)
 
@@ -90,7 +90,7 @@
 |-----------|------------|
 | Backend | Java 21, Spring Boot 4.0.3, Spring Data JPA, Spring AMQP |
 | Frontend | React 19, Vite 8, Framer Motion |
-| Worker | Python 3.8+, pdfplumber, pika, pydantic |
+| Worker | Python 3.10+, pdfplumber, pika, pydantic, CLIPS (clipspy), rapidfuzz; языковая модель — Ollama (`qwen3.5:4b`) |
 | База данных | PostgreSQL 16 |
 | Очередь сообщений | RabbitMQ 3 |
 | Инфраструктура | Docker, Docker Compose |
@@ -110,10 +110,12 @@ SAPSR/
 │   └── pom.xml
 │
 ├── worker-python/              # Сервис анализа PDF
-│   ├── analyzer.py             # Логика валидации (1400+ строк)
 │   ├── main.py                 # Потребитель очереди RabbitMQ
-│   ├── check_config.py         # Параметры проверки
-│   └── requirements.txt
+│   ├── analyzer.py             # Запуск проверки из командной строки
+│   ├── sapsr/                  # Гибридное ядро: модель документа, правила, модель, отчёт v2
+│   ├── kb/                     # База знаний: правила, профили, словарь понятий, правила CLIPS
+│   ├── tests/                  # Тесты pytest
+│   └── README.md               # Устройство обработчика и настройки
 │
 ├── frontend-webapp/            # React Telegram Mini App
 │   ├── src/
@@ -140,7 +142,8 @@ SAPSR/
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (для PostgreSQL и RabbitMQ)
 - Java 21+
-- Python 3.8+
+- Python 3.10+
+- [Ollama](https://ollama.com) с моделью `qwen3.5:4b` — для содержательной проверки (без неё проверяется только оформление)
 - Node.js 18+
 - Telegram Bot Token (получить у [@BotFather](https://t.me/BotFather))
 - Gmail-аккаунт для SMTP (верификация преподавателей)
@@ -191,7 +194,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Воркер подключается к RabbitMQ и начинает обрабатывать очередь `pdf_tasks_queue`.
+Воркер подключается к RabbitMQ и начинает обрабатывать очередь `pdf_tasks_queue`. Настройки (протокол очередей, адрес модели, режимы) — переменные окружения, см. `worker-python/README.md`.
 
 **4. Frontend**
 
@@ -234,6 +237,16 @@ cd frontend-webapp
 npm test
 npm run lint
 ```
+
+### Worker
+
+```bash
+cd worker-python
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Сеть, RabbitMQ и Ollama не нужны: модель заменяет заглушка, ИИС — тестовый справочник. Подробнее — `worker-python/README.md`.
 
 ---
 
