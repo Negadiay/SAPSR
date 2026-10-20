@@ -87,3 +87,16 @@ def ids(report) -> list[str]:
 @pytest.fixture
 def null_directory():
     return NullDirectory()
+
+
+@pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    """Без сети: тесты, которые собирают проверку из окружения (analyze_pdf, Settings.from_env),
+    не ходят ни в ИИС, ни к модели. Остальные тесты передают ИИС и модель явно."""
+    monkeypatch.setenv("SAPSR_IIS_MODE", "off")
+    monkeypatch.setenv("SAPSR_LLM_MODE", "off")
+
+
+@pytest.fixture
+def fixtures_dir() -> Path:
+    return FIXTURES

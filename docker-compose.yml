@@ -3,17 +3,18 @@ services:
     image: postgres:16-alpine
     container_name: sapsr-postgres
     environment:
-      POSTGRES_USER: sapsr_user
-      POSTGRES_PASSWORD: sapsr_password
+      POSTGRES_USER: ${POSTGRES_USER:-sapsr_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       POSTGRES_DB: sapsr_db
+    # Только с этого компьютера: снаружи база не видна. Сервисы внутри Compose ходят по имени postgres-db.
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     # Схему создаёт бэкенд миграциями Flyway (backend-java/src/main/resources/db/migration).
     # Тестовые данные для разработки — свой dev-seed.sql (не в git, образец — dev-seed.example.sql), загружается вручную.
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sapsr_user -d sapsr_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d sapsr_db"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -22,11 +23,12 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: sapsr-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: rmq_user
-      RABBITMQ_DEFAULT_PASS: rmq_password
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-rmq_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
+    # Очередь и панель управления — только с этого компьютера.
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -39,6 +41,8 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-rmq_user}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
       # Файлы работ по ключу storage_key (queue-v2.md, раздел 3).
       SAPSR_STORAGE_ROOT: /app/storage
       # 1 — результат одним сообщением, как сейчас ждёт бэкенд; 2 — после приёма фаз (задача 5.2).
@@ -46,6 +50,7 @@ services:
       # Ollama на ноутбуке (вариант «на хосте» из задачи 8.1); без неё проверяется только оформление.
       SAPSR_LLM_BASE_URL: ${SAPSR_LLM_BASE_URL:-http://host.docker.internal:11434}
       SAPSR_LLM_MODEL: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
+    # На Docker Desktop имя host.docker.internal есть и так; строка нужна для Docker в Linux
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -60,7 +65,11 @@ services:
     restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/sapsr_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-sapsr_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-rmq_user}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Укажи TELEGRAM_BOT_TOKEN в файле .env}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-YOUR_GMAIL@gmail.com}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-YOUR_APP_PASSWORD}

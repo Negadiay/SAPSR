@@ -13,4 +13,7 @@ worker-python/.cache/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-Очтёт/
+# Исполняемые файлы (cloudflared, ngrok и т. п.) ставятся при развёртывании, не хранятся в git
+*.exe
+memory-*.txt
+check-result.log

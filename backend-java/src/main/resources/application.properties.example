@@ -1,9 +1,10 @@
 spring.application.name=backend
 server.port=8080
 
+# Пароли — те же, что POSTGRES_PASSWORD и RABBITMQ_PASSWORD в .env. В Docker они приходят из .env переменными окружения.
 spring.datasource.url=jdbc:postgresql://localhost:5433/sapsr_db
 spring.datasource.username=sapsr_user
-spring.datasource.password=sapsr_password
+spring.datasource.password=ПАРОЛЬ_ИЗ_ENV
 
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 # Схему меняют только миграции Flyway (src/main/resources/db/migration); Hibernate её лишь сверяет.
@@ -28,7 +29,7 @@ bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 spring.rabbitmq.host=localhost
 spring.rabbitmq.port=5672
 spring.rabbitmq.username=rmq_user
-spring.rabbitmq.password=rmq_password
+spring.rabbitmq.password=ПАРОЛЬ_ИЗ_ENV
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
 

@@ -171,6 +171,11 @@ def connect(settings: Settings) -> pika.BlockingConnection:
 
 def main() -> None:
     settings = Settings.from_env()
+    if not settings.rabbitmq_user or not settings.rabbitmq_password:
+        raise SystemExit(
+            "[WORKER] Не заданы RABBITMQ_USER и RABBITMQ_PASSWORD. "
+            "В Docker они берутся из .env; при запуске вручную задай их в окружении."
+        )
     setup_logging(settings.log_format, settings.log_level)
     worker = build_worker(settings)
     delay = 2

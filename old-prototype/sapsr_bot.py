@@ -580,7 +580,8 @@ class MultiAgentCheckSystem:
             return f"Критическая ошибка: {str(e)}"
 
 
-BOT_TOKEN = "8124707173:AAEUWIG6cU8ErdX_ItQZdbWNGD3JRLwjjNo"  
+# Токен — только из окружения. Прежний токен был в git и подлежит отзыву через @BotFather (docs/threat-model.md).
+BOT_TOKEN = os.environ["SAPSR_PROTOTYPE_BOT_TOKEN"]
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
