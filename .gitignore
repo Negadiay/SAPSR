@@ -7,3 +7,10 @@ docs/plan-7sem/llm-bench
 Отчёт/
 # Тестовые данные с настоящими Telegram ID и почтами — у каждого свои; образец — dev-seed.example.sql
 dev-seed.sql
+# Обработчик: виртуальное окружение, кэш ответов модели, кэши тестов
+worker-python/.venv/
+worker-python/.cache/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+Отчёт/
