@@ -28,6 +28,8 @@ public class StartupNotificationService {
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
         CompletableFuture.runAsync(() -> {
+            // Кнопка «Открыть» у поля ввода — с текущим адресом мини-приложения.
+            bot.configureMenu();
             List<User> users = userRepository.findAll();
             log.info("Отправка приветственного сообщения {} пользователям...", users.size());
             int sent = 0;

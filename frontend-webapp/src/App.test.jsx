@@ -292,28 +292,14 @@ describe('кабинет преподавателя', () => {
     expect(api.find('POST', '/teacher/submissions/1/verdict')[0].body).toEqual({ verdict: 'APPROVED', comment: '' });
   });
 
-  it('отправляет на доработку с комментарием и предлагает его как шаблон в следующий раз', async () => {
-    const { api, user } = start({ ...teacherRoutes, 'POST /teacher/submissions/1/verdict': {} });
+  it('без работы с пометками на доработку не отправить, и поля для текста больше нет', async () => {
+    const { api, user } = start(teacherRoutes);
     await user.click(await screen.findByText('kursach.pdf'));
-    await user.click(screen.getByRole('button', { name: '🔄 На доработку' }));
 
-    const send = screen.getByRole('button', { name: 'Отправить' });
-    expect(send).toBeDisabled();
-    await user.type(screen.getByPlaceholderText('Комментарий для студента...'), 'Исправить нумерацию страниц');
-    expect(screen.getByText('27 символов')).toBeInTheDocument();
-    await user.click(send);
-
-    await waitFor(() => expect(api.find('POST', '/teacher/submissions/1/verdict')).toHaveLength(1));
-    expect(api.find('POST', '/teacher/submissions/1/verdict')[0].body).toEqual({
-      verdict: 'REVISION', comment: 'Исправить нумерацию страниц',
-    });
-    // после вердикта карточка сворачивается
-    await waitFor(() => expect(screen.queryByRole('button', { name: '✅ Принять' })).not.toBeInTheDocument());
-
-    await user.click(screen.getByText('zapiska.pdf'));
-    await user.click(screen.getByRole('button', { name: '🔄 На доработку' }));
-    await user.click(screen.getByRole('button', { name: 'Исправить нумерацию страниц' }));
-    expect(screen.getByPlaceholderText('Комментарий для студента...')).toHaveValue('Исправить нумерацию страниц');
+    expect(screen.getByRole('button', { name: '🔄 На доработку' })).toBeDisabled();
+    expect(screen.getByText('Чтобы отправить на доработку, загрузите работу с вашими пометками.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(api.find('POST', '/teacher/submissions/1/verdict')).toHaveLength(0);
   });
 
   it('в истории сворачивает версии одной работы и раскрывает их по нажатию', async () => {

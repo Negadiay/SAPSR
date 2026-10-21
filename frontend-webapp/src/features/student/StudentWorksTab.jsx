@@ -1,5 +1,6 @@
 import { downloadReport } from '../../api/submissions';
 import { groupByFileName } from '../../lib/submissions';
+import TeacherComments from './TeacherComments';
 
 // QUEUED и FAILED сервер начнёт отдавать вместе с протоколом очередей v2 (docs/contracts/queue-v2.md, раздел 6).
 const iterationMark = (submission) => {
@@ -15,7 +16,7 @@ const autoStatusLabel = (s) => {
   if (s === 'QUEUED')     return '⏳ В очереди на проверку';
   if (s === 'PROCESSING') return '⏳ На авто-проверке';
   if (s === 'SUCCESS')    return '✅ Оформление ОК';
-  if (s === 'REJECTED')   return '❌ Ошибки оформления';
+  if (s === 'REJECTED')   return '❌ Ошибки оформления — работа у преподавателя, загрузите исправленную версию';
   if (s === 'FAILED')     return '⚠️ Проверка не удалась — загрузите работу снова';
   return s;
 };
@@ -62,6 +63,7 @@ export default function StudentWorksTab({ works }) {
                     </div>
                   )}
                   {s.teacher_comment && <div className="notif-comment">💬 {s.teacher_comment}</div>}
+                  {s.has_review_file && <TeacherComments submission={s} />}
                 </div>
                 <div className="notif-btn-group">
                   {hasReport(s.status) && (

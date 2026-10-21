@@ -148,7 +148,7 @@ function App() {
             className="screen main-content"
           >
             {tabId === 'upload' && (
-              <UploadTab upload={student.upload} teacherSelectRef={tutorial.refs.teacherSel}
+              <UploadTab upload={student.upload} me={session.profile} teacherSelectRef={tutorial.refs.teacherSel}
                 fileUploadRef={tutorial.refs.fileUpload} submitRef={tutorial.refs.submitBtn} />
             )}
             {tabId === 'works' && <StudentWorksTab works={student.works} />}
@@ -160,7 +160,10 @@ function App() {
             {tabId === 'notes' && (
               <NotesTab notes={teacher.notes} onFind={teacher.findFromNote} addNoteRef={tutorial.refs.addNoteBtn} />
             )}
-            {tabId === 'settings' && <SettingsTab settings={settings} onLogout={registration.reset} />}
+            {tabId === 'settings' && (
+              <SettingsTab settings={settings} onLogout={registration.reset}
+                profile={session.profile} onNeedProfile={session.refreshProfile} />
+            )}
           </MotionDiv>
         )}
       </AnimatePresence>

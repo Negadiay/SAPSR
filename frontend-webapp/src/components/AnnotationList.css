@@ -1,0 +1,47 @@
+/* --- КОММЕНТАРИИ ПРЕПОДАВАТЕЛЯ ИЗ PDF --- */
+.annotation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.annotation-page-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tg-theme-hint-color, #6a8a88);
+  margin-bottom: 2px;
+}
+
+.annotation-item {
+  border-left: 3px solid var(--tg-theme-button-color, #2e8d8a);
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.annotation-reply {
+  margin-left: 14px;
+  border-left-style: dashed;
+}
+
+.annotation-kind {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tg-theme-hint-color, #6a8a88);
+}
+
+.annotation-quote {
+  margin: 2px 0;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.annotation-comment {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.annotation-muted {
+  color: var(--tg-theme-hint-color, #6a8a88);
+}

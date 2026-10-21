@@ -1,0 +1,12 @@
+# Настройки gitleaks для SAPSR: стандартные правила + токен бота Telegram без ключевого слова рядом.
+# Запуск по всей истории: gitleaks git --log-opts="--all" --redact -v
+title = "SAPSR gitleaks"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "telegram-bot-token-bare"
+description = "Токен бота Telegram (формат <id>:<35 символов>), в том числе без слова telegram рядом"
+regex = '''\b[0-9]{8,10}:AA[0-9A-Za-z_-]{33}\b'''
+keywords = [":aa"]

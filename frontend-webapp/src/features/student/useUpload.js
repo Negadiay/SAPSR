@@ -4,8 +4,21 @@ import { readError } from '../../api/client';
 import { notifyHaptic, showPopup } from '../../telegram/webApp';
 
 const LAST_TEACHER_KEY = 'sapsr_last_teacher_id';
+const LAST_PROFILE_KEY = 'sapsr_last_profile';
+const EMPTY_PROFILE = { work_type: '', semester: '', stage: '' };
 
 const teacherIdOf = (teacher) => String(teacher.telegram_id || teacher.id || 0);
+
+// Профиль проверки (вид работы, семестр, этап) — запоминается; от него зависят требования семестра.
+const loadProfile = () => {
+  try {
+    return { ...EMPTY_PROFILE, ...JSON.parse(localStorage.getItem(LAST_PROFILE_KEY) || '{}') };
+  } catch { return EMPTY_PROFILE; }
+};
+
+const saveProfile = (profile) => {
+  try { localStorage.setItem(LAST_PROFILE_KEY, JSON.stringify(profile)); } catch { /* без памяти — не страшно */ }
+};
 
 // Форма загрузки работы: список преподавателей, выбранный файл, отправка.
 export function useUpload({ active, onUploaded }) {
@@ -14,6 +27,7 @@ export function useUpload({ active, onUploaded }) {
   const [teachers, setTeachers]                   = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [uploading, setUploading]                 = useState(false);
+  const [profile, setProfile]                     = useState(loadProfile);
 
   const loadTeachers = async () => {
     try {
@@ -41,6 +55,12 @@ export function useUpload({ active, onUploaded }) {
 
   const selectFile = (nextFile) => { setFile(nextFile); setStatus(''); };
 
+  const setProfileField = (field, value) => {
+    const next = { ...profile, [field]: value };
+    setProfile(next);
+    saveProfile(next);
+  };
+
   const clearStatus = () => setStatus('');
 
   const submit = async (e) => {
@@ -49,7 +69,7 @@ export function useUpload({ active, onUploaded }) {
     setUploading(true); setStatus('⏳ Загрузка...');
     try {
       if (selectedTeacherId) localStorage.setItem(LAST_TEACHER_KEY, selectedTeacherId);
-      const res = await uploadSubmission(file, selectedTeacherId);
+      const res = await uploadSubmission(file, selectedTeacherId, profile);
       if (res.ok) {
         setStatus('✅ Работа успешно отправлена!'); setFile(null);
         notifyHaptic('success');
@@ -76,7 +96,7 @@ export function useUpload({ active, onUploaded }) {
   };
 
   return {
-    file, status, teachers, selectedTeacherId, uploading,
-    selectTeacher, selectFile, clearStatus, submit,
+    file, status, teachers, selectedTeacherId, uploading, profile,
+    selectTeacher, selectFile, setProfileField, clearStatus, submit,
   };
 }

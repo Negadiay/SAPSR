@@ -95,7 +95,7 @@
 | Очередь сообщений | RabbitMQ 3 |
 | Инфраструктура | Docker, Docker Compose |
 | Интеграция | Telegram Bot API 7.2, Spring Mail (Gmail SMTP) |
-| Деплой фронтенда | GitHub Pages, Cloudflare Tunnel |
+| Деплой фронтенда | GitHub Pages, ngrok |
 
 ---
 
@@ -142,7 +142,7 @@ SAPSR/
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (для PostgreSQL и RabbitMQ)
 - Java 21+
-- Python 3.10+
+- Python 3.12 (в Docker-образе обработчика — 3.12; библиотекам моделей нужен 3.10+)
 - [Ollama](https://ollama.com) с моделью `qwen3.5:4b` — для содержательной проверки (без неё проверяется только оформление)
 - Node.js 18+
 - Telegram Bot Token (получить у [@BotFather](https://t.me/BotFather))
@@ -170,10 +170,12 @@ start.bat
 docker compose up -d
 ```
 
-Сервисы будут доступны:
+Сервисы будут доступны только с этого компьютера (порты привязаны к `127.0.0.1`):
 - PostgreSQL: `localhost:5433`
 - RabbitMQ: `localhost:5672`
 - RabbitMQ Management UI: [http://localhost:15672](http://localhost:15672)
+
+Пароли базы и очереди — в `.env` (`POSTGRES_PASSWORD`, `RABBITMQ_PASSWORD`; образец — `.env.example`). `start-docker.bat` сам впишет случайные, если их нет, и при каждом запуске приведёт к ним пароли в уже созданных базе и очереди. Запуская бэкенд из IDE, укажите те же пароли в своём `application.properties`.
 
 **2. Backend**
 
@@ -191,10 +193,12 @@ API запустится на `http://localhost:8080`. При первом за�
 ```bash
 cd worker-python
 pip install -r requirements.txt
-python main.py
+RABBITMQ_USER=rmq_user RABBITMQ_PASSWORD=<из .env> SAPSR_STORAGE_ROOT=../storage python main.py
 ```
 
-Воркер подключается к RabbitMQ и начинает обрабатывать очередь `pdf_tasks_queue`. Настройки (протокол очередей, адрес модели, режимы) — переменные окружения, см. `worker-python/README.md`.
+В PowerShell переменные задаются так: `$env:RABBITMQ_PASSWORD="<из .env>"`. Без `RABBITMQ_USER` и `RABBITMQ_PASSWORD` обработчик не запустится — зашитых паролей в коде нет.
+
+Воркер подключается к RabbitMQ и начинает обрабатывать очередь `pdf_tasks_queue`. Остальные настройки (протокол очередей, адрес модели, режимы) — переменные окружения, см. `worker-python/README.md`.
 
 **4. Frontend**
 
@@ -229,6 +233,16 @@ cd backend-java
 ```
 
 Тесты миграций (`FreshDatabaseMigrationTest`, `LegacyDatabaseMigrationTest`) поднимают временный PostgreSQL в Docker через Testcontainers. Нужен запущенный Docker Desktop; без него эти тесты пропускаются, остальные идут как обычно.
+
+### Worker (Python)
+
+```bash
+cd worker-python
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Тесты не ходят в сеть: справочники ИИС в них отключены. Группы — маркеры `typical`, `boundary`, `negative` (например, `python -m pytest -m negative`). Функция подписи данных запуска Telegram тестовым токеном — `worker-python/tests/telegram_init_data.py`, её Java-двойник — `backend-java/src/test/java/com/sapsr/backend/testsupport/TelegramInitDataSigner.java`; обе сверяются с `test-fixtures/telegram-init-data.json`.
 
 ### Frontend
 

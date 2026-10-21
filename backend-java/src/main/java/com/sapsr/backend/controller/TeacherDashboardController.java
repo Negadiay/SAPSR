@@ -1,10 +1,15 @@
 package com.sapsr.backend.controller;
 
 import com.sapsr.backend.SapsrTelegramBot;
+import com.sapsr.backend.bot.BotMessages;
+import com.sapsr.backend.entity.Annotation;
+import com.sapsr.backend.entity.ReviewFile;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.entity.WorkFileName;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.storage.FileStorage;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ContentDisposition;
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @CrossOrigin(origins = "*")
@@ -25,14 +31,17 @@ public class TeacherDashboardController {
     private final UserRepository userRepository;
     private final SapsrTelegramBot bot;
     private final FileStorage fileStorage;
+    private final ReviewFileService reviewFiles;
 
     public TeacherDashboardController(SubmissionRepository submissionRepository,
                                       UserRepository userRepository,
                                       SapsrTelegramBot bot,
-                                      FileStorage fileStorage) {
+                                      FileStorage fileStorage,
+                                      ReviewFileService reviewFiles) {
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.bot = bot;
+        this.reviewFiles = reviewFiles;
         this.fileStorage = fileStorage;
     }
 
@@ -53,18 +62,36 @@ public class TeacherDashboardController {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", s.getId());
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            // Срок сдачи засчитывается по приходу первой версии (решение 9).
+            LocalDateTime deadlineDate = s.submittedForDeadline();
+            item.put("first_submitted_at", deadlineDate != null ? deadlineDate.toString() : "");
+            item.put("version", versionOf(s));
             item.put("status", normalizeDbCode(s.getStatus()));
             item.put("format_errors", s.getFormatErrors());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
             item.put("file_name", s.displayFileName());
+            item.put("review_annotations", reviewFiles.countAnnotations(s.getId()));
+            item.put("has_review_file", reviewFiles.find(s.getId()).isPresent());
             result.add(item);
         }
         return ResponseEntity.ok(result);
     }
 
+    /** Номер версии работы: 1 — первая загрузка, дальше по цепочке parent_id. */
+    private int versionOf(Submission s) {
+        int version = 1;
+        Integer parentId = s.getParentId();
+        Set<Integer> seen = new HashSet<>();
+        while (parentId != null && seen.add(parentId)) {
+            version++;
+            parentId = submissionRepository.findById(parentId).map(Submission::getParentId).orElse(null);
+        }
+        return version;
+    }
+
     @PostMapping("/submissions/{id}/verdict")
     public ResponseEntity<?> setVerdict(@PathVariable Integer id,
-                                        @RequestBody Map<String, String> body,
+                                        @RequestBody Map<String, Object> body,
                                         HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
@@ -82,14 +109,34 @@ public class TeacherDashboardController {
             return ResponseEntity.status(403).body(Map.of("error", "Эта работа не назначена вам"));
         }
 
-        String verdict = body.getOrDefault("verdict", "").toUpperCase();
-        if (!"APPROVED".equals(verdict) && !"REVISION".equals(verdict)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "verdict должен быть APPROVED или REVISION"));
+        if (submission.getTeacherVerdict() != null && !submission.getTeacherVerdict().isBlank()) {
+            return ResponseEntity.status(409).body(Map.of("code", "VERDICT_ALREADY_SET",
+                    "error", "По работе уже вынесен вердикт"));
         }
 
-        String comment = body.getOrDefault("comment", "").trim();
-        if ("REVISION".equals(verdict) && comment.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "При отправке на доработку укажите комментарий"));
+        String verdict = String.valueOf(body.getOrDefault("verdict", "")).toUpperCase(Locale.ROOT);
+        if (!"APPROVED".equals(verdict) && !"REVISION".equals(verdict)) {
+            return ResponseEntity.badRequest().body(Map.of("code", "VALIDATION_ERROR", "field", "verdict",
+                    "error", "verdict должен быть APPROVED или REVISION"));
+        }
+
+        Object rawComment = body.get("comment");
+        String comment = rawComment == null ? "" : String.valueOf(rawComment).trim();
+
+        // Размеченный файл у работы один; если интерфейс передал его номер, он должен совпадать.
+        Optional<ReviewFile> reviewFile = reviewFiles.find(submission.getId());
+        Object reviewFileId = body.get("review_file_id");
+        if (reviewFileId != null && (reviewFile.isEmpty()
+                || !String.valueOf(reviewFileId).equals(String.valueOf(reviewFile.get().getId())))) {
+            return ResponseEntity.badRequest().body(Map.of("code", "VALIDATION_ERROR", "field", "review_file_id",
+                    "error", "Размеченный файл не относится к этой работе"));
+        }
+        long annotationCount = reviewFiles.countAnnotations(submission.getId());
+
+        // На доработку — с текстом или хотя бы с одним комментарием в размеченном файле (api-v1.md, раздел 9).
+        if ("REVISION".equals(verdict) && comment.isEmpty() && annotationCount == 0) {
+            return ResponseEntity.badRequest().body(Map.of("code", "COMMENT_REQUIRED",
+                    "error", "При отправке на доработку напишите комментарий или приложите файл с пометками"));
         }
 
         submission.setTeacherVerdict(verdict);
@@ -98,11 +145,11 @@ public class TeacherDashboardController {
 
         if (submission.getStudent() != null) {
             String teacherName = teacher.get().getFullName() != null ? teacher.get().getFullName() : "Преподаватель";
-            String fileName = submission.displayFileName();
-            String text = "APPROVED".equals(verdict)
-                    ? "✅ Преподаватель " + teacherName + " принял вашу работу!\n\nРабота: " + fileName
-                    : "🔄 Преподаватель " + teacherName + " отправил работу на доработку.\n\nРабота: " + fileName + "\nКомментарий: " + comment;
-            bot.notifyUser(submission.getStudent().getTelegramId(), text);
+            // Комментарии из файла — прямо в сообщении: студент видит их сразу, файл понадобится при исправлении.
+            List<Annotation> annotations = reviewFile.map(reviewFiles::annotationsOf).orElse(List.of());
+            bot.notifyUser(submission.getStudent().getTelegramId(), BotMessages.verdictForStudent(
+                    teacherName, submission.displayFileName(), "APPROVED".equals(verdict), comment,
+                    annotations, reviewFile.isPresent()));
         }
 
         return ResponseEntity.ok(Map.of("status", "OK", "verdict", verdict));
@@ -129,6 +176,8 @@ public class TeacherDashboardController {
             item.put("teacher_comment", s.getTeacherComment());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
             item.put("file_name", s.displayFileName());
+            item.put("review_annotations", reviewFiles.countAnnotations(s.getId()));
+            item.put("has_review_file", reviewFiles.find(s.getId()).isPresent());
             result.add(item);
         }
         return ResponseEntity.ok(result);
@@ -154,9 +203,10 @@ public class TeacherDashboardController {
             if (!Files.exists(file)) return ResponseEntity.notFound().build();
 
             byte[] content = Files.readAllBytes(file);
-            // Имя для скачивания — исходное, из базы; кириллица передаётся по RFC 5987.
+            // Имя для скачивания — по форме «КР7_321702_Фамилия.pdf», если профиль известен, иначе исходное;
+            // кириллица передаётся по RFC 5987.
             ContentDisposition disposition = ContentDisposition.attachment()
-                    .filename(submission.displayFileName(), StandardCharsets.UTF_8)
+                    .filename(WorkFileName.forDownload(submission), StandardCharsets.UTF_8)
                     .build();
 
             return ResponseEntity.ok()

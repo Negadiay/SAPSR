@@ -1,9 +1,10 @@
 spring.application.name=backend
 server.port=8080
 
+# Пароли — те же, что POSTGRES_PASSWORD и RABBITMQ_PASSWORD в .env. В Docker они приходят из .env переменными окружения.
 spring.datasource.url=jdbc:postgresql://localhost:5433/sapsr_db
 spring.datasource.username=sapsr_user
-spring.datasource.password=sapsr_password
+spring.datasource.password=ПАРОЛЬ_ИЗ_ENV
 
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 # Схему меняют только миграции Flyway (src/main/resources/db/migration); Hibernate её лишь сверяет.
@@ -15,6 +16,11 @@ spring.jpa.show-sql=true
 # Корень хранилища файлов работ. В Docker рабочая папка бэкенда /app/backend, так что это /app/storage —
 # общий том с обработчиком. Файлы лежат под ключами вида 2026/10/<UUID>.pdf (docs/contracts/queue-v2.md).
 sapsr.storage.root=../storage
+
+# Предел размера работы и размеченного файла — 50 МБ, как обещает интерфейс. Без этих строк Spring
+# принимает только 1 МБ, а Docker-образ бэкенда собирается именно из этого файла.
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=51MB
 
 # Тайм-аут содержательной проверки (решение 5): работа уходит преподавателю после фазы content
 # либо через это время после фазы format. Величина не утверждена; читать её будет приём двух фаз.
@@ -28,7 +34,7 @@ bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 spring.rabbitmq.host=localhost
 spring.rabbitmq.port=5672
 spring.rabbitmq.username=rmq_user
-spring.rabbitmq.password=rmq_password
+spring.rabbitmq.password=ПАРОЛЬ_ИЗ_ENV
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
 

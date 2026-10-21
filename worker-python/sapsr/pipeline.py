@@ -134,8 +134,10 @@ class CheckService:
             findings = self._format_findings(run, ctx)
         document_info = self._document_info(ctx, profile)
         passed = not any(f.blocking for f in findings)
+        # Нет текста или страниц — содержательно проверять нечего, даже если профиль это разрешает.
+        unreadable = any(f.blocking and self._is_gate(run, f) for f in findings)
 
-        content_planned = self._plan_content(run, passed)
+        content_planned = self._plan_content(run, passed, unreadable)
         format_report = self._report(run, "format", findings, document_info, [], content_checked=False)
         yield PhaseResult("format", format_report, passed, final=not content_planned)
         if not content_planned:
@@ -213,9 +215,20 @@ class CheckService:
                                         message="Режим сравнения neural: правила оформления не применялись."))
         return findings
 
-    def _plan_content(self, run: _Run, passed: bool) -> bool:
-        if not passed:
-            return False  # отклонённую по оформлению работу модель не проверяет (queue-v2.md, вопрос 3)
+    @staticmethod
+    def _is_gate(run: _Run, finding: Finding) -> bool:
+        active = run.profile.rule(finding.requirement_id)
+        return active is not None and active.rule.check in GATE_CHECKS
+
+    def _plan_content(self, run: _Run, passed: bool, unreadable: bool) -> bool:
+        if unreadable:
+            return False
+        # Решение 9 (queue-v2.md, вопрос 3): отклонённая по оформлению работа проверяется содержательно,
+        # если профиль не запрещает это явно.
+        if not passed and run.profile.content.run_when_rejected is False:
+            run.skipped.append(SkippedCheck(id="*", stage="claims", reason="REJECTED_BY_FORMAT",
+                                            message="Работа отклонена по оформлению; содержание по профилю не проверялось."))
+            return False
         if run.mode == "symbolic":
             run.skipped.append(SkippedCheck(id="*", stage="claims", reason="MODE_SYMBOLIC",
                                             message="Режим symbolic: содержательная проверка выключена."))

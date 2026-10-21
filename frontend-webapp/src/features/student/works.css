@@ -207,3 +207,32 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* --- КОММЕНТАРИИ ПРЕПОДАВАТЕЛЯ В ФАЙЛЕ --- */
+.teacher-comments {
+  margin-top: 6px;
+  text-align: left;
+}
+
+.teacher-comments-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.teacher-comments-toggle,
+.teacher-comments-download {
+  background: none;
+  border: 1px solid var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-color, #2e8d8a);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.teacher-comments-hint {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #6a8a88);
+}

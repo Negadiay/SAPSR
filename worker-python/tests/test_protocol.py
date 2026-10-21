@@ -11,6 +11,7 @@ import pytest
 
 from conftest import CONTRACTS, HYBRID, NOW, make_llm
 from main import Publisher, Worker
+from sapsr.directories import StaticDirectory
 from sapsr.pipeline import CheckService
 from sapsr.settings import Settings
 from sapsr.task import InvalidTask, parse_task
@@ -122,6 +123,41 @@ def test_v2_rejected_by_format_is_final(kb, directory, model, storage):
     phases = channel.queue("pdf_results_queue")
     assert [(r["phase"], r["passed"], r["final"]) for r in phases] == [("format", False, True)]
     assert [p["stage"] for p in channel.queue("pdf_progress_queue")] == ["extract", "structure", "format"]
+    assert model.calls == []
+
+
+@pytest.mark.typical
+def test_v2_rejected_by_format_still_checks_content(kb, model, storage):
+    # Решение 9: отклонённая работа уходит преподавателю, и ему нужны содержательные замечания.
+    # Здесь работу отклоняет титульный лист: заведующего и проверяющего нет в справочнике ИИС.
+    unknown_staff = StaticDirectory(specialty_codes=["6-05-0611-03"], employee_names=[])
+    root = storage("content-formats.pdf")
+    channel = deliver(worker(kb, unknown_staff, model, root, 2), task_body())
+    phases = channel.queue("pdf_results_queue")
+    assert [(r["phase"], r["passed"], r["final"]) for r in phases] == [("format", False, False), ("content", False, True)]
+    ids = {f["requirement_id"] for f in phases[1]["report"]["findings"]}
+    assert {"TTL-HEAD-IIS", "CNT-CONSIST-002"} <= ids
+    assert model.calls
+
+    v1 = deliver(worker(kb, unknown_staff, model, root, 1), task_body()).queue("pdf_results_queue")[0]
+    assert v1["status"] == "FAIL"
+    assert any(e["requirement_id"] == "CNT-CONSIST-002" for e in v1["errors"])
+
+
+@pytest.mark.boundary
+def test_profile_can_skip_content_for_rejected(kb, model, storage, monkeypatch):
+    resolve = kb.resolve_profile
+
+    def without_content_for_rejected(*args, **kwargs):
+        profile = resolve(*args, **kwargs)
+        return replace(profile, content=profile.content.model_copy(update={"run_when_rejected": False}))
+
+    monkeypatch.setattr(kb, "resolve_profile", without_content_for_rejected)
+    unknown_staff = StaticDirectory(specialty_codes=["6-05-0611-03"], employee_names=[])
+    channel = deliver(worker(kb, unknown_staff, model, storage("content-formats.pdf"), 2), task_body())
+    phases = channel.queue("pdf_results_queue")
+    assert [(r["phase"], r["passed"], r["final"]) for r in phases] == [("format", False, True)]
+    assert "REJECTED_BY_FORMAT" in {s["reason"] for s in phases[0]["report"]["pipeline"]["skipped"]}
     assert model.calls == []
 
 

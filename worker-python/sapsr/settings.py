@@ -35,8 +35,9 @@ def _default_storage_root() -> Path:
 class Settings:
     rabbitmq_host: str = "localhost"
     rabbitmq_port: int = 5672
-    rabbitmq_user: str = "rmq_user"
-    rabbitmq_password: str = "rmq_password"
+    # Учётные данные очереди — только из окружения (в Docker — из .env), в коде паролей нет.
+    rabbitmq_user: str = ""
+    rabbitmq_password: str = ""
     tasks_queue: str = "pdf_tasks_queue"
     results_queue: str = "pdf_results_queue"
     progress_queue: str = "pdf_progress_queue"
@@ -75,8 +76,8 @@ class Settings:
         settings = cls(
             rabbitmq_host=get("RABBITMQ_HOST", "localhost"),
             rabbitmq_port=int(get("RABBITMQ_PORT", "5672")),
-            rabbitmq_user=get("RABBITMQ_USER", "rmq_user"),
-            rabbitmq_password=get("RABBITMQ_PASSWORD", get("RABBITMQ_PASS", "rmq_password")),
+            rabbitmq_user=get("RABBITMQ_USER", ""),
+            rabbitmq_password=get("RABBITMQ_PASSWORD", get("RABBITMQ_PASS", "")),
             tasks_queue=get("SAPSR_TASKS_QUEUE", "pdf_tasks_queue"),
             results_queue=get("SAPSR_RESULTS_QUEUE", "pdf_results_queue"),
             progress_queue=get("SAPSR_PROGRESS_QUEUE", "pdf_progress_queue"),
