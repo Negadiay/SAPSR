@@ -17,6 +17,11 @@ spring.jpa.show-sql=true
 # общий том с обработчиком. Файлы лежат под ключами вида 2026/10/<UUID>.pdf (docs/contracts/queue-v2.md).
 sapsr.storage.root=../storage
 
+# Предел размера работы и размеченного файла — 50 МБ, как обещает интерфейс. Без этих строк Spring
+# принимает только 1 МБ, а Docker-образ бэкенда собирается именно из этого файла.
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=51MB
+
 # Тайм-аут содержательной проверки (решение 5): работа уходит преподавателю после фазы content
 # либо через это время после фазы format. Величина не утверждена; читать её будет приём двух фаз.
 sapsr.pipeline.content-timeout=5m

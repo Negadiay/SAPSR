@@ -17,6 +17,7 @@ import com.sapsr.backend.entity.User;
 import com.sapsr.backend.messaging.TaskMessage;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.service.BsuirApiService;
 import com.sapsr.backend.service.EmailVerificationService;
 import com.sapsr.backend.storage.FileStorage;
@@ -52,6 +53,7 @@ public class UploadController {
     private final BsuirApiService bsuirApiService;
     private final SapsrTelegramBot bot;
     private final FileStorage fileStorage;
+    private final ReviewFileService reviewFiles;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
@@ -62,7 +64,8 @@ public class UploadController {
                             EmailVerificationService emailVerificationService,
                             BsuirApiService bsuirApiService,
                             SapsrTelegramBot bot,
-                            FileStorage fileStorage) {
+                            FileStorage fileStorage,
+                            ReviewFileService reviewFiles) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
@@ -70,6 +73,7 @@ public class UploadController {
         this.bsuirApiService = bsuirApiService;
         this.bot = bot;
         this.fileStorage = fileStorage;
+        this.reviewFiles = reviewFiles;
     }
 
     @GetMapping("/me")
@@ -81,11 +85,16 @@ public class UploadController {
         Optional<User> user = userRepository.findById(telegramId);
         if (user.isPresent()) {
             User u = user.get();
-            return ResponseEntity.ok(Map.of(
-                    "telegram_id", u.getTelegramId(),
-                    "role", u.getRole(),
-                    "full_name", u.getFullName() != null ? u.getFullName() : ""
-            ));
+            // Свои данные для экрана настроек (api-v1.md, раздел 5); имя и отчество у старых аккаунтов пусты.
+            Map<String, Object> me = new LinkedHashMap<>();
+            me.put("telegram_id", u.getTelegramId());
+            me.put("role", u.getRole());
+            me.put("full_name", u.getFullName() != null ? u.getFullName() : "");
+            me.put("last_name", u.getLastName());
+            me.put("first_name", u.getFirstName());
+            me.put("middle_name", u.getMiddleName());
+            if ("STUDENT".equals(u.getRole())) me.put("group", u.getGroupNumber());
+            return ResponseEntity.ok(me);
         }
         return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
     }
@@ -220,6 +229,10 @@ public class UploadController {
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
             item.put("file_name", s.displayFileName());
+            // Комментарии преподавателя в файле видны студенту только после вердикта.
+            boolean reviewed = s.getTeacherVerdict() != null && !s.getTeacherVerdict().isBlank();
+            item.put("review_annotations", reviewed ? reviewFiles.countAnnotations(s.getId()) : 0);
+            item.put("has_review_file", reviewed && reviewFiles.find(s.getId()).isPresent());
             result.add(item);
         }
 
@@ -246,6 +259,7 @@ public class UploadController {
             bot.deleteMessage(s.getTeacher().getTelegramId(), s.getTeacherMessageId());
         }
 
+        reviewFiles.deleteFor(id);
         submissionRepository.deleteById(id);
         deleteStoredFile(s);
         return ResponseEntity.ok(Map.of("status", "OK"));
@@ -271,8 +285,10 @@ public class UploadController {
         }
 
         Submission s = opt.get();
-        if (s.getStudent() != null && telegramId != null
-                && !s.getStudent().getTelegramId().equals(telegramId)) {
+        // Отчёт видят автор работы и её преподаватель (решение 9: преподаватель получает и отклонённые работы).
+        boolean isStudent = s.getStudent() != null && s.getStudent().getTelegramId().equals(telegramId);
+        boolean isTeacher = s.getTeacher() != null && s.getTeacher().getTelegramId().equals(telegramId);
+        if (telegramId == null || !(isStudent || isTeacher)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -310,7 +326,7 @@ public class UploadController {
         Font fontPageBadge = new Font(bf, 9, Font.BOLD,   new Color(255, 255, 255));
 
         // ── Заголовок отчёта ──────────────────────────────────────────────
-        doc.add(new Paragraph("SAPSR — отчёт о проверке оформления", fontTitle));
+        doc.add(new Paragraph("SAPSR — отчёт об автоматической проверке", fontTitle));
 
         String studentName = (s.getStudent() != null && s.getStudent().getFullName() != null)
                 ? s.getStudent().getFullName() : "—";
@@ -380,6 +396,14 @@ public class UploadController {
                     String found    = getJsonText(err, "found",    "");
                     String fix      = getJsonText(err, "fix",      "");
                     String context  = getJsonText(err, "context",  "");
+                    String category = getJsonText(err, "category", "");
+                    String origin   = getJsonText(err, "origin",   "symbolic");
+                    boolean needsReview = err.path("needs_teacher_review").asBoolean(false);
+                    // Содержательные замечания — от языковой модели и правил вместе; сдачу не блокируют.
+                    if ("content".equals(category) || "requirements".equals(category) || !"symbolic".equals(origin)) {
+                        message = "[Содержание] " + message;
+                    }
+                    if (needsReview) message = message + " (требует проверки преподавателем)";
 
                     Font fSev = switch (severity) {
                         case "critical" -> fontCrit;
@@ -571,6 +595,7 @@ public class UploadController {
             Optional<User> teacher = userRepository.findById(teacherId);
             teacher.ifPresent(submission::setTeacher);
         }
+        linkPreviousVersion(submission);
 
         Submission savedSubmission = submissionRepository.save(submission);
 
@@ -585,5 +610,21 @@ public class UploadController {
                 "message", "Файл успешно загружен в систему SAPSR!",
                 "db_id", savedSubmission.getId()
         ));
+    }
+
+    /**
+     * Решение 9: новая загрузка студента тому же преподавателю — следующая версия последней работы,
+     * если та ещё не принята. Новая версия заменяет предыдущую в очереди преподавателя, а срок сдачи
+     * по-прежнему считается от первой версии. После «принято» загрузка начинает новую работу.
+     */
+    private void linkPreviousVersion(Submission submission) {
+        if (submission.getStudent() == null || submission.getTeacher() == null) return;
+        submissionRepository.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(
+                        submission.getStudent().getTelegramId(), submission.getTeacher().getTelegramId())
+                .filter(previous -> !"APPROVED".equals(normalizeDbCode(previous.getTeacherVerdict())))
+                .ifPresent(previous -> {
+                    submission.setParentId(previous.getId());
+                    submission.setFirstSubmittedAt(previous.submittedForDeadline());
+                });
     }
 }

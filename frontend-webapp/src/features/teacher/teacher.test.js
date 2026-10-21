@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { searchQueryFromNote } from './noteSearch';
-import { useCommentTemplates } from './useCommentTemplates';
 import { useTeacherNotes } from './useTeacherNotes';
 
 describe('searchQueryFromNote', () => {
@@ -23,60 +22,6 @@ describe('searchQueryFromNote', () => {
 
   it('для заметки без имён и групп возвращает пустую строку', () => {
     expect(searchQueryFromNote('купить маркеры')).toBe('');
-  });
-});
-
-describe('useCommentTemplates', () => {
-  const teacher = { userRole: 'teacher', currentUserId: '42' };
-  const storageKey = 'sapsr_revision_templates_42';
-
-  it('запоминает комментарий и сохраняет его в localStorage', () => {
-    const { result } = renderHook(() => useCommentTemplates(teacher));
-    act(() => result.current.remember('  Исправить поля  '));
-    expect(result.current.suggest('').map(t => t.text)).toEqual(['Исправить поля']);
-    expect(JSON.parse(localStorage.getItem(storageKey))[0]).toMatchObject({ text: 'Исправить поля', count: 1 });
-  });
-
-  it('пустой комментарий не запоминает', () => {
-    const { result } = renderHook(() => useCommentTemplates(teacher));
-    act(() => result.current.remember('   '));
-    expect(result.current.suggest('')).toEqual([]);
-    expect(localStorage.getItem(storageKey)).toBeNull();
-  });
-
-  it('чаще используемые шаблоны предлагает первыми, не больше трёх', () => {
-    const { result } = renderHook(() => useCommentTemplates(teacher));
-    ['А', 'Б', 'В', 'Г'].forEach(text => act(() => result.current.remember(text)));
-    act(() => result.current.remember('Г'));
-    const suggested = result.current.suggest('').map(t => t.text);
-    expect(suggested).toHaveLength(3);
-    expect(suggested[0]).toBe('Г');
-  });
-
-  it('фильтрует подсказки по введённому тексту без учёта регистра', () => {
-    const { result } = renderHook(() => useCommentTemplates(teacher));
-    act(() => result.current.remember('Исправить поля'));
-    act(() => result.current.remember('Нет списка литературы'));
-    expect(result.current.suggest('ПОЛЯ').map(t => t.text)).toEqual(['Исправить поля']);
-  });
-
-  it('загружает сохранённые шаблоны своего пользователя', () => {
-    localStorage.setItem(storageKey, JSON.stringify([{ text: 'Сохранённый', count: 2, lastUsed: 1 }]));
-    localStorage.setItem('sapsr_revision_templates_7', JSON.stringify([{ text: 'Чужой', count: 9, lastUsed: 1 }]));
-    const { result } = renderHook(() => useCommentTemplates(teacher));
-    expect(result.current.suggest('').map(t => t.text)).toEqual(['Сохранённый']);
-  });
-
-  it('переживает повреждённые данные в localStorage', () => {
-    localStorage.setItem(storageKey, '{не json');
-    const { result } = renderHook(() => useCommentTemplates(teacher));
-    expect(result.current.suggest('')).toEqual([]);
-  });
-
-  it('студенту шаблоны не загружает', () => {
-    localStorage.setItem(storageKey, JSON.stringify([{ text: 'Сохранённый', count: 2, lastUsed: 1 }]));
-    const { result } = renderHook(() => useCommentTemplates({ userRole: 'student', currentUserId: '42' }));
-    expect(result.current.suggest('')).toEqual([]);
   });
 });
 

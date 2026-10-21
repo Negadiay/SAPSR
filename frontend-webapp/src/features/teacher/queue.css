@@ -108,48 +108,6 @@
   width: 100%;
 }
 
-.revision-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.revision-input {
-  width: 100%;
-  border-radius: 10px;
-  border: 1px solid rgba(46, 141, 138, 0.3);
-  padding: 10px;
-  font-size: 14px;
-  font-family: inherit;
-  resize: none;
-  background: var(--tg-theme-bg-color, #f0f9f5);
-  color: var(--tg-theme-text-color, #1c3a38);
-}
-
-.comment-char-counter {
-  font-size: 11px;
-  text-align: right;
-  color: var(--tg-theme-hint-color, #6a8a88);
-  margin-top: -4px;
-}
-
-.comment-char-warn {
-  color: #e53935;
-  font-weight: 600;
-}
-
-.revision-btns {
-  display: flex;
-  gap: 8px;
-}
-
-.revision-btns .submit-btn,
-.revision-btns .secondary-btn {
-  flex: 1;
-  font-size: 13px;
-  padding: 10px;
-}
-
 /* --- КОМПАКТНЫЕ КАРТОЧКИ ПРЕПОДАВАТЕЛЯ --- */
 .ts-card-compact {
   background: var(--tg-theme-secondary-bg-color, #dff0e9);
@@ -193,55 +151,70 @@
   padding: 10px 14px;
 }
 
-/* --- ШАБЛОНЫ КОММЕНТАРИЕВ --- */
-.comment-suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border: 1px solid rgba(46, 141, 138, 0.18);
-  border-radius: 10px;
-  padding: 8px;
-  background: rgba(46, 141, 138, 0.06);
-}
-
-.App .comment-suggestions-title {
-  font-size: calc(var(--app-font-size) * 0.8);
-  font-weight: 700;
-  color: var(--tg-theme-hint-color, #6a8a88);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.comment-suggestion {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 9px;
-  background: var(--tg-theme-bg-color, #f0f9f5);
-  color: var(--tg-theme-text-color, #1c3a38);
-  cursor: pointer;
+/* --- ИТОГ АВТОПРОВЕРКИ, ВЕРСИИ, РАЗМЕЧЕННЫЙ ФАЙЛ --- */
+.ts-version,
+.ts-autocheck {
+  font-size: 12px;
+  margin-top: 4px;
   text-align: left;
 }
 
-.comment-suggestion span {
-  flex: 1;
+.ts-version { color: var(--tg-theme-hint-color, #6a8a88); }
+.ts-autocheck-ok { color: #388e3c; }
+.ts-autocheck-bad { color: #d32f2f; font-weight: 600; }
+.ts-autocheck-content { color: var(--tg-theme-text-color, #1c3a38); }
+
+.ts-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.comment-suggestion small {
+.ts-findings,
+.ts-review {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--tg-theme-bg-color, #f0f9f5);
+}
+
+.ts-findings-title,
+.ts-review-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ts-finding {
+  font-size: 13px;
+  border-left: 3px solid var(--tg-theme-button-color, #2e8d8a);
+  padding-left: 8px;
+  overflow-wrap: anywhere;
+}
+
+/* Неуверенный вывод модели — не ошибка, а вопрос преподавателю: другой цвет и подпись. */
+.ts-finding-review { border-left-color: #f9a825; }
+
+.ts-finding-meta,
+.ts-review-count,
+.ts-review-help {
+  font-size: 12px;
   color: var(--tg-theme-hint-color, #6a8a88);
-  white-space: nowrap;
 }
 
-.app-dark .comment-suggestions {
-  background: rgba(99, 201, 160, 0.06);
-  border-color: rgba(99, 201, 160, 0.15);
+.ts-review-upload {
+  align-self: flex-start;
+  cursor: pointer;
 }
 
-.app-dark .comment-suggestion {
-  background: #2a3a3c;
-  color: #d1dbd8;
+.ts-review-error { font-size: 13px; color: #d32f2f; }
+.ts-review-warning { font-size: 13px; color: #e65100; }
+
+.revision-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
+
+.ts-review-ok { font-size: 13px; color: #388e3c; }

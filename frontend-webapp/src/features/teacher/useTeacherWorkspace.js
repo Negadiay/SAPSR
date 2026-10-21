@@ -1,5 +1,4 @@
 import { useTeacherSubmissions } from './useTeacherSubmissions';
-import { useCommentTemplates } from './useCommentTemplates';
 import { useReviewQueue } from './useReviewQueue';
 import { useHistoryView } from './useHistoryView';
 import { useTeacherNotes } from './useTeacherNotes';
@@ -8,8 +7,7 @@ import { searchQueryFromNote } from './noteSearch';
 // Всё состояние кабинета преподавателя; живёт выше вкладок, чтобы не теряться при переключении.
 export function useTeacherWorkspace({ active, userRole, currentUserId, onOpenQueue }) {
   const submissions = useTeacherSubmissions({ active });
-  const templates = useCommentTemplates({ userRole, currentUserId });
-  const queue = useReviewQueue({ submissions, templates });
+  const queue = useReviewQueue({ submissions });
   const history = useHistoryView({ submissions });
   const notes = useTeacherNotes({ userRole, currentUserId });
 

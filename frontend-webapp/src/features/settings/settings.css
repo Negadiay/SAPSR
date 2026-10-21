@@ -92,3 +92,10 @@
 .fontsize-marker-large {
   font-size: calc(var(--app-font-size) * 1.2) !important;
 }
+
+/* --- КТО ВОШЁЛ --- */
+.settings-profile-name {
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}

@@ -153,6 +153,9 @@ class RuleOverride(Strict):
 
 class ContentSettings(Strict):
     enabled: Optional[bool] = None
+    # Проверять ли содержание работы, отклонённой по оформлению (решение 9: преподаватель получает
+    # и такие работы). Не проверяется в любом случае, если документ не читается или в нём нет текста.
+    run_when_rejected: Optional[bool] = None
     # Части записки, из которых модель извлекает утверждения (понятия из concepts.yaml).
     sections: Optional[list[str]] = None
     # Наборы требований семестра (kb/requirements/<id>.yaml).

@@ -6,6 +6,7 @@ import com.sapsr.backend.entity.User;
 import com.sapsr.backend.messaging.TaskMessage;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.service.BsuirApiService;
 import com.sapsr.backend.service.EmailVerificationService;
 import com.sapsr.backend.storage.LocalFileStorage;
@@ -24,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -45,9 +47,12 @@ class UploadControllerTest {
     @TempDir Path root;
     private Path storageRoot;
 
+    private static final long TEACHER_ID = 2002L;
+
     private final RabbitTemplate rabbit = mock(RabbitTemplate.class);
     private final SubmissionRepository submissions = mock(SubmissionRepository.class);
     private final UserRepository users = mock(UserRepository.class);
+    private final ReviewFileService reviewFiles = mock(ReviewFileService.class);
     private UploadController controller;
 
     @BeforeEach
@@ -56,7 +61,7 @@ class UploadControllerTest {
         storageRoot = Files.createDirectory(root.resolve("storage"));
         controller = new UploadController(rabbit, submissions, users,
                 mock(EmailVerificationService.class), mock(BsuirApiService.class), mock(SapsrTelegramBot.class),
-                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()));
+                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles);
         ReflectionTestUtils.setField(controller, "tasksQueue", "pdf_tasks_queue");
 
         User student = new User();
@@ -65,6 +70,10 @@ class UploadControllerTest {
         student.setLastName("Иванов");
         student.setGroupNumber("321702");
         when(users.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        User teacher = new User();
+        teacher.setTelegramId(TEACHER_ID);
+        teacher.setRole("TEACHER");
+        when(users.findById(TEACHER_ID)).thenReturn(Optional.of(teacher));
         when(submissions.save(any(Submission.class))).thenAnswer(call -> {
             Submission saved = call.getArgument(0);
             saved.setId(153);
@@ -217,6 +226,71 @@ class UploadControllerTest {
     }
 
     @Test
+    void newUploadToSameTeacherBecomesNextVersionAndKeepsFirstDate() {
+        // Решение 9: срок сдачи считается от первой версии, даже если она не прошла оформление.
+        LocalDateTime firstArrival = LocalDateTime.of(2026, 10, 20, 9, 15);
+        Submission previous = new Submission();
+        previous.setId(150);
+        previous.setStatus("REJECTED");
+        previous.setFirstSubmittedAt(firstArrival);
+        when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
+                .thenReturn(Optional.of(previous));
+
+        controller.uploadFile(pdf("Курсовая v2.pdf"), TEACHER_ID, null, null, null, request());
+
+        Submission saved = savedSubmission();
+        assertThat(saved.getParentId()).isEqualTo(150);
+        assertThat(saved.getFirstSubmittedAt()).isEqualTo(firstArrival);
+        assertThat(saved.submittedForDeadline()).isEqualTo(firstArrival);
+    }
+
+    @Test
+    void uploadAfterApprovedWorkStartsNewWork() {
+        Submission approved = new Submission();
+        approved.setId(150);
+        approved.setStatus("SUCCESS");
+        approved.setTeacherVerdict("APPROVED");
+        approved.setCreatedAt(LocalDateTime.of(2026, 9, 1, 10, 0));
+        when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
+                .thenReturn(Optional.of(approved));
+
+        controller.uploadFile(pdf("Новая работа.pdf"), TEACHER_ID, null, null, null, request());
+
+        Submission saved = savedSubmission();
+        assertThat(saved.getParentId()).isNull();
+        assertThat(saved.getFirstSubmittedAt()).isNull();
+    }
+
+    @Test
+    void reportIsAvailableToStudentAndTeacherOnly() {
+        Submission s = new Submission();
+        s.setId(153);
+        s.setStatus("REJECTED");
+        s.setStudent(users.findById(STUDENT_ID).orElseThrow());
+        s.setTeacher(users.findById(TEACHER_ID).orElseThrow());
+        s.setFormatErrors("[{\"severity\":\"warning\",\"category\":\"content\",\"origin\":\"hybrid\","
+                + "\"needs_teacher_review\":true,\"page\":4,\"message\":\"Форматы описаны по-разному\"}]");
+        when(submissions.findById(153)).thenReturn(Optional.of(s));
+
+        assertThat(controller.getReport(153, requestAs(STUDENT_ID)).getStatusCode().value()).isEqualTo(200);
+        assertThat(controller.getReport(153, requestAs(TEACHER_ID)).getStatusCode().value()).isEqualTo(200);
+        assertThat(controller.getReport(153, requestAs(9999L)).getStatusCode().value()).isEqualTo(403);
+        assertThat(controller.getReport(153, new MockHttpServletRequest()).getStatusCode().value()).isEqualTo(403);
+    }
+
+    @Test
+    void withdrawalDeletesTeacherReviewFile() {
+        upload("Курсовая.pdf");
+        Submission saved = savedSubmission();
+        saved.setStatus("SUCCESS");
+        when(submissions.findById(153)).thenReturn(Optional.of(saved));
+
+        controller.withdrawSubmission(153, request());
+
+        verify(reviewFiles).deleteFor(153);
+    }
+
+    @Test
     void splitsStudentNameFromCurrentForm() {
         User user = new User();
 
@@ -249,8 +323,12 @@ class UploadControllerTest {
     }
 
     private static MockHttpServletRequest request() {
+        return requestAs(STUDENT_ID);
+    }
+
+    private static MockHttpServletRequest requestAs(long telegramId) {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setAttribute("telegram_id", STUDENT_ID);
+        request.setAttribute("telegram_id", telegramId);
         return request;
     }
 

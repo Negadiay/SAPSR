@@ -1,3 +1,6 @@
+import { useEffect } from 'react';
+import { shortName } from '../../lib/names';
+
 const FONT_SIZE_OPTIONS = ['small', 'normal', 'large', 'xlarge'];
 const FONT_SIZE_LABELS = {
   small: 'Мелкий',
@@ -6,12 +9,34 @@ const FONT_SIZE_LABELS = {
   xlarge: 'Очень крупный',
 };
 
-export default function SettingsTab({ settings, onLogout }) {
+// Кто вошёл: «Фамилия И. О.», у студента — ещё группа.
+function ProfileCard({ profile }) {
+  const name = shortName(profile);
+  if (!name) return null;
+  const isStudent = profile.role === 'STUDENT';
+  return (
+    <div className="settings-section settings-profile">
+      <div className="settings-label">{isStudent ? 'Студент' : 'Преподаватель'}</div>
+      <div className="settings-profile-name">{name}</div>
+      {isStudent && profile.group && <div className="settings-desc">Группа {profile.group}</div>}
+    </div>
+  );
+}
+
+export default function SettingsTab({ settings, onLogout, profile, onNeedProfile }) {
   const { theme, fontSize, contrast, toggleTheme, toggleContrast, setFontSize } = settings;
+
+  // После регистрации данных ещё нет — запрашиваем их один раз при открытии настроек.
+  useEffect(() => {
+    if (!profile && onNeedProfile) onNeedProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="tab-view">
       <h2 className="view-title">Настройки</h2>
+
+      <ProfileCard profile={profile} />
 
       <div className="settings-section">
         <div className="settings-label">Тема оформления</div>

@@ -8,16 +8,29 @@ export function useSession() {
   const [userRole, setUserRole]             = useState('');
   const [registeredRole, setRegisteredRole] = useState('');
   const [currentUserId, setCurrentUserId]   = useState(getTelegramUserId);
+  // Свои данные из GET /me: ФИО и группа для настроек и имени файла по форме.
+  const [profile, setProfile]               = useState(null);
 
-  const enter = (role) => {
+  const refreshProfile = async () => {
+    try {
+      const res = await fetchMe();
+      if (res.ok) setProfile(await res.json());
+    } catch (err) { console.warn('Profile error:', err); }
+  };
+
+  // me — данные GET /me, если они уже есть; после регистрации их ещё нет — запрашиваем.
+  const enter = (role, me) => {
     setUserRole(role);
     setRegisteredRole(role);
     setStep('main');
+    if (me) setProfile(me);
+    else refreshProfile();
   };
 
   const signOut = () => {
     setStep('role');
     setUserRole('');
+    setProfile(null);
   };
 
   const checkAuth = async () => {
@@ -27,7 +40,7 @@ export function useSession() {
         const data = await res.json();
         if (data.role && data.role !== 'NONE') {
           setCurrentUserId(data.telegram_id ? String(data.telegram_id) : '');
-          enter(data.role.toLowerCase());
+          enter(data.role.toLowerCase(), data);
           return;
         }
       }
@@ -43,6 +56,6 @@ export function useSession() {
 
   return {
     step, setStep, userRole, setUserRole, registeredRole,
-    currentUserId, setCurrentUserId, enter, signOut,
+    currentUserId, setCurrentUserId, enter, signOut, profile, refreshProfile,
   };
 }

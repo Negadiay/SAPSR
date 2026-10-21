@@ -70,7 +70,20 @@ public class Submission {
     @Column(name = "teacher_message_id")
     private Integer teacherMessageId;
 
+    // Предыдущая версия этой же работы (решение 9). Новая версия заменяет её в очереди преподавателя.
+    @Column(name = "parent_id")
+    private Integer parentId;
+
+    // Когда пришла первая версия — по ней засчитывается срок сдачи. У первой версии пусто: это created_at.
+    @Column(name = "first_submitted_at")
+    private LocalDateTime firstSubmittedAt;
+
     public Submission() {}
+
+    /** Дата, по которой засчитывается срок: приход первой версии работы. */
+    public LocalDateTime submittedForDeadline() {
+        return firstSubmittedAt != null ? firstSubmittedAt : createdAt;
+    }
 
     /**
      * Имя файла от пользователя без пути: браузеры иногда присылают «C:\fakepath\работа.pdf».
@@ -123,4 +136,8 @@ public class Submission {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public Integer getTeacherMessageId() { return teacherMessageId; }
     public void setTeacherMessageId(Integer teacherMessageId) { this.teacherMessageId = teacherMessageId; }
+    public Integer getParentId() { return parentId; }
+    public void setParentId(Integer parentId) { this.parentId = parentId; }
+    public LocalDateTime getFirstSubmittedAt() { return firstSubmittedAt; }
+    public void setFirstSubmittedAt(LocalDateTime firstSubmittedAt) { this.firstSubmittedAt = firstSubmittedAt; }
 }

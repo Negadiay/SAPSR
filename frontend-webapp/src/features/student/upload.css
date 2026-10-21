@@ -73,3 +73,21 @@ input[type="file"] {
   font-size: 14px;
   color: var(--tg-theme-button-color);
 }
+
+/* --- ПРОФИЛЬ ПРОВЕРКИ --- */
+.upload-profile {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+
+.upload-profile-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.upload-profile-row .teacher-select { width: 100%; }
+
+/* Длинное имя файла по форме переносится, а не уезжает за край */
+.upload-file-name { overflow-wrap: anywhere; }

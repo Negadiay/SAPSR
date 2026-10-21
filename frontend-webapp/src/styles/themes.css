@@ -28,7 +28,6 @@
 }
 
 .app-dark .reg-input,
-.app-dark .revision-input,
 .app-dark .teacher-select,
 .app-dark .teacher-search {
   background: #2a3a3c !important;
@@ -111,7 +110,6 @@
 }
 
 .app-contrast:not(.app-dark) .reg-input,
-.app-contrast:not(.app-dark) .revision-input,
 .app-contrast:not(.app-dark) .teacher-select,
 .app-contrast:not(.app-dark) .teacher-search {
   background: #ffffff !important;
@@ -179,7 +177,6 @@
 }
 
 .app-contrast.app-dark .reg-input,
-.app-contrast.app-dark .revision-input,
 .app-contrast.app-dark .teacher-select,
 .app-contrast.app-dark .teacher-search {
   background: #000 !important;
