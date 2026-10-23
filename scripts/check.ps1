@@ -1,6 +1,8 @@
 ﻿# Полная проверка SAPSR на машине с Docker Desktop (план Жерко, Ж1/Ж2/Ж6).
 #   powershell -ExecutionPolicy Bypass -File scripts\check.ps1            — всё
 #   powershell -ExecutionPolicy Bypass -File scripts\check.ps1 -Skip unit  — без модульных тестов
+#   powershell -ExecutionPolicy Bypass -Command "& .\scripts\check.ps1 -Skip unit,bat"  — несколько частей:
+#   с -File список через запятую приходит одной строкой
 # Что делает:
 #   unit     — pytest обработчика в python:3.12 (те же версии, что в образе); тесты бэкенда в Maven-контейнере
 #              (Testcontainers ходят в Docker Desktop); gitleaks по всей истории
@@ -15,7 +17,11 @@ param([string[]]$Skip = @())
 
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
-$OutputEncoding = [Text.Encoding]::UTF8
+# Без BOM. Windows PowerShell 5.1 пишет данные во внешнюю программу (rabbitmqadmin в Publish-Task)
+# в кодировке [Console]::InputEncoding, и при консоли в UTF-8 (кодовая страница 65001) ставит BOM —
+# обработчик отклоняет такое задание как «не JSON». $OutputEncoding — то же для PowerShell 7.
+[Console]::InputEncoding = New-Object Text.UTF8Encoding $false
+$OutputEncoding = New-Object Text.UTF8Encoding $false
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
@@ -141,7 +147,8 @@ if ($Skip -notcontains 'stack') {
     function Sql([string]$q) { (DCq exec -T postgres-db psql -U sapsr_user -d sapsr_db -tAc $q) -join "`n" }
     function Wait-Status([int]$id, [int]$seconds = 120) {
         $deadline = (Get-Date).AddSeconds($seconds)
-        do { Start-Sleep 2; $s = (Sql "select status from submissions where id=$id").Trim() } while ($s -eq 'PROCESSING' -and (Get-Date) -lt $deadline)
+        # Протокол 2: QUEUED — пока обработчик не начал, PROCESSING — пока нет итога
+        do { Start-Sleep 2; $s = (Sql "select status from submissions where id=$id").Trim() } while (@('QUEUED', 'PROCESSING') -contains $s -and (Get-Date) -lt $deadline)
         return $s
     }
     function Upload([string]$path) {
@@ -210,7 +217,7 @@ if ($Skip -notcontains 'stack') {
         if ($id2) {
             $s2 = Wait-Status $id2
             Log "  submission $id2 -> $s2"
-            Result 'не PDF: работа отклонена, обработчик жив' (($s2 -eq 'REJECTED') -and ((Worker-Restarts) -eq 0)) "(статус $s2)"
+            Result 'не PDF: сбой проверки FAILED, обработчик жив' (($s2 -eq 'FAILED') -and ((Worker-Restarts) -eq 0)) "(статус $s2)"
         } else { Result 'не PDF: загрузка' $false }
 
         Section 'Отрицательный: задания, которые раньше роняли обработчик'
@@ -228,7 +235,7 @@ if ($Skip -notcontains 'stack') {
         $after = Worker-Restarts
         $logs = (DCq logs worker --tail 60) -join "`n"
         Log ($logs -split "`n" | Select-Object -Last 25 | Out-String)
-        Result 'мусор и выход за корень хранилища: результат-сбой, без перезапусков обработчика' (($after -eq $before) -and ($logs -match 'отклоняю') -and ($s3 -eq 'REJECTED')) "(перезапусков: $after, статус $s3)"
+        Result 'мусор и выход за корень хранилища: результат-сбой, без перезапусков обработчика' (($after -eq $before) -and ($logs -match 'сообщение отклонено') -and ($s3 -eq 'FAILED')) "(перезапусков: $after, статус $s3)"
 
         Section 'Смена паролей в уже созданных базе и очереди (как в start-docker.bat)'
         $NewPg = [guid]::NewGuid().ToString('N'); $NewRmq = [guid]::NewGuid().ToString('N')

@@ -5,14 +5,15 @@ import { notifyHaptic, showPopup } from '../../telegram/webApp';
 
 const LAST_TEACHER_KEY = 'sapsr_last_teacher_id';
 const LAST_PROFILE_KEY = 'sapsr_last_profile';
-const EMPTY_PROFILE = { work_type: '', semester: '', stage: '' };
+const EMPTY_PROFILE = { work_type: '' };
 
 const teacherIdOf = (teacher) => String(teacher.telegram_id || teacher.id || 0);
 
-// Профиль проверки (вид работы, семестр, этап) — запоминается; от него зависят требования семестра.
+// Вид работы запоминается; семестр и этап определяет сервер (решение 11), прежний выбор из памяти не берётся.
 const loadProfile = () => {
   try {
-    return { ...EMPTY_PROFILE, ...JSON.parse(localStorage.getItem(LAST_PROFILE_KEY) || '{}') };
+    const saved = JSON.parse(localStorage.getItem(LAST_PROFILE_KEY) || '{}');
+    return { ...EMPTY_PROFILE, work_type: saved.work_type || '' };
   } catch { return EMPTY_PROFILE; }
 };
 

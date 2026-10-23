@@ -20,6 +20,7 @@ from rank_bm25 import BM25Okapi
 
 from sapsr.checks.engine import make_finding
 from sapsr.checks.registry import Hit
+from sapsr.content.fragments import BlockId
 from sapsr.content.reasoning import Reasoner
 from sapsr.content.verify import locate_quote
 from sapsr.deadline import Deadline
@@ -40,7 +41,7 @@ STEM_CHARS = 6
 
 class Judgement(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    block_id: str = Field(pattern=r"^b-\d{4,}$")
+    block_id: BlockId
     verdict: Literal["supports", "contradicts", "irrelevant"]
     quote: str = Field("", max_length=600)
     confidence: float = Field(ge=0, le=1)

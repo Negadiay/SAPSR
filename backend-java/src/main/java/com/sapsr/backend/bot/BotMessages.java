@@ -47,7 +47,8 @@ public final class BotMessages {
                 <b>Как пользоваться</b>
 
                 1. Откройте приложение кнопкой ниже.
-                2. Студент выбирает преподавателя, вид работы и семестр и загружает PDF.
+                2. Студент выбирает преподавателя и вид работы и загружает PDF — семестр и этап опроцентовки \
+                приложение определяет само.
                 3. Через несколько минут здесь появится итог проверки, а работа — у преподавателя.
                 4. Преподаватель принимает работу или возвращает её с пометками в файле — комментарии придут сюда же.
 
@@ -100,6 +101,14 @@ public final class BotMessages {
     }
 
     public static String resultForStudent(String fileName, boolean passed, String errorsJson) {
+        return resultForStudent(fileName, passed, errorsJson, false);
+    }
+
+    /**
+     * Итог проверки оформления. {@code contentPending} — содержание ещё проверяется (фаза format протокола v2):
+     * итог по содержанию придёт вторым сообщением, а прошедшая оформление работа уйдёт преподавателю после него.
+     */
+    public static String resultForStudent(String fileName, boolean passed, String errorsJson, boolean contentPending) {
         Findings f = findings(errorsJson);
         StringBuilder text = new StringBuilder(passed
                 ? "✅ <b>Работа прошла проверку оформления</b>\n"
@@ -116,20 +125,70 @@ public final class BotMessages {
             int hidden = f.formatErrors() - f.topErrors().size();
             if (hidden > 0) text.append("• и ещё ").append(hidden).append(" — в отчёте\n");
         }
-        if (f.content() > 0) {
+        if (contentPending) {
+            text.append("Содержание ещё проверяется — итог придёт отдельным сообщением.\n");
+        } else if (f.content() > 0) {
             text.append("Содержание: замечаний — ").append(f.content())
                     .append(". Они сдаче не мешают.\n");
         }
+        text.append('\n');
+        if (passed) {
+            text.append(contentPending
+                    ? "Работа уйдёт преподавателю, как только закончится проверка содержания."
+                    : "Работа передана преподавателю. Полный отчёт — в приложении.");
+        } else {
+            // Решение 9: преподаватель получает и отклонённую работу — срок сдачи засчитан.
+            text.append("Работа всё равно у преподавателя — срок сдачи засчитан. Исправьте ошибки и загрузите "
+                    + "новую версию: она заменит эту. Полный отчёт — в приложении.");
+        }
+        return text.toString();
+    }
+
+    /** Итог содержательной проверки — второе сообщение после итога оформления. */
+    public static String contentForStudent(String fileName, boolean passed, String errorsJson) {
+        Findings f = findings(errorsJson);
+        StringBuilder text = new StringBuilder("🧠 <b>Проверка содержания закончена</b>\n");
+        text.append("📄 ").append(escape(fileName)).append("\n\n");
+        if (f.content() > 0) {
+            text.append("Содержание: замечаний — ").append(f.content());
+            if (f.needsReview() > 0) text.append(", из них на проверку преподавателю — ").append(f.needsReview());
+            text.append(". Сдаче они не мешают.\n");
+        } else {
+            text.append("Содержание: замечаний нет.\n");
+        }
         text.append('\n').append(passed
                 ? "Работа передана преподавателю. Полный отчёт — в приложении."
-                // Решение 9: преподаватель получает и отклонённую работу — срок сдачи засчитан.
-                : "Работа всё равно у преподавателя — срок сдачи засчитан. Исправьте ошибки и загрузите "
-                + "новую версию: она заменит эту. Полный отчёт — в приложении.");
+                : "Отчёт у преподавателя дополнен. Полный отчёт — в приложении.");
         return text.toString();
+    }
+
+    /** Содержательная проверка не успела за тайм-аут или не удалась — работа уходит с отчётом по оформлению. */
+    public static String contentIncompleteForStudent(String fileName, boolean passed, String reason) {
+        StringBuilder text = new StringBuilder("⚠️ <b>Содержание проверить не удалось</b>\n");
+        text.append("📄 ").append(escape(fileName)).append("\n\n");
+        text.append(escape(reason)).append(" В отчёте — только оформление.\n\n");
+        text.append(passed
+                ? "Работа передана преподавателю."
+                : "Работа у преподавателя вместе с ошибками оформления.");
+        return text.toString();
+    }
+
+    /** Проверка не состоялась: файл не читается, зашифрован, обработчик не ответил. */
+    public static String failedForStudent(String fileName, String message) {
+        return "⚠️ <b>Проверка не удалась</b>\n"
+                + "📄 " + escape(fileName) + "\n\n"
+                + escape(message) + "\n\n"
+                + "Загрузите работу снова. Преподавателю она не отправлена.";
     }
 
     public static String resultForTeacher(String studentName, String fileName, boolean passed, boolean newVersion,
                                           LocalDateTime firstSubmittedAt, String errorsJson) {
+        return resultForTeacher(studentName, fileName, passed, newVersion, firstSubmittedAt, errorsJson, null);
+    }
+
+    /** {@code contentNote} — почему в отчёте нет содержательной части (тайм-аут, сбой); null — отчёт полный. */
+    public static String resultForTeacher(String studentName, String fileName, boolean passed, boolean newVersion,
+                                          LocalDateTime firstSubmittedAt, String errorsJson, String contentNote) {
         Findings f = findings(errorsJson);
         StringBuilder text = new StringBuilder(newVersion ? "📥 <b>Новая версия работы</b>\n" : "📥 <b>Новая работа</b>\n");
         text.append("👤 ").append(escape(studentName)).append('\n');
@@ -139,7 +198,9 @@ public final class BotMessages {
         }
         text.append('\n').append(passed ? "Оформление: ✅ без ошибок" : "Оформление: ❌ ошибок — " + f.formatErrors());
         text.append('\n');
-        if (f.content() > 0) {
+        if (contentNote != null) {
+            text.append("Содержание: ⚠️ ").append(escape(contentNote)).append('\n');
+        } else if (f.content() > 0) {
             text.append("Содержание: замечаний — ").append(f.content());
             if (f.needsReview() > 0) text.append(", на вашу проверку — ").append(f.needsReview());
             text.append('\n');

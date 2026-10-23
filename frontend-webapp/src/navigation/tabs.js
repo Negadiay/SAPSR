@@ -13,4 +13,14 @@ const TEACHER_TABS = [
   { id: 'settings', icon: '⚙️', label: 'Настройки', tutorialRef: 'navSettings' },
 ];
 
-export const getTabs = (role) => (role === 'teacher' ? TEACHER_TABS : STUDENT_TABS);
+// Администратор работы не проверяет: у него только настройки календаря (решение 11).
+const ADMIN_TABS = [
+  { id: 'admin',    icon: '🛠️', label: 'Управление' },
+  { id: 'settings', icon: '⚙️', label: 'Настройки' },
+];
+
+export const getTabs = (role) => {
+  if (role === 'teacher') return TEACHER_TABS;
+  if (role === 'admin') return ADMIN_TABS;
+  return STUDENT_TABS;
+};

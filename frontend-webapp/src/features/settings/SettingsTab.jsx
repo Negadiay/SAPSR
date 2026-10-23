@@ -9,16 +9,23 @@ const FONT_SIZE_LABELS = {
   xlarge: 'Очень крупный',
 };
 
-// Кто вошёл: «Фамилия И. О.», у студента — ещё группа.
+const ROLE_LABELS = { STUDENT: 'Студент', TEACHER: 'Преподаватель', ADMIN: 'Администратор' };
+
+// Кто вошёл: «Фамилия И. О.», у студента — ещё группа и курс. Администратора записывают в базу вручную —
+// имени у него может не быть.
 function ProfileCard({ profile }) {
   const name = shortName(profile);
-  if (!name) return null;
+  const isAdmin = profile?.role === 'ADMIN';
+  if (!name && !isAdmin) return null;
   const isStudent = profile.role === 'STUDENT';
   return (
     <div className="settings-section settings-profile">
-      <div className="settings-label">{isStudent ? 'Студент' : 'Преподаватель'}</div>
-      <div className="settings-profile-name">{name}</div>
-      {isStudent && profile.group && <div className="settings-desc">Группа {profile.group}</div>}
+      <div className="settings-label">{ROLE_LABELS[profile.role] || 'Преподаватель'}</div>
+      {name && <div className="settings-profile-name">{name}</div>}
+      {isStudent && profile.group && (
+        <div className="settings-desc">Группа {profile.group}{profile.course ? ` · ${profile.course} курс` : ''}</div>
+      )}
+      {isAdmin && <div className="settings-desc">Роль назначена в базе данных</div>}
     </div>
   );
 }

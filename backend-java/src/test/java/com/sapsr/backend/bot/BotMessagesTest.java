@@ -106,6 +106,48 @@ class BotMessagesTest {
         assertThat(BotMessages.resultForStudent("a.pdf", true, "не JSON")).contains("Оформление: замечаний нет.");
     }
 
+    // ── две фазы результата (задача 5.2) ─────────────────────────────────────────────────────
+
+    @Test
+    @Tag("typical")
+    void formatResultSaysContentIsStillChecked() {
+        String passed = BotMessages.resultForStudent("КР7.pdf", true, "[]", true);
+        assertThat(passed).contains("Содержание ещё проверяется — итог придёт отдельным сообщением.")
+                .contains("Работа уйдёт преподавателю, как только закончится проверка содержания.")
+                .doesNotContain("Работа передана преподавателю");
+
+        String rejected = BotMessages.resultForStudent("КР7.pdf", false, FINDINGS, true);
+        assertThat(rejected).contains("Содержание ещё проверяется").contains("срок сдачи засчитан")
+                .doesNotContain("Содержание: замечаний");
+    }
+
+    @Test
+    @Tag("typical")
+    void contentResultCountsWhatNeedsReview() {
+        assertThat(BotMessages.contentForStudent("КР7.pdf", true, FINDINGS))
+                .startsWith("🧠 <b>Проверка содержания закончена</b>")
+                .contains("Содержание: замечаний — 1, из них на проверку преподавателю — 1.")
+                .contains("Работа передана преподавателю.");
+        assertThat(BotMessages.contentForStudent("КР7.pdf", true, "[]")).contains("Содержание: замечаний нет.");
+    }
+
+    @Test
+    @Tag("negative")
+    void failureMessageEscapesText() {
+        String text = BotMessages.failedForStudent("<b>злой</b>.pdf", "Файл <script> не читается");
+        assertThat(text).contains("&lt;b&gt;злой&lt;/b&gt;.pdf").contains("Файл &lt;script&gt; не читается")
+                .contains("Преподавателю она не отправлена.");
+    }
+
+    @Test
+    @Tag("boundary")
+    void teacherSeesWhyContentIsMissing() {
+        String text = BotMessages.resultForTeacher("Терешкова А.В.", "КР7.pdf", true, false, null, FINDINGS,
+                "не проверено — проверка не уложилась в 5 мин");
+        assertThat(text).contains("Содержание: ⚠️ не проверено — проверка не уложилась в 5 мин")
+                .doesNotContain("на вашу проверку");
+    }
+
     private static Annotation note(int id, int page, String kind, String quote, String comment, Integer replyTo) {
         Annotation a = new Annotation();
         a.setId(id);

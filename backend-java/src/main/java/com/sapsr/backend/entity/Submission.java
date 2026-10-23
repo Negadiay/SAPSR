@@ -40,7 +40,7 @@ public class Submission {
     @Column(name = "file_sha256")
     private String fileSha256;
 
-    // Профиль проверки: вид работы, семестр, номер опроцентовки. Пока интерфейс их не передаёт.
+    // Профиль проверки: вид работы выбирает студент, семестр и номер опроцентовки определяет сервер (решение 11).
     @Column(name = "work_type")
     private String workType;
 
@@ -77,6 +77,30 @@ public class Submission {
     // Когда пришла первая версия — по ней засчитывается срок сдачи. У первой версии пусто: это created_at.
     @Column(name = "first_submitted_at")
     private LocalDateTime firstSubmittedAt;
+
+    // Две фазы результата (queue-v2.md, раздел 6). Отчёт v2 целиком; format_errors — те же замечания в форме v1.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "report", columnDefinition = "jsonb")
+    private String report;
+
+    @Column(name = "pipeline_stage")
+    private String pipelineStage;
+
+    @Column(name = "processing_started_at")
+    private LocalDateTime processingStartedAt;
+
+    @Column(name = "format_received_at")
+    private LocalDateTime formatReceivedAt;
+
+    // PENDING, DONE, TIMEOUT, FAILED, NONE — см. миграцию V5.
+    @Column(name = "content_status")
+    private String contentStatus;
+
+    @Column(name = "failure_code")
+    private String failureCode;
+
+    @Column(name = "teacher_notified_at")
+    private LocalDateTime teacherNotifiedAt;
 
     public Submission() {}
 
@@ -140,4 +164,18 @@ public class Submission {
     public void setParentId(Integer parentId) { this.parentId = parentId; }
     public LocalDateTime getFirstSubmittedAt() { return firstSubmittedAt; }
     public void setFirstSubmittedAt(LocalDateTime firstSubmittedAt) { this.firstSubmittedAt = firstSubmittedAt; }
+    public String getReport() { return report; }
+    public void setReport(String report) { this.report = report; }
+    public String getPipelineStage() { return pipelineStage; }
+    public void setPipelineStage(String pipelineStage) { this.pipelineStage = pipelineStage; }
+    public LocalDateTime getProcessingStartedAt() { return processingStartedAt; }
+    public void setProcessingStartedAt(LocalDateTime processingStartedAt) { this.processingStartedAt = processingStartedAt; }
+    public LocalDateTime getFormatReceivedAt() { return formatReceivedAt; }
+    public void setFormatReceivedAt(LocalDateTime formatReceivedAt) { this.formatReceivedAt = formatReceivedAt; }
+    public String getContentStatus() { return contentStatus; }
+    public void setContentStatus(String contentStatus) { this.contentStatus = contentStatus; }
+    public String getFailureCode() { return failureCode; }
+    public void setFailureCode(String failureCode) { this.failureCode = failureCode; }
+    public LocalDateTime getTeacherNotifiedAt() { return teacherNotifiedAt; }
+    public void setTeacherNotifiedAt(LocalDateTime teacherNotifiedAt) { this.teacherNotifiedAt = teacherNotifiedAt; }
 }

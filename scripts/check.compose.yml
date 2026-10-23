@@ -10,6 +10,10 @@ services:
     ports: !reset []
   worker:
     container_name: !reset null
+    environment:
+      # Модель выключена: проверка не зависит от Ollama на машине и укладывается в тайм-ауты ожидания.
+      # Содержательную часть проверяют pytest (заглушка модели) и прогоны на живой модели.
+      SAPSR_LLM_MODE: "off"
   backend:
     container_name: !reset null
     ports: !override

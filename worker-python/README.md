@@ -117,7 +117,7 @@ SAPSR_LLM_MODE=replay SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay python an
 
 | Переменная | По умолчанию | Что значит |
 |---|---|---|
-| `SAPSR_QUEUE_PROTOCOL` | `1` | `1` — результат `{task_id, status, errors}`, как ждёт бэкенд сейчас; `2` — прогресс и фазы (после задачи 5.2) |
+| `SAPSR_QUEUE_PROTOCOL` | `1`, в Docker — `2` | `2` — прогресс и две фазы результата; `1` — результат одним сообщением `{task_id, status, errors}`. Бэкенд с 23.10.2026 принимает обе версии (задача 5.2) |
 | `SAPSR_STORAGE_ROOT` | `/app/storage` в Docker, иначе `../storage` | корень хранилища файлов работ |
 | `SAPSR_MODE` | `hybrid` | `symbolic` — только правила; `hybrid` — правила + модель; `neural` — только модель (для сравнения) |
 | `SAPSR_MAX_PAGES` | `300` | больше — сбой `TOO_LARGE` |

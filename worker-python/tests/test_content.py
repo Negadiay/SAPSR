@@ -5,6 +5,9 @@ from __future__ import annotations
 import pytest
 
 from conftest import HYBRID, final_report, ids, run
+from sapsr.content.claims import Claim
+from sapsr.content.findings import claim_findings
+from sapsr.content.reasoning import Firing
 
 pytestmark = pytest.mark.typical
 
@@ -25,6 +28,71 @@ def test_defect_1_input_formats(service_factory):
     assert "только файл" in req.quote and req.section == "1.2" and req.page
     assert f.found == "Введение: DOCX, PDF; подраздел 1.2: PDF."
     assert report.summary.passed, "содержательное замечание сдачу не блокирует"
+
+
+@pytest.mark.boundary
+def test_one_contradiction_is_one_finding(kb):
+    """Живая модель на content-formats.pdf (21.10.2026) дала три замечания на одно противоречие:
+    CLIPS находит расхождения попарно. Пары по одному атрибуту склеиваются в одно замечание."""
+    def claim(cid, page, section, values, exhaustive=True):
+        return Claim(id=cid, attribute="system.input_formats", values=tuple(values), exhaustive=exhaustive,
+                     quote=f"Цитата {cid}", block_id=f"b-000{cid[-1]}", page=page, section_id=section,
+                     section_label=section, kind="intro", confidence=0.9 if cid != "c3" else 0.7,
+                     from_dictionary=True)
+    claims = [claim("c1", 3, "Введение", ["DOCX", "PDF"]), claim("c2", 4, "1.2", ["PDF"]),
+              claim("c3", 5, "2.1", ["DOCX", "PDF"]), claim("c4", 6, "3", ["PDF", "TXT"], exhaustive=False)]
+    attr = "system.input_formats"
+    firings = [Firing("conflict_multi", attr, ("c1", "c2")), Firing("conflict_multi", attr, ("c2", "c3")),
+               Firing("conflict_multi", attr, ("c2", "c4"))]
+
+    findings = claim_findings(firings, claims, kb.build_profile("base"), kb.concepts)
+
+    assert [f.requirement_id for f in findings] == ["CNT-CONSIST-002"]
+    f = findings[0]
+    assert [(e.page, e.section) for e in f.evidence] == [(3, "Введение"), (4, "1.2"), (5, "2.1"), (6, "3")]
+    assert f.found == "Введение и подраздел 2.1: DOCX, PDF; подраздел 1.2: PDF; раздел 3: PDF, TXT."
+    assert f.confidence == 0.7, "уверенность — наименьшая из всех утверждений"
+    assert f.page == "3–6"
+
+
+@pytest.mark.boundary
+def test_conflict_with_value_outside_dictionary_stays_separate(kb):
+    """Тот же живой прогон: «возвращает утверждения в формате JSON» модель приняла за формат входных
+    файлов. Значения нет в словаре — такое противоречие идёт отдельным замечанием на проверку
+    преподавателю и не понижает уверенность противоречия, найденного по словарю."""
+    def claim(cid, page, section, values, from_dictionary=True, exhaustive=True):
+        return Claim(id=cid, attribute="system.input_formats", values=tuple(values), exhaustive=exhaustive,
+                     quote=f"Цитата {cid}", block_id=f"b-000{cid[-1]}", page=page, section_id=section,
+                     section_label=section, kind="intro", confidence=1.0 if from_dictionary else 0.7,
+                     from_dictionary=from_dictionary)
+    claims = [claim("c1", 3, "Введение", ["DOCX", "PDF"]), claim("c2", 4, "1.2", ["PDF"]),
+              claim("c3", 6, "3", ["json"], from_dictionary=False, exhaustive=False)]
+    attr = "system.input_formats"
+    firings = [Firing("conflict_multi", attr, ("c1", "c2")), Firing("conflict_multi", attr, ("c2", "c3"))]
+
+    strong, weak = claim_findings(firings, claims, kb.build_profile("base"), kb.concepts)
+
+    assert strong.found == "Введение: DOCX, PDF; подраздел 1.2: PDF."
+    assert strong.confidence == 1.0 and not strong.needs_teacher_review
+    assert weak.found == "Подраздел 1.2: PDF; раздел 3: json."
+    assert weak.confidence == 0.7 and weak.needs_teacher_review
+
+
+@pytest.mark.boundary
+def test_block_id_in_brackets_is_accepted(kb):
+    """Блоки показаны модели как «[b-0043] текст»; ответ «[b-0043]» — тот же блок, а не повод для повтора."""
+    from sapsr.content.claims import claims_schema
+    from sapsr.content.requirements import Judgements
+    judged = Judgements.model_validate_json(
+        '{"judgements": [{"block_id": "[b-0043]", "verdict": "supports", "confidence": 0.9}]}')
+    assert judged.judgements[0].block_id == "b-0043"
+    schema = claims_schema(kb.concepts, 10)
+    out = schema.model_validate_json('{"claims": [{"attribute": "system.input_formats", "value": ["PDF"], '
+                                     '"quote": "только PDF", "block_id": " [b-0012] "}]}')
+    assert out.claims[0].block_id == "b-0012"
+    with pytest.raises(ValueError):
+        Judgements.model_validate_json('{"judgements": [{"block_id": "блок 43", "verdict": "supports", '
+                                       '"confidence": 0.9}]}')
 
 
 def test_defect_2_kb_representation(service_factory):

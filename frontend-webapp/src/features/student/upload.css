@@ -81,13 +81,20 @@ input[type="file"] {
   margin-bottom: 12px;
 }
 
-.upload-profile-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+/* Курс, семестр и этап — определены сервером, не выбираются */
+.upload-term {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-top: 10px;
+  font-size: 13px;
+  text-align: left;
 }
 
-.upload-profile-row .teacher-select { width: 100%; }
+.upload-term-main { font-weight: 600; }
+
+.upload-term-stage { opacity: 0.75; }
 
 /* Длинное имя файла по форме переносится, а не уезжает за край */
 .upload-file-name { overflow-wrap: anywhere; }

@@ -1,11 +1,32 @@
 import { WORK_TYPES, workFileName } from '../../lib/workName';
 import { lastNameOf } from '../../lib/names';
 
-const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
-const STAGES = [[1, '1-я опроцентовка'], [2, '2-я опроцентовка'], [3, '3-я опроцентовка']];
+const STAGE_DATIVE = { 1: '1-й', 2: '2-й', 3: '3-й' };
 
-// Вид работы, семестр и этап определяют, какие требования методички проверяются (api-v1.md, раздел 7).
-function ProfileSelects({ profile, setProfileField }) {
+// Курс, семестр и этап студент не выбирает: их определяет сервер по группе и учебному календарю
+// (решение 11), а ошибки исправляет администратор. От них зависят требования методички.
+function TermLine({ me }) {
+  if (!me) return null;
+  if (!me.semester) {
+    return (
+      <p className="reg-hint upload-term">
+        Семестр по группе {me.group || '—'} не определился — проверятся только оформление и согласованность
+        текста. Если это ошибка, сообщите администратору.
+      </p>
+    );
+  }
+  return (
+    <div className="upload-term">
+      <span className="upload-term-main">{me.course} курс · {me.semester} семестр</span>
+      <span className="upload-term-stage">
+        {me.stage ? `проверка к ${STAGE_DATIVE[me.stage]} опроцентовке` : 'итоговая сдача'}
+      </span>
+    </div>
+  );
+}
+
+// Вид работы по номеру группы не узнать — его выбирает студент (api-v1.md, раздел 7).
+function ProfileSelects({ profile, setProfileField, me }) {
   return (
     <div className="upload-profile">
       <label className="select-label" htmlFor="work-type-select">Вид работы</label>
@@ -14,27 +35,7 @@ function ProfileSelects({ profile, setProfileField }) {
         <option value="">Не указан</option>
         {WORK_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
       </select>
-      <div className="upload-profile-row">
-        <div>
-          <label className="select-label" htmlFor="semester-select">Семестр</label>
-          <select id="semester-select" className="teacher-select" value={profile.semester}
-            onChange={(e) => setProfileField('semester', e.target.value)}>
-            <option value="">—</option>
-            {SEMESTERS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="select-label" htmlFor="stage-select">Этап</label>
-          <select id="stage-select" className="teacher-select" value={profile.stage}
-            onChange={(e) => setProfileField('stage', e.target.value)}>
-            <option value="">Итоговая сдача</option>
-            {STAGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </div>
-      </div>
-      {!profile.semester && (
-        <p className="reg-hint">Без семестра проверяются только оформление и согласованность текста.</p>
-      )}
+      <TermLine me={me} />
     </div>
   );
 }
@@ -47,7 +48,7 @@ export default function UploadTab({ upload, me, teacherSelectRef, fileUploadRef,
   } = upload;
   // Имя по форме нужно преподавателю, чтобы работы не путались у него на диске.
   const expectedName = workFileName({
-    workType: profile.work_type, semester: profile.semester, group: me?.group, lastName: lastNameOf(me),
+    workType: profile.work_type, semester: me?.semester, group: me?.group, lastName: lastNameOf(me),
   });
   const placeholder = expectedName ? `Загрузите документ с названием ${expectedName}` : 'Нажмите, чтобы выбрать файл (.pdf)';
   const nameDiffers = file && expectedName && !expectedName.includes('<')
@@ -71,7 +72,7 @@ export default function UploadTab({ upload, me, teacherSelectRef, fileUploadRef,
               </select>
             </div>
           )}
-          <ProfileSelects profile={profile} setProfileField={setProfileField} />
+          <ProfileSelects profile={profile} setProfileField={setProfileField} me={me} />
           <label htmlFor="file-upload" className="custom-file-upload" ref={fileUploadRef}
             title={file ? file.name : placeholder}>
             <span style={{ fontSize: 'calc(var(--app-font-size) * 2.15)' }}>📁</span>

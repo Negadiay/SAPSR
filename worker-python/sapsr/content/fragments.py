@@ -9,10 +9,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Annotated
+
+from pydantic import BeforeValidator, Field
 
 from sapsr.document.model import Block, Document, readable_title
 
 TEXT_BLOCKS = ("paragraph", "list_item")
+
+
+def clean_block_id(value):
+    """Модель видит блоки как «[b-0042] текст» и иногда возвращает идентификатор вместе со скобками —
+    на живой модели так отвечала каждая оценка требований семестра (23.10.2026), и каждый ответ шёл
+    на повтор. Скобки снимаются до проверки схемой: идентификатор тот же."""
+    return value.strip().strip("[]").strip() if isinstance(value, str) else value
+
+
+# Ссылка модели на блок фрагмента: в ответах по JSON-схеме и в ответах без строгого шаблона.
+BlockId = Annotated[str, BeforeValidator(clean_block_id), Field(pattern=r"^b-\d{4,}$")]
+LooseBlockId = Annotated[str, BeforeValidator(clean_block_id)]
 
 
 @dataclass

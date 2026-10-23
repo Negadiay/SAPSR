@@ -42,9 +42,11 @@ const teacherRoutes = {
   'GET /teacher/history': [],
 };
 
+// Курс, семестр и этап определяет сервер (решение 11): 321702 осенью 2026 года — 4 курс, 7 семестр.
 const studentRoutes = {
   'GET /me': { role: 'STUDENT', telegram_id: 42, full_name: 'Терешкова А.В. (гр. 321702)',
-    last_name: 'Терешкова', first_name: null, middle_name: null, group: '321702' },
+    last_name: 'Терешкова', first_name: null, middle_name: null, group: '321702',
+    course: 4, semester: 7, stage: 2, course_overridden: false },
   'GET /teachers': [{ telegram_id: 7, full_name: 'Гракова Н.В.' }],
   'GET /submissions': [],
 };
@@ -60,23 +62,42 @@ const start = (routes) => {
 const tabButton = (icon) => within(document.querySelector('.bottom-nav')).getByRole('button', { name: new RegExp(icon) });
 
 describe('загрузка с профилем проверки', () => {
-  it('передаёт вид работы, семестр и этап и запоминает их', async () => {
+  it('студент выбирает только вид работы, курс, семестр и этап показаны', async () => {
     const { api, user } = start({ ...studentRoutes, 'POST /upload': {} });
     await screen.findByRole('option', { name: 'Гракова Н.В.' });
-    expect(screen.getByText('Без семестра проверяются только оформление и согласованность текста.')).toBeInTheDocument();
+    expect(screen.getByText('4 курс · 7 семестр')).toBeInTheDocument();
+    expect(screen.getByText('проверка к 2-й опроцентовке')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Семестр')).toBeNull();
+    expect(screen.queryByLabelText('Этап')).toBeNull();
 
     await user.selectOptions(screen.getByLabelText('Вид работы'), 'course_work');
-    await user.selectOptions(screen.getByLabelText('Семестр'), '7');
-    await user.selectOptions(screen.getByLabelText('Этап'), '2');
     await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'Курсовая.pdf', { type: 'application/pdf' }));
     await user.click(screen.getByRole('button', { name: 'Отправить' }));
 
     await waitFor(() => expect(api.find('POST', '/upload')).toHaveLength(1));
     const { body } = api.find('POST', '/upload')[0];
     expect(body.get('work_type')).toBe('course_work');
-    expect(body.get('semester')).toBe('7');
-    expect(body.get('stage')).toBe('2');
-    expect(JSON.parse(localStorage.getItem('sapsr_last_profile'))).toEqual({ work_type: 'course_work', semester: '7', stage: '2' });
+    expect(body.has('semester')).toBe(false);
+    expect(body.has('stage')).toBe(false);
+    expect(JSON.parse(localStorage.getItem('sapsr_last_profile'))).toEqual({ work_type: 'course_work' });
+  });
+
+  it('прежний выбор семестра из памяти не берётся', async () => {
+    localStorage.setItem('sapsr_last_profile', JSON.stringify({ work_type: 'course_project', semester: '1', stage: '3' }));
+    start(studentRoutes);
+    await screen.findByRole('option', { name: 'Гракова Н.В.' });
+    expect(screen.getByLabelText('Вид работы')).toHaveValue('course_project');
+    expect(screen.getByText('Загрузите документ с названием КП7_321702_Терешкова.pdf')).toBeInTheDocument();
+  });
+
+  it('если семестр не определился, говорит, к кому обратиться', async () => {
+    start({ ...studentRoutes, 'GET /me': { ...studentRoutes['GET /me'], group: '921701', course: null, semester: null } });
+    expect(await screen.findByText(/Семестр по группе 921701 не определился/)).toHaveTextContent('сообщите администратору');
+  });
+
+  it('после всех опроцентовок — итоговая сдача', async () => {
+    start({ ...studentRoutes, 'GET /me': { ...studentRoutes['GET /me'], stage: null } });
+    expect(await screen.findByText('итоговая сдача')).toBeInTheDocument();
   });
 
   it('без профиля поля не передаются вовсе', async () => {
@@ -93,6 +114,13 @@ describe('загрузка с профилем проверки', () => {
 });
 
 describe('работа у преподавателя', () => {
+  it('отклонённая работа видна до конца проверки содержания', async () => {
+    start({ ...teacherRoutes, 'GET /teacher/submissions': [{ ...QUEUE[0], content_status: 'PENDING' }] });
+    const card = (await screen.findByText('Курсовая.pdf')).closest('.ts-card-compact');
+    expect(card).toHaveTextContent('🧠 Содержание ещё проверяется');
+    expect(card).not.toHaveTextContent('🧠 Содержание: 2');
+  });
+
   it('отклонённая работа видна с итогом проверки, версией и датой первой версии', async () => {
     const { user } = start(teacherRoutes);
     const card = (await screen.findByText('Курсовая.pdf')).closest('.ts-card-compact');
@@ -166,14 +194,12 @@ describe('работа у преподавателя', () => {
 });
 
 describe('имя файла по форме', () => {
-  it('подсказывает «КР7_321702_Терешкова.pdf» по виду работы и семестру', async () => {
+  it('подсказывает «КР7_321702_Терешкова.pdf» по виду работы и семестру с сервера', async () => {
     const { user } = start(studentRoutes);
     await screen.findByRole('option', { name: 'Гракова Н.В.' });
     expect(screen.getByText('Нажмите, чтобы выбрать файл (.pdf)')).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Вид работы'), 'course_work');
-    expect(screen.getByText('Загрузите документ с названием КР<семестр>_321702_Терешкова.pdf')).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Семестр'), '7');
     expect(screen.getByText('Загрузите документ с названием КР7_321702_Терешкова.pdf')).toBeInTheDocument();
 
     await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'курсач финал.pdf', { type: 'application/pdf' }));
@@ -184,8 +210,7 @@ describe('имя файла по форме', () => {
     const { user } = start(studentRoutes);
     await screen.findByRole('option', { name: 'Гракова Н.В.' });
     await user.selectOptions(screen.getByLabelText('Вид работы'), 'course_project');
-    await user.selectOptions(screen.getByLabelText('Семестр'), '5');
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'кп5_321702_терешкова.pdf', { type: 'application/pdf' }));
+    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'кп7_321702_терешкова.pdf', { type: 'application/pdf' }));
     expect(screen.queryByText(/Название по форме/)).toBeNull();
   });
 });
@@ -218,7 +243,7 @@ describe('кто вошёл', () => {
     await user.click(tabButton('⚙️'));
 
     expect(screen.getByText('Терешкова А. В.')).toBeInTheDocument();
-    expect(screen.getByText('Группа 321702')).toBeInTheDocument();
+    expect(screen.getByText('Группа 321702 · 4 курс')).toBeInTheDocument();
   });
 
   it('преподаватель видит фамилию с инициалами без группы', async () => {

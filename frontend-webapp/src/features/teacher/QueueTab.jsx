@@ -6,15 +6,25 @@ import { ORIGIN_LABELS, summarizeFindings } from '../../lib/findings';
 
 const MAX_CONTENT_FINDINGS = 5;
 
+// Содержательная проверка не закончилась (queue-v2.md, раздел 6): отклонённая работа видна сразу после
+// проверки оформления, а содержание может не успеть или не удаться.
+const CONTENT_STATE = {
+  PENDING: '🧠 Содержание ещё проверяется',
+  TIMEOUT: '🧠 Содержание не проверено — не успело по времени',
+  FAILED: '🧠 Содержание проверить не удалось',
+};
+
 // Итог автоматической проверки одной строкой: оформление и содержание.
 function AutoCheckLine({ submission, summary }) {
   const format = submission.status === 'REJECTED'
     ? `❌ Ошибки оформления: ${summary.formatErrors}`
     : '✅ Оформление ОК';
+  const contentState = CONTENT_STATE[submission.content_status];
   return (
     <div className="ts-autocheck">
       <span className={submission.status === 'REJECTED' ? 'ts-autocheck-bad' : 'ts-autocheck-ok'}>{format}</span>
-      {summary.content.length > 0 && (
+      {contentState && <span className="ts-autocheck-content">{' · '}{contentState}</span>}
+      {!contentState && summary.content.length > 0 && (
         <span className="ts-autocheck-content">
           {' · '}🧠 Содержание: {summary.content.length}
           {summary.needsReview > 0 && ` (на вашу проверку: ${summary.needsReview})`}

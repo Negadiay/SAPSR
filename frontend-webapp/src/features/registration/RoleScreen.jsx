@@ -25,6 +25,12 @@ export default function RoleScreen({ registration, registeredRole }) {
             )}
           </div>
         ))}
+        {/* Администратора не регистрируют — роль задаётся в базе (решение 11); после выхода — только вход. */}
+        {registeredRole === 'admin' && (
+          <button className="role-login-btn" onClick={() => loginExisting('admin')}>
+            Войти как администратор
+          </button>
+        )}
       </div>
       {regError && <div className="reg-error role-error">{regError}</div>}
     </Screen>

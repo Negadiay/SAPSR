@@ -19,7 +19,7 @@ from sapsr.content.claims import Claim
 from sapsr.kb.schema import Concepts
 
 # Содержательные правила каталога (поле check) и значения, которые они дают шаблонам сообщений.
-_PAIR = ("attribute_title", "section_a", "section_b", "values_a", "values_b")
+_PAIR = ("attribute_title", "section_a", "section_b", "values_a", "values_b", "variants")
 _REQ = ("requirement_title", "requirement_text", "sufficient", "expected_parts")
 CONTENT_RULES: dict[str, tuple[str, ...]] = {
     "conflict_single": _PAIR,
@@ -59,8 +59,10 @@ class Reasoner:
         for attr in concepts.attributes:
             attribute.assert_fact(name=attr.id, cardinality=clips.Symbol(attr.cardinality),
                                   **{"described-in": list(attr.must_be_described_in)})
+        dictionary = {a.id: {v.id for v in a.values} for a in concepts.attributes}
         for c in claims:
-            claim_t.assert_fact(id=c.id, attr=c.attribute, vals=list(c.values),
+            known = [v for v in c.values if v in dictionary.get(c.attribute, ())]
+            claim_t.assert_fact(id=c.id, attr=c.attribute, vals=list(c.values), known=known,
                                 exhaustive=_sym(c.exhaustive), section=c.section_id, kind=c.kind)
         env.run()
         firings = []

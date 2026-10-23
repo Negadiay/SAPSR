@@ -83,7 +83,7 @@
   "pipeline": {
     "mode": "hybrid",
     "worker_version": "2.0.0",
-    "kb_version": "2026.10.18+bb2be05b",
+    "kb_version": "2026.10.18+1679ca33",
     "models": [
       {
         "role": "layout",

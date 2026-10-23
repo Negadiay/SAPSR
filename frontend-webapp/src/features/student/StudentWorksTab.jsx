@@ -2,7 +2,7 @@ import { downloadReport } from '../../api/submissions';
 import { groupByFileName } from '../../lib/submissions';
 import TeacherComments from './TeacherComments';
 
-// QUEUED и FAILED сервер начнёт отдавать вместе с протоколом очередей v2 (docs/contracts/queue-v2.md, раздел 6).
+// Статусы и ход проверки — протокол очередей v2 (docs/contracts/queue-v2.md, раздел 6).
 const iterationMark = (submission) => {
   if (submission.status === 'QUEUED' || submission.status === 'PROCESSING') return '⏳';
   if (submission.status === 'REJECTED') return '❌';
@@ -57,6 +57,9 @@ export default function StudentWorksTab({ works }) {
                     {s.teacher_verdict === 'APPROVED' && <span className="iteration-final">Принято преподавателем</span>}
                   </div>
                   <div className="notif-status">{autoStatusLabel(s.status)}</div>
+                  {s.content_status === 'PENDING' && s.status !== 'QUEUED' && (
+                    <div className="notif-status">🧠 Содержание ещё проверяется — итог придёт в бот</div>
+                  )}
                   {s.teacher_verdict && (
                     <div className={`notif-verdict ${s.teacher_verdict === 'APPROVED' ? 'verdict-ok' : 'verdict-revision'}`}>
                       {verdictLabel(s.teacher_verdict)}

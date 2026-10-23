@@ -22,7 +22,6 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.*;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1/teacher")
 public class TeacherDashboardController {
@@ -67,6 +66,8 @@ public class TeacherDashboardController {
             item.put("first_submitted_at", deadlineDate != null ? deadlineDate.toString() : "");
             item.put("version", versionOf(s));
             item.put("status", normalizeDbCode(s.getStatus()));
+            // Отклонённая работа видна сразу после фазы format (решение 9): PENDING — содержание ещё проверяется.
+            item.put("content_status", s.getContentStatus());
             item.put("format_errors", s.getFormatErrors());
             if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
             item.put("file_name", s.displayFileName());

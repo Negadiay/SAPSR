@@ -15,7 +15,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
-from sapsr.content.fragments import Fragment
+from sapsr.content.fragments import BlockId, Fragment
 from sapsr.content.normalize import Normalizer
 from sapsr.content.verify import locate_quote
 from sapsr.deadline import Deadline
@@ -78,7 +78,7 @@ def claims_schema(concepts: Concepts, max_claims: int) -> type[BaseModel]:
         value=(list[str], Field(min_length=1, max_length=12)),
         exhaustive=(bool, False),
         quote=(str, Field(min_length=1, max_length=600)),
-        block_id=(str, Field(pattern=r"^b-\d{4,}$")),
+        block_id=(BlockId, ...),
     )
     return create_model("ClaimsOut", __config__=ConfigDict(extra="ignore"),
                         claims=(list[ClaimOut], Field(default_factory=list, max_length=max_claims)))

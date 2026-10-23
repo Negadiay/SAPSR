@@ -48,4 +48,7 @@ INSERT INTO submissions (id, student_telegram_id, teacher_telegram_id, status, f
     (1, 1001, 2001, 'SUCCESS', '/app/backend/../storage/1712345678901_Курсовая работа.pdf'),
     (2, 1002, 2001, 'REJECTED', 'C:\Users\dev\SAPSR\backend-java\..\storage\1712345678902_отчёт_v2.pdf'),
     (3, 1001, NULL, 'PROCESSING', NULL);
-SELECT setval('submissions_id_seq', 3);
+-- Работа, которую прежний обработчик уронил два дня назад: V5 закрывает её как FAILED.
+INSERT INTO submissions (id, student_telegram_id, teacher_telegram_id, status, file_path, created_at) VALUES
+    (4, 1002, 2001, 'PROCESSING', NULL, CURRENT_TIMESTAMP - INTERVAL '2 days');
+SELECT setval('submissions_id_seq', 4);

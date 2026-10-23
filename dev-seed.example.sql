@@ -16,3 +16,14 @@ INSERT INTO users (telegram_id, role, full_name, email, last_name, first_name, m
 VALUES (100000001, 'TEACHER', 'Тестовый Преподаватель Иванович', 'teacher@example.test',
         'Тестовый', 'Преподаватель', 'Иванович')
 ON CONFLICT (telegram_id) DO NOTHING;
+
+-- Администратор (решение 11): роль ADMIN регистрацией не получить, только записью в базу.
+-- Нужен отдельный аккаунт Telegram — у одного аккаунта одна роль.
+INSERT INTO users (telegram_id, role, full_name)
+VALUES (100000009, 'ADMIN', 'Тестовый Администратор')
+ON CONFLICT (telegram_id) DO NOTHING;
+
+-- Даты опроцентовок осени 2026 года — по ним сервер определяет этап; меняются на экране «Управление».
+INSERT INTO procentovka_dates (academic_year, half, stage, held_on, updated_by)
+VALUES (2026, 'AUTUMN', 2, DATE '2026-10-29', 100000009)
+ON CONFLICT DO NOTHING;

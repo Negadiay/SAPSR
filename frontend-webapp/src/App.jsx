@@ -21,6 +21,8 @@ import { useTeacherWorkspace } from './features/teacher/useTeacherWorkspace';
 import QueueTab from './features/teacher/QueueTab';
 import HistoryTab from './features/teacher/HistoryTab';
 import NotesTab from './features/teacher/NotesTab';
+import { useAdminCalendar } from './features/admin/useAdminCalendar';
+import AdminTab from './features/admin/AdminTab';
 import { useSettings } from './features/settings/useSettings';
 import SettingsTab from './features/settings/SettingsTab';
 import { useTutorial } from './features/tutorial/useTutorial';
@@ -63,6 +65,7 @@ function App() {
     currentUserId: session.currentUserId,
     onOpenQueue: () => showTab(0, -1),
   });
+  const admin = useAdminCalendar({ active: step === 'main' && userRole === 'admin' });
 
   const handleTabChange = (index) => { goToTab(index); student.upload.clearStatus(); };
 
@@ -93,8 +96,8 @@ function App() {
         />
       )}
 
-      {/* Кнопка туториала */}
-      {step === 'main' && (
+      {/* Кнопка туториала; у администратора обучения нет */}
+      {step === 'main' && userRole !== 'admin' && (
         <button className="tutorial-btn" onClick={tutorial.start} title="Справка">
           💡
         </button>
@@ -157,6 +160,7 @@ function App() {
                 listRef={tutorial.refs.submissions} />
             )}
             {tabId === 'history' && <HistoryTab history={teacher.history} />}
+            {tabId === 'admin' && <AdminTab admin={admin} />}
             {tabId === 'notes' && (
               <NotesTab notes={teacher.notes} onFind={teacher.findFromNote} addNoteRef={tutorial.refs.addNoteBtn} />
             )}

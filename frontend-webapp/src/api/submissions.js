@@ -5,14 +5,12 @@ export const fetchTeachers = () => apiFetch('/teachers');
 
 export const fetchSubmissions = () => fetchList('/submissions');
 
-// profile — вид работы, семестр и этап опроцентовки (api-v1.md, раздел 7); пустые поля не передаются.
+// profile — вид работы (api-v1.md, раздел 7); семестр и этап сервер определяет сам. Пустое поле не передаётся.
 export const uploadSubmission = (file, teacherId, profile = {}) => {
   const formData = new FormData();
   formData.append('file', file);
   if (teacherId) formData.append('teacher_id', teacherId);
-  ['work_type', 'semester', 'stage'].forEach((field) => {
-    if (profile[field]) formData.append(field, profile[field]);
-  });
+  if (profile.work_type) formData.append('work_type', profile.work_type);
   return apiFetch('/upload', { method: 'POST', body: formData });
 };
 

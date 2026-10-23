@@ -12,9 +12,11 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.sapsr.backend.SapsrTelegramBot;
+import com.sapsr.backend.academic.AcademicCalendar;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.messaging.TaskMessage;
+import com.sapsr.backend.pipeline.PipelineState;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.review.ReviewFileService;
@@ -39,7 +41,6 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1")
 public class UploadController {
@@ -54,6 +55,7 @@ public class UploadController {
     private final SapsrTelegramBot bot;
     private final FileStorage fileStorage;
     private final ReviewFileService reviewFiles;
+    private final AcademicCalendar calendar;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
@@ -65,7 +67,8 @@ public class UploadController {
                             BsuirApiService bsuirApiService,
                             SapsrTelegramBot bot,
                             FileStorage fileStorage,
-                            ReviewFileService reviewFiles) {
+                            ReviewFileService reviewFiles,
+                            AcademicCalendar calendar) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
@@ -74,6 +77,7 @@ public class UploadController {
         this.bot = bot;
         this.fileStorage = fileStorage;
         this.reviewFiles = reviewFiles;
+        this.calendar = calendar;
     }
 
     @GetMapping("/me")
@@ -93,7 +97,15 @@ public class UploadController {
             me.put("last_name", u.getLastName());
             me.put("first_name", u.getFirstName());
             me.put("middle_name", u.getMiddleName());
-            if ("STUDENT".equals(u.getRole())) me.put("group", u.getGroupNumber());
+            if ("STUDENT".equals(u.getRole())) {
+                me.put("group", u.getGroupNumber());
+                // Курс, семестр и этап определяет сервер (решение 11): студент их видит, но не выбирает.
+                AcademicCalendar.Term term = calendar.termFor(u.getGroupNumber());
+                me.put("course", term.course());
+                me.put("semester", term.semester());
+                me.put("stage", term.stage());
+                me.put("course_overridden", term.courseOverridden());
+            }
             return ResponseEntity.ok(me);
         }
         return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
@@ -108,6 +120,13 @@ public class UploadController {
 
         String role = body.getOrDefault("role", "").toUpperCase();
         String fullName = body.getOrDefault("full_name", "").trim();
+
+        // Роль администратора задаётся только в базе (решение 11): регистрацией её не получить и не потерять.
+        Optional<User> current = userRepository.findById(telegramId);
+        if (current.isPresent() && AdminController.ROLE.equals(current.get().getRole())) {
+            return ResponseEntity.status(403).body(Map.of("code", "ADMIN_ACCOUNT",
+                    "error", "Это аккаунт администратора: его роль меняется только в базе данных"));
+        }
 
         if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Роль должна быть STUDENT или TEACHER"));
@@ -167,8 +186,7 @@ public class UploadController {
             }
         }
 
-        Optional<User> existing = userRepository.findById(telegramId);
-        User user = existing.orElseGet(User::new);
+        User user = current.orElseGet(User::new);
         user.setTelegramId(telegramId);
         user.setRole(role);
         user.setFullName(fullName);
@@ -225,6 +243,9 @@ public class UploadController {
             item.put("id", s.getId());
             item.put("status", normalizeDbCode(s.getStatus()));
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            // Ход проверки (queue-v2.md, разделы 4 и 6): этап для индикатора и идёт ли ещё проверка содержания.
+            item.put("pipeline_stage", s.getPipelineStage());
+            item.put("content_status", s.getContentStatus());
             item.put("format_errors", s.getFormatErrors());
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
@@ -545,25 +566,21 @@ public class UploadController {
         }
     }
 
+    /**
+     * Загрузка работы. Вид работы выбирает студент; семестр и этап опроцентовки определяет сервер по группе
+     * студента и учебному календарю (решение 11) — поля semester и stage от клиента не принимаются.
+     */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
                                         @RequestParam(value = "teacher_id", required = false) Long teacherId,
                                         @RequestParam(value = "work_type", required = false) String workType,
-                                        @RequestParam(value = "semester", required = false) Integer semester,
-                                        @RequestParam(value = "stage", required = false) Integer stage,
                                         HttpServletRequest request) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой!"));
         }
-        // Профиль проверки необязателен: без него обработчик применяет базовый профиль.
+        // Вид работы необязателен: без профиля обработчик применяет базовый.
         if (workType != null && !WORK_TYPE_PATTERN.matcher(workType).matches()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Неизвестный вид работы"));
-        }
-        if (semester != null && (semester < 1 || semester > 12)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Семестр должен быть от 1 до 12"));
-        }
-        if (stage != null && (stage < 1 || stage > 3)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Этап опроцентовки должен быть от 1 до 3"));
         }
 
         // На диск файл попадает под сгенерированным ключом; имя от пользователя — только в базу.
@@ -580,16 +597,19 @@ public class UploadController {
         submission.setFileSha256(stored.sha256());
         submission.setOriginalFileName(Submission.cleanFileName(file.getOriginalFilename()));
         submission.setWorkType(workType);
-        submission.setSemester(semester);
-        submission.setStage(stage);
         submission.setTraceId(UUID.randomUUID());
-        submission.setStatus("PROCESSING");
+        // В очереди, пока обработчик не начал: первое сообщение о ходе проверки переведёт в PROCESSING.
+        submission.setStatus(PipelineState.QUEUED);
 
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId != null) {
             Optional<User> student = userRepository.findById(telegramId);
             student.ifPresent(submission::setStudent);
         }
+        AcademicCalendar.Term term = calendar.termFor(
+                submission.getStudent() != null ? submission.getStudent().getGroupNumber() : null);
+        submission.setSemester(term.semester());
+        submission.setStage(term.stage());
 
         if (teacherId != null) {
             Optional<User> teacher = userRepository.findById(teacherId);

@@ -1,0 +1,100 @@
+/* --- ЭКРАН АДМИНИСТРАТОРА --- */
+.admin-intro {
+  max-width: 340px;
+  margin-bottom: 12px;
+}
+
+.admin-section { text-align: left; }
+
+.admin-hint { margin-top: 8px; }
+
+.admin-save {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.admin-error { margin-bottom: 12px; }
+
+.admin-date-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* У поля даты своя стрелка календаря — фоновая стрелка выпадающего списка не нужна */
+.admin-date { background-image: none; }
+
+.admin-course { margin-top: 12px; }
+
+.admin-course-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.admin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-chip {
+  padding: 5px 10px;
+  border-radius: 14px;
+  border: 1.5px solid var(--tg-theme-button-color, #2e8d8a);
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+/* Курс задан вручную: пунктир и значок ✎ — различимо и без цвета */
+.admin-chip-manual { border-style: dashed; }
+
+.admin-chip-selected {
+  background: var(--tg-theme-button-color, #2e8d8a);
+  color: var(--tg-theme-button-text-color, #fff);
+}
+
+.admin-editor, .admin-add {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(46, 141, 138, 0.2);
+}
+
+.admin-editor-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.admin-editor .select-label { margin-top: 10px; }
+
+.admin-add-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 8px;
+}
+
+.app-dark .admin-chip {
+  background: #1e2a2c;
+  color: #e8f4f0;
+  border-color: #4fb3ae;
+}
+
+.app-dark .admin-chip-selected {
+  background: #4fb3ae;
+  color: #10201f;
+}
+
+.app-contrast .admin-chip {
+  border-width: 2px;
+  border-color: currentColor;
+}
+
+.app-contrast .admin-chip-selected {
+  outline: 3px solid currentColor;
+  outline-offset: 1px;
+}
