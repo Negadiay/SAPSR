@@ -23,8 +23,16 @@ spring.servlet.multipart.max-file-size=50MB
 spring.servlet.multipart.max-request-size=51MB
 
 # Тайм-аут содержательной проверки (решение 5): работа уходит преподавателю после фазы content
-# либо через это время после фазы format. Величина не утверждена; читать её будет приём двух фаз.
+# либо через это время после фазы format, с отчётом по оформлению. Величина не утверждена (задача 5.1).
 sapsr.pipeline.content-timeout=5m
+# Сторож: проверка началась, а фазы format нет дольше этого — работа получает FAILED (queue-v2.md, раздел 6).
+sapsr.pipeline.stuck-timeout=15m
+
+# Данные запуска Telegram старше этого не принимаются: перехваченная строка не действует вечно (Ж5, пункт 3).
+sapsr.telegram.init-data-max-age=24h
+# Адреса, с которых интерфейс ходит в API с другого источника, через запятую (Ж5, пункт 9).
+# Мини-приложение открывается с того же адреса, что и API, поэтому по умолчанию — пусто.
+sapsr.cors.allowed-origins=
 
 # Telegram Bot
 telegram.bot.token=ВАШ_ТОКЕН
@@ -37,6 +45,7 @@ spring.rabbitmq.username=rmq_user
 spring.rabbitmq.password=ПАРОЛЬ_ИЗ_ENV
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
+sapsr.rabbitmq.progress-queue=pdf_progress_queue
 
 # Email (Gmail SMTP для верификации преподавателей)
 # Используй App Password: Google Account -> Security -> 2FA -> App passwords

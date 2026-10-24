@@ -1,9 +1,14 @@
 package com.sapsr.backend.controller;
 
 import com.sapsr.backend.SapsrTelegramBot;
+import com.sapsr.backend.academic.AcademicCalendar;
+import com.sapsr.backend.entity.ProcentovkaDate;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.messaging.TaskMessage;
+import com.sapsr.backend.repository.AcademicSettingRepository;
+import com.sapsr.backend.repository.GroupCourseOverrideRepository;
+import com.sapsr.backend.repository.ProcentovkaDateRepository;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.review.ReviewFileService;
@@ -25,8 +30,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -53,15 +60,25 @@ class UploadControllerTest {
     private final SubmissionRepository submissions = mock(SubmissionRepository.class);
     private final UserRepository users = mock(UserRepository.class);
     private final ReviewFileService reviewFiles = mock(ReviewFileService.class);
+    private final ProcentovkaDateRepository procentovki = mock(ProcentovkaDateRepository.class);
     private UploadController controller;
 
     @BeforeEach
     void setUp() throws IOException {
         // Корень хранилища — вложенная папка, чтобы проверить, что за его пределы ничего не пишется.
         storageRoot = Files.createDirectory(root.resolve("storage"));
+        // 23 октября 2026 года, вторая опроцентовка 29-го: студент 321702 — 4 курс, 7 семестр, этап 2.
+        Clock october = Clock.fixed(LocalDateTime.of(2026, 10, 23, 12, 0).atZone(AcademicCalendar.ZONE).toInstant(),
+                AcademicCalendar.ZONE);
+        when(procentovki.findByAcademicYearAndHalf(2026, "AUTUMN")).thenReturn(List.of(
+                new ProcentovkaDate(2026, "AUTUMN", 4, 2, LocalDate.of(2026, 10, 29), LocalDateTime.now(), 1L),
+                new ProcentovkaDate(2026, "AUTUMN", 4, ProcentovkaDate.DEADLINE, LocalDate.of(2026, 12, 26),
+                        LocalDateTime.now(), 1L)));
+        AcademicCalendar calendar = new AcademicCalendar(mock(AcademicSettingRepository.class),
+                mock(GroupCourseOverrideRepository.class), procentovki, october);
         controller = new UploadController(rabbit, submissions, users,
                 mock(EmailVerificationService.class), mock(BsuirApiService.class), mock(SapsrTelegramBot.class),
-                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles);
+                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles, calendar);
         ReflectionTestUtils.setField(controller, "tasksQueue", "pdf_tasks_queue");
 
         User student = new User();
@@ -91,7 +108,7 @@ class UploadControllerTest {
         assertThat(saved.getStorageKey()).matches("\\d{4}/\\d{2}/[0-9a-f-]{36}\\.pdf");
         assertThat(saved.getFileSha256()).hasSize(64);
         assertThat(saved.getTraceId()).isNotNull();
-        assertThat(saved.getStatus()).isEqualTo("PROCESSING");
+        assertThat(saved.getStatus()).as("в очереди, пока обработчик не начал").isEqualTo("QUEUED");
 
         List<Path> files = storedFiles();
         assertThat(files).singleElement().satisfies(file -> {
@@ -122,7 +139,8 @@ class UploadControllerTest {
 
     @Test
     void passesCheckProfileToTask() {
-        controller.uploadFile(pdf("Курсовая.pdf"), null, "course_work", 7, 2, request());
+        // Семестр и этап студент не выбирает: сервер определяет их по группе и календарю (решение 11).
+        controller.uploadFile(pdf("Курсовая.pdf"), null, "course_work", request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getWorkType()).isEqualTo("course_work");
@@ -167,12 +185,54 @@ class UploadControllerTest {
     }
 
     @Test
-    void rejectsInvalidProfileWithoutStoringAnything() throws IOException {
-        ResponseEntity<?> badSemester = controller.uploadFile(pdf("a.pdf"), null, null, 13, null, request());
-        ResponseEntity<?> badStage = controller.uploadFile(pdf("a.pdf"), null, null, null, 4, request());
-        ResponseEntity<?> badType = controller.uploadFile(pdf("a.pdf"), null, "Курсовая", null, null, request());
+    void studentWithoutKnownCourseGetsNoSemester() {
+        User graduate = users.findById(STUDENT_ID).orElseThrow();
+        graduate.setGroupNumber("921701");  // 2019 год поступления — курс больше четвёртого
 
-        assertThat(List.of(badSemester, badStage, badType))
+        controller.uploadFile(pdf("Курсовая.pdf"), null, "course_work", request());
+
+        assertThat(savedSubmission().getSemester()).isNull();
+        assertThat(savedSubmission().getStage()).as("сроки — по курсу, а курс не определился").isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void meShowsCourseSemesterAndStage() {
+        Map<String, Object> me = (Map<String, Object>) controller.getMe(request()).getBody();
+
+        assertThat(me).containsEntry("group", "321702").containsEntry("course", 4).containsEntry("semester", 7)
+                .containsEntry("stage", 2).containsEntry("deadline", "2026-12-26").containsEntry("course_overridden", false);
+    }
+
+    @Test
+    void adminAccountCannotBeReRegistered() {
+        // Роль администратора задаётся только в базе (решение 11).
+        User admin = new User();
+        admin.setTelegramId(9001L);
+        admin.setRole("ADMIN");
+        when(users.findById(9001L)).thenReturn(Optional.of(admin));
+
+        ResponseEntity<?> response = controller.register(
+                Map.of("role", "STUDENT", "full_name", "Иванов И.И. (гр. 321702)"), requestAs(9001L));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(403);
+        assertThat(admin.getRole()).isEqualTo("ADMIN");
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void registrationCannotGrantAdminRole() {
+        ResponseEntity<?> response = controller.register(Map.of("role", "ADMIN", "full_name", "Хакер"), requestAs(7777L));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void rejectsInvalidProfileWithoutStoringAnything() throws IOException {
+        ResponseEntity<?> badType = controller.uploadFile(pdf("a.pdf"), null, "Курсовая", request());
+
+        assertThat(List.of(badType))
                 .allSatisfy(r -> assertThat(r.getStatusCode().value()).isEqualTo(400));
         assertThat(storedFiles()).isEmpty();
         verifyNoInteractions(rabbit);
@@ -236,7 +296,7 @@ class UploadControllerTest {
         when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
                 .thenReturn(Optional.of(previous));
 
-        controller.uploadFile(pdf("Курсовая v2.pdf"), TEACHER_ID, null, null, null, request());
+        controller.uploadFile(pdf("Курсовая v2.pdf"), TEACHER_ID, null, request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getParentId()).isEqualTo(150);
@@ -254,7 +314,7 @@ class UploadControllerTest {
         when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
                 .thenReturn(Optional.of(approved));
 
-        controller.uploadFile(pdf("Новая работа.pdf"), TEACHER_ID, null, null, null, request());
+        controller.uploadFile(pdf("Новая работа.pdf"), TEACHER_ID, null, request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getParentId()).isNull();
@@ -315,7 +375,7 @@ class UploadControllerTest {
     }
 
     private ResponseEntity<?> upload(String fileName) {
-        return controller.uploadFile(pdf(fileName), null, null, null, null, request());
+        return controller.uploadFile(pdf(fileName), null, null, request());
     }
 
     private static MockMultipartFile pdf(String fileName) {

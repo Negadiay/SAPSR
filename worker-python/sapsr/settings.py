@@ -42,7 +42,7 @@ class Settings:
     results_queue: str = "pdf_results_queue"
     progress_queue: str = "pdf_progress_queue"
     # 1 — результат одним сообщением {task_id, status, errors}, как сейчас ждёт бэкенд;
-    # 2 — прогресс и две фазы результата (queue-v2.md). Включать после задачи 5.2 у Котко.
+    # 2 — прогресс и две фазы результата (queue-v2.md); в docker-compose.yml по умолчанию 2. Бэкенд принимает обе.
     queue_protocol: int = 1
     storage_root: Path = field(default_factory=_default_storage_root)
     kb_dir: Path = DEFAULT_KB_DIR

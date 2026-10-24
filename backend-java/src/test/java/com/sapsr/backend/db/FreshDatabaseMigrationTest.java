@@ -1,11 +1,17 @@
 package com.sapsr.backend.db;
 
 import com.sapsr.backend.config.FlywayConfig;
+import com.sapsr.backend.entity.AcademicSetting;
 import com.sapsr.backend.entity.Annotation;
+import com.sapsr.backend.entity.GroupCourseOverride;
+import com.sapsr.backend.entity.ProcentovkaDate;
 import com.sapsr.backend.entity.ReviewFile;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.repository.AcademicSettingRepository;
 import com.sapsr.backend.repository.AnnotationRepository;
+import com.sapsr.backend.repository.GroupCourseOverrideRepository;
+import com.sapsr.backend.repository.ProcentovkaDateRepository;
 import com.sapsr.backend.repository.ReviewFileRepository;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
@@ -20,8 +26,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,12 +54,15 @@ class FreshDatabaseMigrationTest {
     @Autowired SubmissionRepository submissions;
     @Autowired ReviewFileRepository reviewFiles;
     @Autowired AnnotationRepository annotations;
+    @Autowired GroupCourseOverrideRepository overrides;
+    @Autowired ProcentovkaDateRepository procentovki;
+    @Autowired AcademicSettingRepository settings;
 
     @Test
     void appliesAllMigrationsFromScratch() {
         List<String> applied = jdbc.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
-        assertThat(applied).containsExactly("1", "2", "3", "4");
+        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6", "7");
     }
 
     @Test
@@ -73,6 +85,63 @@ class FreshDatabaseMigrationTest {
         // Строки вставлены в одной транзакции с одинаковым created_at — порядок решает id.
         assertThat(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(6002L, 6001L))
                 .map(Submission::getId).contains(v2.getId());
+    }
+
+    @Test
+    void pipelineQueriesWorkOnPostgres() {
+        // Задача 5.2: ход проверки одним запросом, выборки сторожа, блокировка строки.
+        Submission queued = submission(user(8002L, "STUDENT"), user(8001L, "TEACHER"), "QUEUED", null);
+        LocalDateTime start = LocalDateTime.of(2026, 10, 23, 12, 0);
+
+        assertThat(submissions.recordProgress(queued.getId(), "extract", start)).isEqualTo(1);
+        submissions.recordProgress(queued.getId(), "structure", start.plusMinutes(1));
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT status, pipeline_stage, processing_started_at FROM submissions WHERE id = ?", queued.getId());
+        assertThat(row).containsEntry("status", "PROCESSING").containsEntry("pipeline_stage", "structure");
+        assertThat(row.get("processing_started_at")).isEqualTo(Timestamp.valueOf(start));
+        assertThat(submissions.findStuck(start.plusMinutes(16))).containsExactly(queued.getId());
+        assertThat(submissions.findStuck(start.minusMinutes(1))).isEmpty();
+
+        jdbc.update("UPDATE submissions SET content_status = 'PENDING', format_received_at = ? WHERE id = ?",
+                Timestamp.valueOf(start.plusMinutes(2)), queued.getId());
+        assertThat(submissions.findContentOverdue(start.plusMinutes(8))).containsExactly(queued.getId());
+        assertThat(submissions.findStuck(start.plusMinutes(60))).as("фаза format пришла").isEmpty();
+
+        jdbc.update("UPDATE submissions SET content_status = 'DONE' WHERE id = ?", queued.getId());
+        assertThat(submissions.recordProgress(queued.getId(), "report", start)).as("отчёт окончательный").isZero();
+        submissions.setTeacherMessageId(queued.getId(), 555);
+        assertThat(jdbc.queryForObject("SELECT teacher_message_id FROM submissions WHERE id = ?", Integer.class,
+                queued.getId())).isEqualTo(555);
+        assertThat(submissions.findByIdForUpdate(queued.getId())).isPresent();
+    }
+
+    @Test
+    void adminTablesWork() {
+        // Решение 11: исправления администратора — по учебному году; группы студентов для его экрана.
+        overrides.saveAndFlush(new GroupCourseOverride("721701", 2026, 2, LocalDateTime.now(), 9001L));
+        procentovki.saveAndFlush(new ProcentovkaDate(2026, "AUTUMN", 4, 2, LocalDate.of(2026, 10, 29),
+                LocalDateTime.now(), 9001L));
+        procentovki.saveAndFlush(new ProcentovkaDate(2026, "AUTUMN", 3, ProcentovkaDate.DEADLINE,
+                LocalDate.of(2026, 12, 20), LocalDateTime.now(), 9001L));
+        settings.saveAndFlush(new AcademicSetting(AcademicSetting.HALF, "SPRING", LocalDateTime.now(), 9001L));
+        User a = user(8101L, "STUDENT");
+        a.setGroupNumber("321702");
+        users.saveAndFlush(a);
+        User b = user(8102L, "STUDENT");
+        b.setGroupNumber("321702");
+        users.saveAndFlush(b);
+
+        assertThat(overrides.findByGroupNumberAndAcademicYear("721701", 2026)).map(GroupCourseOverride::getCourse).contains(2);
+        assertThat(overrides.findByGroupNumberAndAcademicYear("721701", 2027)).isEmpty();
+        assertThat(procentovki.findByAcademicYearAndHalf(2026, "AUTUMN"))
+                .extracting(ProcentovkaDate::getCourse, ProcentovkaDate::getStage)
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple(4, 2), org.assertj.core.groups.Tuple.tuple(3, 4));
+        assertThat(users.findByRoleAndGroupNumber("STUDENT", "321702")).hasSize(2);
+        assertThat(settings.findById(AcademicSetting.HALF)).map(AcademicSetting::getValue).contains("SPRING");
+        assertThat(users.countStudentsByGroup()).anySatisfy(r -> {
+            assertThat(r[0]).isEqualTo("321702");
+            assertThat(((Number) r[1]).longValue()).isEqualTo(2L);
+        });
     }
 
     @Test

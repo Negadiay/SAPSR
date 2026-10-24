@@ -1,8 +1,9 @@
 import Screen from '../../components/Screen';
+import Icon from '../../components/Icon';
 
 const ROLES = [
-  ['student', '👨‍🎓', 'Студент'],
-  ['teacher', '👨‍🏫', 'Преподаватель'],
+  ['student', 'student', 'Студент'],
+  ['teacher', 'teacher', 'Преподаватель'],
 ];
 
 export default function RoleScreen({ registration, registeredRole }) {
@@ -15,7 +16,7 @@ export default function RoleScreen({ registration, registeredRole }) {
         {ROLES.map(([role, icon, label]) => (
           <div className="role-row" key={role}>
             <button className="role-card" onClick={() => selectRole(role)}>
-              <span className="role-icon">{icon}</span>
+              <span className="role-icon"><Icon name={icon} /></span>
               <span className="role-text">{label}</span>
             </button>
             {registeredRole === role && (
@@ -25,6 +26,12 @@ export default function RoleScreen({ registration, registeredRole }) {
             )}
           </div>
         ))}
+        {/* Администратора не регистрируют — роль задаётся в базе (решение 11); после выхода — только вход. */}
+        {registeredRole === 'admin' && (
+          <button className="role-login-btn" onClick={() => loginExisting('admin')}>
+            Войти как администратор
+          </button>
+        )}
       </div>
       {regError && <div className="reg-error role-error">{regError}</div>}
     </Screen>

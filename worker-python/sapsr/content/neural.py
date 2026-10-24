@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from sapsr.checks.engine import make_finding
 from sapsr.checks.registry import Hit
-from sapsr.content.fragments import Fragment
+from sapsr.content.fragments import Fragment, LooseBlockId
 from sapsr.content.verify import locate_quote
 from sapsr.deadline import Deadline
 from sapsr.document.model import Document
@@ -25,9 +25,9 @@ class NeuralFindingOut(BaseModel):
     message: str = Field(min_length=1, max_length=500)
     found: str = Field("", max_length=500)
     quote: str = Field("", max_length=600)
-    block_id: str = ""
+    block_id: LooseBlockId = ""
     quote_2: str = Field("", max_length=600)
-    block_id_2: str = ""
+    block_id_2: LooseBlockId = ""
 
 
 class NeuralOut(BaseModel):

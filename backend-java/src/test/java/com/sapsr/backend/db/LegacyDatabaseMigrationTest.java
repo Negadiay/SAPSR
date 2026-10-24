@@ -39,7 +39,7 @@ class LegacyDatabaseMigrationTest {
     void baselinesExistingSchemaAndAppliesOnlyNewMigrations() {
         List<Map<String, Object>> history = jdbc.queryForList(
                 "SELECT version, type FROM flyway_schema_history WHERE success ORDER BY installed_rank");
-        assertThat(history).extracting(row -> row.get("version")).containsExactly("1", "2", "3", "4");
+        assertThat(history).extracting(row -> row.get("version")).containsExactly("1", "2", "3", "4", "5", "6", "7");
         assertThat(history.get(0).get("type")).isEqualTo("BASELINE");
     }
 
@@ -84,6 +84,17 @@ class LegacyDatabaseMigrationTest {
         Map<String, Object> noFile = submission(3);
         assertThat(noFile.get("storage_key")).isNull();
         assertThat(noFile.get("original_file_name")).isNull();
+    }
+
+    @Test
+    void finishedWorksAreFinalAndLongStuckOnesFail() {
+        // V5: результат v1 уже пришёл — отчёт окончательный; прежний обработчик ронял работы в PROCESSING навсегда.
+        assertThat(submission(1)).containsEntry("content_status", "DONE");
+        assertThat(submission(2).get("teacher_notified_at")).isNotNull();
+        assertThat(submission(4)).containsEntry("status", "FAILED").containsEntry("failure_code", "STUCK");
+        // Свежую работу закроет сторож, если обработчик так и не ответит.
+        assertThat(submission(3)).containsEntry("status", "PROCESSING");
+        assertThat(submission(3).get("processing_started_at")).isNotNull();
     }
 
     private Map<String, Object> user(long telegramId) {

@@ -11,7 +11,7 @@ export function useTeacherWorkspace({ active, userRole, currentUserId, onOpenQue
   const history = useHistoryView({ submissions });
   const notes = useTeacherNotes({ userRole, currentUserId });
 
-  // Кнопка 🔍 в заметке: открыть очередь с поиском по упомянутому студенту
+  // Кнопка поиска в заметке: открыть очередь с поиском по упомянутому студенту
   const findFromNote = (text) => {
     queue.setSearch(searchQueryFromNote(text));
     onOpenQueue();

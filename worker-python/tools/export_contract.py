@@ -97,7 +97,8 @@ def main() -> int:
             print(f"устарел: {path.relative_to(REPO)} — запустите python tools/export_contract.py")
         return 1 if stale else 0
     for path, text in wanted.items():
-        path.write_text(text, encoding="utf-8")
+        # newline: на Windows write_text иначе пишет CRLF, а файлы в репозитории — с LF
+        path.write_text(text, encoding="utf-8", newline="\n")
         print(f"записан: {path.relative_to(REPO)}")
     return 0
 

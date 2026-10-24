@@ -13,6 +13,12 @@ export const postJson = (path, body) => apiFetch(path, {
   body: JSON.stringify(body),
 });
 
+export const putJson = (path, body) => apiFetch(path, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
 export const readError = (res) => res.json().catch(() => ({}));
 
 // Список с сервера; при ошибке пишет её в консоль и возвращает null.

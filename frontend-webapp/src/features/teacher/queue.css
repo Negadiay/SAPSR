@@ -85,8 +85,8 @@
 }
 
 .approve-btn {
-  background: #43a047;
-  color: #fff;
+  background: var(--app-ok, #43a047);
+  color: var(--app-on-ok, #fff);
   border: none;
   padding: 10px;
   border-radius: 10px;
@@ -97,8 +97,8 @@
 }
 
 .revision-btn {
-  background: #fb8c00;
-  color: #fff;
+  background: var(--app-warning, #fb8c00);
+  color: var(--app-on-warning, #fff);
   border: none;
   padding: 10px;
   border-radius: 10px;
@@ -142,7 +142,7 @@
 .ts-file    { font-size: 12px; color: var(--tg-theme-hint-color, #6a8a88); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ts-chevron { font-size: 11px; color: var(--tg-theme-hint-color, #6a8a88); margin-left: 8px; }
 
-.ts-card-expanded .ts-card-main { border-bottom: 1px solid rgba(0,0,0,0.08); }
+.ts-card-expanded .ts-card-main { border-bottom: 1px solid var(--app-line, rgba(0,0,0,0.08)); }
 
 .ts-card-expanded .ts-actions {
   display: flex;
@@ -160,8 +160,8 @@
 }
 
 .ts-version { color: var(--tg-theme-hint-color, #6a8a88); }
-.ts-autocheck-ok { color: #388e3c; }
-.ts-autocheck-bad { color: #d32f2f; font-weight: 600; }
+.ts-autocheck-ok { color: var(--app-ok, #388e3c); }
+.ts-autocheck-bad { color: var(--app-error, #d32f2f); font-weight: 600; }
 .ts-autocheck-content { color: var(--tg-theme-text-color, #1c3a38); }
 
 .ts-downloads {
@@ -195,7 +195,7 @@
 }
 
 /* Неуверенный вывод модели — не ошибка, а вопрос преподавателю: другой цвет и подпись. */
-.ts-finding-review { border-left-color: #f9a825; }
+.ts-finding-review { border-left-color: var(--app-warning, #f9a825); }
 
 .ts-finding-meta,
 .ts-review-count,
@@ -209,12 +209,12 @@
   cursor: pointer;
 }
 
-.ts-review-error { font-size: 13px; color: #d32f2f; }
-.ts-review-warning { font-size: 13px; color: #e65100; }
+.ts-review-error { font-size: 13px; color: var(--app-error, #d32f2f); }
+.ts-review-warning { font-size: 13px; color: var(--app-warning, #e65100); }
 
 .revision-btn:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.ts-review-ok { font-size: 13px; color: #388e3c; }
+.ts-review-ok { font-size: 13px; color: var(--app-ok, #388e3c); }

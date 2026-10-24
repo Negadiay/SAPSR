@@ -25,7 +25,6 @@ import java.util.*;
  * Возврат работы с комментариями преподавателя (docs/contracts/api-v1.md, разделы 8, 10, 11):
  * преподаватель загружает PDF со своими пометками, студент видит комментарии по страницам и скачивает файл.
  */
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1")
 public class ReviewController {

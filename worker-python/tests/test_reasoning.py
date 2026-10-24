@@ -47,6 +47,18 @@ def test_multi_valued_rules(reasoner, kb):
 
 
 @pytest.mark.boundary
+def test_passing_mention_outside_dictionary_is_not_a_conflict(reasoner, kb):
+    """Живой прогон 23.10.2026: «в формате JSON» про ответ модели попало в форматы входных файлов."""
+    firings = reasoner.run_claims([
+        claim("c-001", "system.input_formats", ["PDF"], "s-3", "part.requirements"),
+        claim("c-002", "system.input_formats", ["json"], "s-6", "part.implementation", exhaustive=False),
+        claim("c-003", "system.input_formats", ["json", "DOCX"], "s-7", "part.implementation", exhaustive=False),
+    ], kb.concepts)
+    pairs = {f.claims for f in firings if f.rule == "conflict_multi"}
+    assert pairs == {("c-001", "c-003")}, "сравнивается только DOCX из словаря"
+
+
+@pytest.mark.boundary
 def test_same_section_is_not_a_conflict(reasoner, kb):
     firings = reasoner.run_claims([
         claim("c-001", "system.kb_representation", ["ontology"], "s-1", "part.intro"),

@@ -1,25 +1,54 @@
 package com.sapsr.backend.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.convert.DurationStyle;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Проверка данных запуска Telegram Mini App (initData): подпись HMAC-SHA256 токеном бота и свежесть.
+ * Без свежести перехваченная строка действовала бы вечно (план Жерко, Ж5, пункты 3 и 5).
+ */
 @Component
 public class TelegramInitDataInterceptor implements HandlerInterceptor {
 
-    private final String botToken;
+    /** Допуск на расхождение часов телефона, Telegram и сервера. */
+    private static final Duration CLOCK_SKEW = Duration.ofMinutes(5);
+    private static final ObjectMapper JSON = new ObjectMapper();
 
-    public TelegramInitDataInterceptor(@Value("${telegram.bot.token}") String botToken) {
+    private final String botToken;
+    private final Duration maxAge;
+    private final Clock clock;
+
+    @Autowired
+    public TelegramInitDataInterceptor(@Value("${telegram.bot.token}") String botToken,
+                                       @Value("${sapsr.telegram.init-data-max-age:24h}") String maxAge) {
+        this(botToken, DurationStyle.detectAndParse(maxAge), Clock.systemUTC());
+    }
+
+    public TelegramInitDataInterceptor(String botToken, Duration maxAge, Clock clock) {
         this.botToken = botToken;
+        this.maxAge = maxAge;
+        this.clock = clock;
     }
 
     @Override
@@ -36,45 +65,43 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
         }
 
         if (initData == null || initData.isBlank()) {
-            response.setStatus(401);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"Missing Authorization header (initData)\"}");
-            return false;
+            return reject(response, 401, "NO_INIT_DATA", "Missing Authorization header (initData)");
         }
 
+        Map<String, String> params;
         try {
-            Map<String, String> params = parseInitData(initData);
-            String hash = params.remove("hash");
-
-            if (hash == null) {
-                response.setStatus(401);
-                response.setContentType("application/json");
-                response.getWriter().write("{\"error\": \"No hash in initData\"}");
-                return false;
-            }
-
-            if (!verifyHash(params, hash)) {
-                response.setStatus(403);
-                response.setContentType("application/json");
-                response.getWriter().write("{\"error\": \"Invalid initData signature\"}");
-                return false;
-            }
-
-            String user = params.get("user");
-            if (user != null) {
-                Long telegramId = extractTelegramId(user);
-                if (telegramId != null) {
-                    request.setAttribute("telegram_id", telegramId);
-                }
-            }
-
-            return true;
-        } catch (Exception e) {
-            response.setStatus(401);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"Invalid initData format\"}");
-            return false;
+            params = parseInitData(initData);
+        } catch (IllegalArgumentException e) {
+            return reject(response, 401, "INIT_DATA_FORMAT", "Invalid initData format");
         }
+        String hash = params.remove("hash");
+        if (hash == null) {
+            return reject(response, 401, "INIT_DATA_FORMAT", "No hash in initData");
+        }
+        if (!verifyHash(params, hash)) {
+            return reject(response, 403, "INIT_DATA_SIGNATURE", "Invalid initData signature");
+        }
+
+        Instant authDate = parseAuthDate(params.get("auth_date"));
+        Instant now = clock.instant();
+        if (authDate == null || authDate.isAfter(now.plus(CLOCK_SKEW)) || authDate.isBefore(now.minus(maxAge))) {
+            return reject(response, 401, "INIT_DATA_EXPIRED",
+                    "Данные запуска устарели — закройте и откройте приложение заново");
+        }
+
+        Long telegramId = extractTelegramId(params.get("user"));
+        if (telegramId != null) {
+            request.setAttribute("telegram_id", telegramId);
+        }
+        return true;
+    }
+
+    private static boolean reject(HttpServletResponse response, int status, String code, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getWriter().write(JSON.createObjectNode().put("code", code).put("error", message).toString());
+        return false;
     }
 
     private Map<String, String> parseInitData(String initData) {
@@ -107,27 +134,25 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
         hmacData.init(new SecretKeySpec(secretKey, "HmacSHA256"));
         byte[] calculatedHash = hmacData.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
 
-        return bytesToHex(calculatedHash).equals(hash);
+        // Сравнение за постоянное время: по времени ответа нельзя подобрать подпись побайтно.
+        byte[] expected = HexFormat.of().formatHex(calculatedHash).getBytes(StandardCharsets.US_ASCII);
+        byte[] actual = hash.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.US_ASCII);
+        return MessageDigest.isEqual(expected, actual);
     }
 
-    private Long extractTelegramId(String userJson) {
-        int idIdx = userJson.indexOf("\"id\"");
-        if (idIdx < 0) return null;
-        int colon = userJson.indexOf(':', idIdx);
-        if (colon < 0) return null;
+    private static Instant parseAuthDate(String value) {
+        if (value == null || !value.matches("\\d{1,12}")) return null;
+        return Instant.ofEpochSecond(Long.parseLong(value));
+    }
 
-        StringBuilder sb = new StringBuilder();
-        for (int i = colon + 1; i < userJson.length(); i++) {
-            char c = userJson.charAt(i);
-            if (Character.isDigit(c)) sb.append(c);
-            else if (sb.length() > 0) break;
+    /** Идентификатор пользователя — разбором JSON, а не поиском подстроки. */
+    private static Long extractTelegramId(String userJson) {
+        if (userJson == null) return null;
+        try {
+            JsonNode id = JSON.readTree(userJson).path("id");
+            return id.isIntegralNumber() && id.canConvertToLong() && id.asLong() > 0 ? id.asLong() : null;
+        } catch (Exception e) {
+            return null;
         }
-        return sb.length() > 0 ? Long.parseLong(sb.toString()) : null;
-    }
-
-    private String bytesToHex(byte[] bytes) {
-        StringBuilder hex = new StringBuilder();
-        for (byte b : bytes) hex.append(String.format("%02x", b));
-        return hex.toString();
     }
 }

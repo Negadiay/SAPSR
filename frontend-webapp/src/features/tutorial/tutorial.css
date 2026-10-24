@@ -4,7 +4,7 @@
   top: 12px;
   right: 12px;
   z-index: 8000;
-  background: rgba(46, 141, 138, 0.18);
+  background: var(--app-tint, rgba(46, 141, 138, 0.18));
   border: none;
   border-radius: 50%;
   width: 36px;
@@ -36,8 +36,8 @@
 .tutorial-tooltip {
   position: fixed;
   z-index: 9002;
-  background: #fff;
-  color: #111;
+  background: var(--app-popup-bg, #fff);
+  color: var(--app-popup-text, #111);
   border-radius: 14px;
   padding: 16px 18px;
   max-width: min(320px, calc(100vw - 24px));
@@ -57,18 +57,18 @@
 .tutorial-counter {
   font-size: 12px;
   font-weight: 700;
-  color: #2e8d8a;
+  color: var(--app-accent, #2e8d8a);
   flex: 1;
 }
 
 .tutorial-skip-btn {
   background: none;
-  border: 1px solid rgba(0,0,0,0.15);
+  border: 1px solid var(--app-line, rgba(0,0,0,0.15));
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 11px;
   cursor: pointer;
-  color: #888;
+  color: var(--app-popup-hint, #888);
   transition: background 0.15s;
 }
 
@@ -78,6 +78,6 @@
 
 .tutorial-hint {
   font-size: 11px;
-  color: #888;
+  color: var(--app-popup-hint, #888);
   font-style: italic;
 }

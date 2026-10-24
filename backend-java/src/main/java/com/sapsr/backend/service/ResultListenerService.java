@@ -2,77 +2,102 @@ package com.sapsr.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sapsr.backend.SapsrTelegramBot;
-import com.sapsr.backend.bot.BotMessages;
-import com.sapsr.backend.entity.Submission;
+import com.sapsr.backend.pipeline.Notice;
+import com.sapsr.backend.pipeline.NoticeSender;
+import com.sapsr.backend.pipeline.PipelineState;
 import com.sapsr.backend.repository.SubmissionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 
+/**
+ * Сообщения обработчика: результаты из pdf_results_queue (v1 — одним сообщением, v2 — фазами format, content,
+ * failed) и ход проверки из pdf_progress_queue. Протокол — docs/contracts/queue-v2.md, разделы 4–6.
+ * Бэкенд принимает обе версии результата, поэтому обработчик переключается настройкой SAPSR_QUEUE_PROTOCOL.
+ */
 @Service
 public class ResultListenerService {
 
-    private final SubmissionRepository submissionRepository;
-    private final SapsrTelegramBot bot;
+    private static final Logger log = LoggerFactory.getLogger(ResultListenerService.class);
+    /** Этапы для индикатора (queue-v2.md, раздел 4); прочие значения в базу не пишем. */
+    static final Set<String> STAGES = Set.of("extract", "structure", "format", "claims", "reasoning", "report");
+
+    private final PipelineState state;
+    private final NoticeSender sender;
+    private final SubmissionRepository submissions;
+    private final Clock clock;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ResultListenerService(SubmissionRepository submissionRepository, SapsrTelegramBot bot) {
-        this.submissionRepository = submissionRepository;
-        this.bot = bot;
+    @Autowired
+    public ResultListenerService(PipelineState state, NoticeSender sender, SubmissionRepository submissions) {
+        this(state, sender, submissions, Clock.systemDefaultZone());
+    }
+
+    ResultListenerService(PipelineState state, NoticeSender sender, SubmissionRepository submissions, Clock clock) {
+        this.state = state;
+        this.sender = sender;
+        this.submissions = submissions;
+        this.clock = clock;
     }
 
     @RabbitListener(queues = "${sapsr.rabbitmq.results-queue}")
     public void handleResult(String message) {
-        System.out.println("[RESULT LISTENER] Получен результат: " + message);
+        JsonNode json = parse(message);
+        if (json == null || !json.path("task_id").canConvertToInt()) {
+            log.warn("Результат без task_id пропущен");
+            return;
+        }
+        int taskId = json.get("task_id").asInt();
+        List<Notice> notices;
+        if (json.has("phase")) {
+            String phase = json.path("phase").asText("");
+            log.info("Результат: task_id={}, фаза {}, trace_id={}", taskId, phase, json.path("trace_id").asText(""));
+            notices = switch (phase) {
+                case "format" -> state.onFormat(taskId, json.path("passed").asBoolean(false),
+                        json.path("final").asBoolean(false), json.path("report"));
+                case "content" -> state.onContent(taskId, json.path("passed").asBoolean(false), json.path("report"));
+                case "failed" -> state.onFailed(taskId, json.path("error").path("code").asText("INTERNAL"),
+                        json.path("error").path("message").asText("Проверка не удалась."));
+                default -> {
+                    log.warn("Неизвестная фаза {} у task_id={} — пропущено", phase, taskId);
+                    yield List.of();
+                }
+            };
+        } else {
+            String status = json.path("status").asText("");
+            String errors = json.has("errors") ? json.get("errors").toString() : "[]";
+            log.info("Результат v1: task_id={}, статус {}", taskId, status);
+            notices = state.onResultV1(taskId, "SUCCESS".equals(status), errors);
+        }
+        sender.send(notices);
+    }
 
+    @RabbitListener(queues = "${sapsr.rabbitmq.progress-queue:pdf_progress_queue}")
+    public void handleProgress(String message) {
+        JsonNode json = parse(message);
+        if (json == null || !json.path("task_id").canConvertToInt()) return;
+        String stage = json.path("stage").asText("");
+        if (!STAGES.contains(stage)) {
+            log.warn("Неизвестный этап {} у task_id={} — пропущено", stage, json.get("task_id").asInt());
+            return;
+        }
+        submissions.recordProgress(json.get("task_id").asInt(), stage, LocalDateTime.now(clock));
+    }
+
+    private JsonNode parse(String message) {
         try {
             JsonNode json = objectMapper.readTree(message);
-            int taskId = json.get("task_id").asInt();
-            String status = json.get("status").asText();
-            String errorsJson = json.has("errors") ? json.get("errors").toString() : "[]";
-
-            Optional<Submission> optSubmission = submissionRepository.findById(taskId);
-            if (optSubmission.isEmpty()) {
-                System.out.println("[RESULT LISTENER] Submission не найден: task_id=" + taskId);
-                return;
-            }
-
-            Submission submission = optSubmission.get();
-            boolean passed = "SUCCESS".equals(status);
-            submission.setStatus(passed ? "SUCCESS" : "REJECTED");
-            submission.setFormatErrors(errorsJson);
-            submissionRepository.save(submission);
-            System.out.println("[RESULT LISTENER] Submission #" + taskId + " -> " + submission.getStatus());
-
-            // Студент уже загрузил новую версию: результат старой сохраняем, но никого не тревожим.
-            if (submissionRepository.existsByParentId(submission.getId())) {
-                System.out.println("[RESULT LISTENER] Submission #" + taskId + " заменена новой версией — без уведомлений");
-                return;
-            }
-
-            if (submission.getStudent() != null) {
-                bot.notifyUser(submission.getStudent().getTelegramId(),
-                        BotMessages.resultForStudent(submission.displayFileName(), passed, errorsJson));
-            }
-
-            // Решение 9: преподаватель получает работу и при ошибках оформления — так засчитывается срок сдачи.
-            if (submission.getTeacher() != null) {
-                String studentName = submission.getStudent() != null
-                        ? submission.getStudent().getFullName() : "Студент";
-                Integer msgId = bot.notifyUser(submission.getTeacher().getTelegramId(),
-                        BotMessages.resultForTeacher(studentName, submission.displayFileName(), passed,
-                                submission.getParentId() != null, submission.getFirstSubmittedAt(), errorsJson));
-                if (msgId != null) {
-                    submission.setTeacherMessageId(msgId);
-                    submissionRepository.save(submission);
-                }
-            }
-
+            return json != null && json.isObject() ? json : null;
         } catch (Exception e) {
-            System.err.println("[RESULT LISTENER] Ошибка обработки: " + e.getMessage());
-            e.printStackTrace();
+            log.warn("Сообщение обработчика не разобрано: {}", e.getMessage());
+            return null;
         }
     }
 }

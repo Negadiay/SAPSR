@@ -26,6 +26,8 @@ FIRING_TO_RULE = {
     "claim_without_support": "CNT-SUPPORT-001",
 }
 MAX_SUPPORT_EVIDENCE = 3
+# Цитат у противоречия: по одной на каждый вариант, остальные — пока есть место.
+MAX_CONFLICT_EVIDENCE = 6
 
 
 def _evidence(c: Claim) -> Evidence:
@@ -36,13 +38,40 @@ def _values(c: Claim, concepts: Concepts) -> str:
     return ", ".join(concepts.value_title(c.attribute, v) for v in c.values)
 
 
+def _variants(claims: list[Claim]) -> list[list[Claim]]:
+    """Утверждения с одинаковыми значениями — один вариант; варианты по первой странице."""
+    by_values: dict[tuple[str, ...], list[Claim]] = {}
+    for c in claims:
+        by_values.setdefault(c.values, []).append(c)
+    return list(by_values.values())
+
+
+def _places(claims: list[Claim]) -> str:
+    """«введение», «введение и подраздел 2.1», «введение, раздел 2 и подраздел 3.1»."""
+    places = list(dict.fromkeys(section_phrase(c.section_label) for c in claims))
+    return places[0] if len(places) == 1 else ", ".join(places[:-1]) + " и " + places[-1]
+
+
+def _variants_text(variants: list[list[Claim]], concepts: Concepts) -> str:
+    """«Введение: DOCX, PDF; подраздел 1.2: PDF» — где какой вариант назван."""
+    text = "; ".join(f"{_places(group)}: {_values(group[0], concepts)}" for group in variants)
+    return text[:1].upper() + text[1:]
+
+
+def _conflict_evidence(variants: list[list[Claim]]) -> list[Claim]:
+    chosen = [group[0] for group in variants]
+    rest = sorted((c for group in variants for c in group[1:]), key=lambda c: (c.page, c.id))
+    chosen += rest[:max(0, MAX_CONFLICT_EVIDENCE - len(chosen))]
+    return sorted(chosen, key=lambda c: (c.page, c.id))
+
+
 def claim_findings(firings: list[Firing], claims: list[Claim], profile: ResolvedProfile,
                    concepts: Concepts) -> list[Finding]:
     by_id = {c.id: c for c in claims}
     threshold = profile.content.review_threshold
     findings: list[Finding] = []
 
-    pairs: dict[tuple, list[tuple[Claim, Claim]]] = defaultdict(list)
+    conflicts: dict[tuple[str, str, bool], dict[str, Claim]] = defaultdict(dict)
     support: dict[str, list[Claim]] = defaultdict(list)
     for firing in firings:
         rule_id = FIRING_TO_RULE.get(firing.rule)
@@ -54,23 +83,31 @@ def claim_findings(firings: list[Firing], claims: list[Claim], profile: Resolved
             continue
         if len(involved) != 2:
             continue
-        a, b = sorted(involved, key=lambda c: (c.page, c.id))
-        # Одно замечание на пару расходящихся вариантов, а не на каждую пару цитат.
-        key = (rule_id, firing.attribute, frozenset({a.values, b.values}))
-        pairs[key].append((a, b))
+        # Одно замечание на атрибут: CLIPS находит расхождения попарно, а преподавателю нужен
+        # один пункт со всеми вариантами, а не по замечанию на каждую пару цитат. Пары, где значение
+        # не нашлось в словаре, — отдельным замечанием: их уверенность ниже, и они не должны утянуть
+        # на проверку преподавателю противоречие, установленное по словарю.
+        weak = not all(c.from_dictionary for c in involved)
+        for c in involved:
+            conflicts[(rule_id, firing.attribute, weak)][c.id] = c
 
-    for (rule_id, attr_id, _), variants in sorted(pairs.items(), key=lambda kv: (kv[0][0], kv[0][1],
-                                                                                  min(a.page for a, _ in kv[1]))):
-        a, b = min(variants, key=lambda ab: (ab[0].page, ab[1].page, ab[0].id))
+    for (rule_id, attr_id, _), group in sorted(conflicts.items(), key=lambda kv: (
+            kv[0][0], kv[0][1], kv[0][2], min(c.page for c in kv[1].values()))):
+        variants = _variants(sorted(group.values(), key=lambda c: (c.page, c.id)))
+        if len(variants) < 2:
+            continue
+        a, b = variants[0][0], variants[1][0]
+        chosen = _conflict_evidence(variants)
         attr = concepts.attribute(attr_id)
-        confidence = round(min(a.confidence, b.confidence), 2)
+        confidence = round(min(c.confidence for c in group.values()), 2)
         hit = Hit(
             values={"attribute_title": attr.title if attr else attr_id,
                     "section_a": section_phrase(a.section_label), "section_b": section_phrase(b.section_label),
-                    "values_a": _values(a, concepts), "values_b": _values(b, concepts)},
-            evidence=[_evidence(a), _evidence(b)],
-            pages=[a.page, b.page],
-            context=f"{a.quote} | {b.quote}",
+                    "values_a": _values(a, concepts), "values_b": _values(b, concepts),
+                    "variants": _variants_text(variants, concepts)},
+            evidence=[_evidence(c) for c in chosen],
+            pages=[c.page for c in chosen],
+            context=" | ".join(c.quote for c in chosen),
         )
         findings.append(_finding(profile, rule_id, hit, confidence, threshold))
 

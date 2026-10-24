@@ -17,6 +17,8 @@
   (slot attr (type STRING))
   ; канонические значения, отсортированные — множества сравниваются как строки
   (multislot vals (type STRING))
+  ; те из них, что есть в словаре понятий; остальное модель записала своими словами
+  (multislot known (type STRING))
   (slot exhaustive (type SYMBOL) (allowed-symbols TRUE FALSE))
   (slot section (type STRING))
   (slot kind (type STRING)))
@@ -51,11 +53,14 @@
   (assert (firing (rule conflict_multi) (attr ?a) (claims ?c1 ?c2))))
 
 ;; Многозначный атрибут: в одном разделе перечень назван полным, а в другом
-;; упомянуто значение, которого в этом перечне нет.
+;; упомянуто значение, которого в этом перечне нет. Упоминание мимоходом сравнивается
+;; только по значениям из словаря: значения не из словаря модель путает чаще всего —
+;; на живом прогоне 23.10.2026 «возвращает утверждения в формате JSON» (ответ модели)
+;; попало в форматы входных файлов и дало ложное противоречие с «только PDF».
 (defrule conflict_multi_outside
   (attribute (name ?a) (cardinality multi))
   (claim (id ?c1) (attr ?a) (vals $?v1) (exhaustive TRUE) (section ?s1))
-  (claim (id ?c2) (attr ?a) (vals $? ?x $?) (exhaustive FALSE) (section ?s2))
+  (claim (id ?c2) (attr ?a) (known $? ?x $?) (exhaustive FALSE) (section ?s2))
   (test (neq ?s1 ?s2))
   (test (not (member$ ?x $?v1)))
   =>

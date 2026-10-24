@@ -45,16 +45,22 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
       # Файлы работ по ключу storage_key (queue-v2.md, раздел 3).
       SAPSR_STORAGE_ROOT: /app/storage
-      # 1 — результат одним сообщением, как сейчас ждёт бэкенд; 2 — после приёма фаз (задача 5.2).
-      SAPSR_QUEUE_PROTOCOL: ${SAPSR_QUEUE_PROTOCOL:-1}
-      # Ollama на ноутбуке (вариант «на хосте» из задачи 8.1); без неё проверяется только оформление.
+      # 2 — ход проверки и результат в две фазы: оформление сразу, содержание вторым сообщением (задача 5.2).
+      # Бэкенд принимает и 1 — результат одним сообщением; это откат одной строкой в .env.
+      SAPSR_QUEUE_PROTOCOL: ${SAPSR_QUEUE_PROTOCOL:-2}
+      # Ollama на ноутбуке (решение 8); без неё проверяется только оформление.
       SAPSR_LLM_BASE_URL: ${SAPSR_LLM_BASE_URL:-http://host.docker.internal:11434}
       SAPSR_LLM_MODEL: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
+      # live — настоящая модель; replay — записанные ответы модели из test-fixtures/llm-replay, без Ollama:
+      # запасной показ, если модель на машине не поднимется (README, «Показ без модели»).
+      SAPSR_LLM_MODE: ${SAPSR_LLM_MODE:-live}
+      SAPSR_LLM_REPLAY_DIR: /app/llm-replay
     # На Docker Desktop имя host.docker.internal есть и так; строка нужна для Docker в Linux
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - storage:/app/storage
+      - ./test-fixtures/llm-replay:/app/llm-replay:ro
     depends_on:
       rabbitmq:
         condition: service_healthy

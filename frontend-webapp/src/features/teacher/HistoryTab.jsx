@@ -1,5 +1,13 @@
 import { downloadSubmissionPdf } from '../../api/teacher';
 import { formatDate } from '../../lib/format';
+import Icon from '../../components/Icon';
+
+const VerdictBadge = ({ verdict, short }) => (
+  <span className={`history-verdict-badge with-icon ${verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
+    <Icon name={verdict === 'APPROVED' ? 'ok' : 'revision'} label={short ? (verdict === 'APPROVED' ? 'Принято' : 'Доработка') : undefined} />
+    {!short && <span>{verdict === 'APPROVED' ? 'Принято' : 'Доработка'}</span>}
+  </span>
+);
 
 export default function HistoryTab({ history }) {
   const { groups, refresh, expandedKey, toggleExpanded } = history;
@@ -24,11 +32,9 @@ export default function HistoryTab({ history }) {
                 <div className="ts-row-top">
                   <span className="ts-student">{s.student_name || 'Студент'}</span>
                   <div className="history-card-right">
-                    <span className={`history-verdict-badge ${s.teacher_verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
-                      {s.teacher_verdict === 'APPROVED' ? '✅ Принято' : '🔄 Доработка'}
-                    </span>
+                    <VerdictBadge verdict={s.teacher_verdict} />
                     {hasVersions && (
-                      <span className="ts-chevron">{isExpanded ? '▲' : '▼'}</span>
+                      <span className="ts-chevron"><Icon name={isExpanded ? 'chevronUp' : 'chevronDown'} /></span>
                     )}
                   </div>
                 </div>
@@ -36,10 +42,12 @@ export default function HistoryTab({ history }) {
                   <span className="ts-file">{s.file_name}</span>
                   <span className="ts-date">{formatDate(s.created_at)}</span>
                 </div>
-                {s.teacher_comment && <div className="ts-comment">💬 {s.teacher_comment}</div>}
+                {s.teacher_comment && (
+                  <div className="ts-comment with-icon"><Icon name="comment" /><span>{s.teacher_comment}</span></div>
+                )}
                 <div className="history-actions">
-                  <button className="download-btn-sm" onClick={(e) => { e.stopPropagation(); downloadSubmissionPdf(s.id); }}>
-                    📄 Скачать
+                  <button className="download-btn-sm with-icon" onClick={(e) => { e.stopPropagation(); downloadSubmissionPdf(s.id); }}>
+                    <Icon name="file" /><span>Скачать</span>
                   </button>
                   {hasVersions && !isExpanded && (
                     <span className="history-versions-hint">{group.items.length} версии</span>
@@ -51,14 +59,14 @@ export default function HistoryTab({ history }) {
                 <div key={ver.id} className="history-version-row">
                   <div className="ts-row-top">
                     <span className="ts-file" style={{ flex: 1 }}>v{group.items.length - 1 - idx} · {formatDate(ver.created_at)}</span>
-                    <span className={`history-verdict-badge ${ver.teacher_verdict === 'APPROVED' ? 'history-badge-ok' : 'history-badge-revision'}`}>
-                      {ver.teacher_verdict === 'APPROVED' ? '✅' : '🔄'}
-                    </span>
+                    <VerdictBadge verdict={ver.teacher_verdict} short />
                   </div>
-                  {ver.teacher_comment && <div className="ts-comment">💬 {ver.teacher_comment}</div>}
-                  <button className="download-btn-sm" style={{ marginTop: 6 }}
+                  {ver.teacher_comment && (
+                    <div className="ts-comment with-icon"><Icon name="comment" /><span>{ver.teacher_comment}</span></div>
+                  )}
+                  <button className="download-btn-sm with-icon" style={{ marginTop: 6 }}
                     onClick={() => downloadSubmissionPdf(ver.id)}>
-                    📄 Скачать v{group.items.length - 1 - idx}
+                    <Icon name="file" /><span>Скачать v{group.items.length - 1 - idx}</span>
                   </button>
                 </div>
               ))}

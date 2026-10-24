@@ -16,6 +16,9 @@ public class RabbitMQConfig {
     @Value("${sapsr.rabbitmq.results-queue}")
     private String resultsQueue;
 
+    @Value("${sapsr.rabbitmq.progress-queue:pdf_progress_queue}")
+    private String progressQueue;
+
     @Bean
     public Queue pdfTasksQueue() {
         return new Queue(tasksQueue, true);
@@ -24,6 +27,12 @@ public class RabbitMQConfig {
     @Bean
     public Queue pdfResultsQueue() {
         return new Queue(resultsQueue, true);
+    }
+
+    /** Ход проверки (queue-v2.md, раздел 4). Объявляем сами: обработчик с протоколом 1 её не создаёт. */
+    @Bean
+    public Queue pdfProgressQueue() {
+        return new Queue(progressQueue, true);
     }
 
     /**

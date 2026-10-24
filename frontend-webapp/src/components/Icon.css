@@ -1,0 +1,63 @@
+/* --- ИКОНКИ (components/Icon.jsx) --- */
+.icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+
+/* Иконка и текст в одну строку */
+.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.status-icon { width: 1.05em; height: 1.05em; }
+.status-ok      { color: var(--app-ok, #388e3c); }
+.status-error   { color: var(--app-error, #d32f2f); }
+.status-warning { color: var(--app-warning, #e68a00); }
+.status-pending { color: var(--tg-theme-hint-color, #6a8a88); }
+
+/* Размеры по месту: вкладки, роли, крупная иконка загрузки, кнопки-иконки */
+.nav-icon-bg .icon { width: 1em; height: 1em; }
+.role-icon .icon { width: 1.1em; height: 1.1em; }
+.tutorial-btn .icon,
+.download-btn .icon,
+.withdraw-btn .icon { width: 1.05em; height: 1.05em; }
+.ts-chevron .icon { width: 1.5em; height: 1.5em; vertical-align: middle; }
+
+.upload-icon {
+  width: 2.2em;
+  height: 2.2em;
+  margin-bottom: 6px;
+  color: var(--tg-theme-button-color, #2e8d8a);
+  stroke-width: 1.6;
+}
+
+/* Кнопки во всю ширину: иконка и текст по центру */
+.submit-btn.with-icon,
+.approve-btn.with-icon,
+.revision-btn.with-icon { display: flex; justify-content: center; }
+
+.teacher-comments-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Ожидание — вращающаяся дуга */
+.icon-loading { animation: icon-spin 1s linear infinite; }
+
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-loading { animation: none; }
+}
+
+.app-dark .status-ok      { color: #63c9a0; }
+.app-dark .status-error   { color: #ff6b6b; }
+.app-dark .status-warning { color: #ffb84d; }
+
+/* В контрастном режиме цвет состояния не единственный признак: рядом всегда текст */
+.app-contrast .status-icon { stroke-width: 2.5; }

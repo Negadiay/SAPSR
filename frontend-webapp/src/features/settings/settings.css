@@ -35,7 +35,7 @@
   width: 100%;
   max-width: 340px;
   height: 1px;
-  background: rgba(46, 141, 138, 0.15);
+  background: var(--app-line, rgba(46, 141, 138, 0.15));
   margin: 16px 0;
 }
 
@@ -48,7 +48,7 @@
   width: 48px;
   height: 28px;
   border-radius: 14px;
-  background: #ccc;
+  background: var(--app-muted, #ccc);
   border: none;
   cursor: pointer;
   position: relative;
@@ -99,3 +99,114 @@
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+
+/* Режим не действует: своя тема заменяет ночной и контрастный */
+.settings-row-off .settings-desc { opacity: 0.5; }
+
+.toggle-switch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* --- СВОЯ ТЕМА --- */
+.theme-edit-btn {
+  margin-top: 14px;
+  padding: 10px;
+}
+
+.theme-editor { margin-top: 12px; }
+
+.theme-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.theme-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--app-line, rgba(46, 141, 138, 0.25));
+  border-radius: 10px;
+  background: var(--tg-theme-bg-color, #f0f9f5);
+  color: var(--tg-theme-text-color, #1c3a38);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-preset-swatch {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.theme-fields {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.theme-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.theme-swatch {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 2px solid var(--tg-theme-bg-color, #f0f9f5);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--tg-theme-hint-color, #6a8a88);
+  cursor: pointer;
+}
+
+.theme-swatch[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--tg-theme-button-color, #2e8d8a); }
+
+.theme-field-label {
+  flex: 1;
+  font-size: 14px;
+  text-align: left;
+}
+
+.theme-hex {
+  width: 96px;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border-width: 1.5px;
+  background-image: none;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  text-transform: lowercase;
+}
+
+.theme-hex[aria-invalid="true"] { border-color: var(--app-error, #d32f2f); }
+
+.theme-issues { margin-top: 10px; }
+
+.theme-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.theme-issue .status-icon { margin-top: 1px; }
+
+/* Своя тема плохо читается: раздел темы — чёрным или белым по фону, чтобы её было чем исправить */
+.theme-safe,
+.theme-safe .settings-label,
+.theme-safe .theme-edit-btn { color: var(--app-safe-text) !important; }
+
+.theme-safe .settings-label { opacity: 0.75; }
+
+.theme-safe .theme-preset,
+.theme-safe .theme-hex { color: var(--app-safe-field-text) !important; }
