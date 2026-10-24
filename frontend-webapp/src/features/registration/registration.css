@@ -17,7 +17,7 @@
 .role-card {
   flex: 1;
   background: var(--tg-theme-secondary-bg-color, #dff0e9);
-  border: 1px solid rgba(46, 141, 138, 0.2);
+  border: 1px solid var(--app-line, rgba(46, 141, 138, 0.2));
   border-radius: 15px;
   padding: 10px 15px;
   display: flex;
@@ -55,7 +55,7 @@
 
 .role-card:active {
   background: var(--tg-theme-button-color, #2e8d8a);
-  color: white;
+  color: var(--app-on-button, white);
 }
 
 .role-login-btn:active {
@@ -92,7 +92,7 @@
 }
 
 .reg-error {
-  color: #e53935;
+  color: var(--app-error, #e53935);
   font-size: 13px;
   font-weight: 600;
   text-align: center;
@@ -107,7 +107,7 @@
 }
 
 .code-timer-expired {
-  color: #e53935;
+  color: var(--app-error, #e53935);
   opacity: 1;
 }
 

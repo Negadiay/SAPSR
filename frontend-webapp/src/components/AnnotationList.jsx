@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import './AnnotationList.css';
 
 const KIND_LABELS = {
@@ -29,7 +30,9 @@ export default function AnnotationList({ annotations }) {
           <div className="annotation-page-title">Страница {page}</div>
           {items.map((a) => (
             <div key={a.id} className={`annotation-item ${a.reply_to_id ? 'annotation-reply' : ''}`}>
-              <span className="annotation-kind">{a.reply_to_id ? '↳ Ответ' : (KIND_LABELS[a.kind] || a.kind)}</span>
+              <span className="annotation-kind">
+              {a.reply_to_id ? <span className="with-icon"><Icon name="reply" /><span>Ответ</span></span> : (KIND_LABELS[a.kind] || a.kind)}
+            </span>
               {a.quoted_text && <blockquote className="annotation-quote">«{a.quoted_text}»</blockquote>}
               {a.comment && <div className="annotation-comment">{a.comment}</div>}
               {!a.comment && !a.quoted_text && <div className="annotation-comment annotation-muted">пометка на странице {page}</div>}

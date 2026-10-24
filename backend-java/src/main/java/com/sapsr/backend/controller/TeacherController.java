@@ -32,7 +32,6 @@ public class TeacherController {
     public ResponseEntity<List<Map<String, Object>>> getTeachers(HttpServletRequest request) {
         List<User> allTeachers = userRepository.findByRole("TEACHER");
 
-        // Пытаемся получить группу студента из его fullName: "Иванов И.И. (гр. 321702)"
         String groupNumber = extractGroupNumber(request);
 
         List<User> filtered = null;
@@ -96,8 +95,10 @@ public class TeacherController {
         try {
             Long telegramId = (Long) request.getAttribute("telegram_id");
             if (telegramId == null) return null;
+            // Группа — из своего поля (её может исправить администратор); строка ФИО — запасной путь для старых записей.
             return userRepository.findById(telegramId)
                     .map(u -> {
+                        if (u.getGroupNumber() != null && !u.getGroupNumber().isBlank()) return u.getGroupNumber();
                         if (u.getFullName() == null) return null;
                         Matcher m = GROUP_PATTERN.matcher(u.getFullName());
                         return m.find() ? m.group(1) : null;

@@ -1,191 +1,340 @@
 import { useState } from 'react';
+import Icon from '../../components/Icon';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import './admin.css';
 
-// Экран администратора (решение 11): то, что приложение определяет само — половина года, даты опроцентовок,
-// курсы групп, — видно строками и исправляется здесь же, без правки кода.
+// Экран администратора (решение 11): семестр, сроки по курсам, группы с людьми — всё, что сервер определяет сам,
+// исправляется здесь, без правки кода и без похода в базу. Подписи — минимальные: экран рабочий.
 
 const HALF_TITLES = { AUTUMN: 'осенний', SPRING: 'весенний' };
-const STAGE_TITLES = { 1: '1-я', 2: '2-я', 3: '3-я' };
+const DATE_FIELDS = [['1', '1-я опроцентовка'], ['2', '2-я опроцентовка'], ['3', '3-я опроцентовка'], ['deadline', 'Сдача']];
 const STAGE_DATIVE = { 1: '1-й', 2: '2-й', 3: '3-й' };
+const SECTIONS_KEY = 'sapsr_admin_sections';
 
 const semesterOf = (course, half) => (half === 'AUTUMN' ? 2 * course - 1 : 2 * course);
 const formatDay = (iso) => (iso ? iso.split('-').reverse().join('.') : '');
+const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
+const digitsText = (digits) => digits.slice(0, -1).join(', ') + ' или ' + digits[digits.length - 1];
 
-function HalfSection({ calendar, saving, onChange }) {
-  const value = calendar.half_overridden ? calendar.half : 'AUTO';
+// Какие разделы свёрнуты — запоминается на этом устройстве. Без хранилища разделы открываются как по умолчанию.
+const readSections = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SECTIONS_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+
+const saveSection = (id, open) => {
+  try {
+    localStorage.setItem(SECTIONS_KEY, JSON.stringify({ ...readSections(), [id]: open }));
+  } catch {
+    // не запомнится — не страшно
+  }
+};
+
+// Раздел, который сворачивается по нажатию на заголовок; summary виден в свёрнутом.
+function AdminSection({ id, title, summary, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(() => readSections()[id] ?? defaultOpen);
+  const bodyId = `admin-section-${id}`;
   return (
     <section className="settings-section admin-section">
-      <div className="settings-label">Учебный год {calendar.academic_year_title}</div>
-      <label className="select-label" htmlFor="admin-half">Семестр сейчас</label>
-      <select id="admin-half" className="teacher-select" value={value} disabled={saving}
-        onChange={(e) => onChange(e.target.value)}>
-        <option value="AUTO">По дате — {HALF_TITLES[calendar.half_by_date]}</option>
-        <option value="AUTUMN">Осенний (нечётный семестр)</option>
-        <option value="SPRING">Весенний (чётный семестр)</option>
-      </select>
-      <p className="reg-hint admin-hint">
-        {calendar.half_overridden
-          ? `Задано вручную, по дате сейчас ${HALF_TITLES[calendar.half_by_date]}. Когда дата догонит, исправление снимется само.`
-          : 'С 1 августа по 15 января — осенний, с 16 января — весенний.'}
-      </p>
+      <button type="button" className="admin-section-head" aria-expanded={open} aria-controls={open ? bodyId : undefined}
+        onClick={() => { saveSection(id, !open); setOpen(!open); }}>
+        <span className="settings-label">{title}</span>
+        {!open && summary && <span className="admin-section-summary">{summary}</span>}
+        <Icon name={open ? 'chevronUp' : 'chevronDown'} className="admin-section-chevron" />
+      </button>
+      {open && <div id={bodyId} className="admin-section-body">{children}</div>}
     </section>
   );
 }
 
-function stageHint(calendar) {
-  const current = calendar.current_stage;
-  if (current) {
-    const date = calendar.procentovki.find((p) => p.stage === current)?.date;
-    return `Сейчас работы проверяются к ${STAGE_DATIVE[current]} опроцентовке (${formatDay(date)}).`;
-  }
-  if (calendar.procentovki.some((p) => p.date)) {
-    return 'Опроцентовки прошли — итоговая сдача: проверяются все требования семестра.';
-  }
-  return 'Даты не заданы: этап не определяется, проверяются все требования семестра.';
+// Номер группы по ходу ввода: только цифры, не больше шести, первая — из возможных в этом учебном году.
+// null — такую цифру первой ввести нельзя.
+const acceptGroup = (value, digits) => {
+  const v = value.replace(/\D/g, '').slice(0, 6);
+  return v && !digits.includes(Number(v[0])) ? null : v;
+};
+
+function GroupInput({ id, label, value, digits, onChange }) {
+  const [rejected, setRejected] = useState(false);
+  return (
+    <>
+      <input id={id} aria-label={label} className="teacher-select admin-text" inputMode="numeric" maxLength={6}
+        placeholder={`${digits[0]}…`} value={value}
+        onChange={(e) => {
+          const next = acceptGroup(e.target.value, digits);
+          setRejected(next === null);
+          if (next !== null) onChange(next);
+        }} />
+      {rejected && <p className="admin-note admin-note-error">Первая цифра — {digitsText(digits)}</p>}
+    </>
+  );
 }
 
-// key у компонента — даты с сервера: после сохранения поля заполняются заново.
-function ProcentovkiSection({ calendar, saving, onSave }) {
-  const fromServer = Object.fromEntries(calendar.procentovki.map((p) => [p.stage, p.date || '']));
-  const [dates, setDates] = useState(fromServer);
-  const changed = calendar.procentovki.some((p) => (p.date || '') !== dates[p.stage]);
-
-  const save = () => onSave(Object.fromEntries(Object.entries(dates).map(([stage, date]) => [stage, date || null])));
-
+function HalfSection({ calendar, saving, onChange }) {
+  const value = calendar.half_overridden ? calendar.half : 'AUTO';
+  const summary = HALF_TITLES[calendar.half] + (calendar.half_overridden ? ', вручную' : '');
   return (
-    <section className="settings-section admin-section">
-      <div className="settings-label">Опроцентовки · {HALF_TITLES[calendar.half]} семестр</div>
-      {calendar.procentovki.map((p) => (
-        <div key={p.stage} className="admin-date-row">
-          <label className="settings-desc" htmlFor={`admin-stage-${p.stage}`}>{STAGE_TITLES[p.stage]} опроцентовка</label>
-          <input id={`admin-stage-${p.stage}`} type="date" className="teacher-select admin-date"
-            value={dates[p.stage]} onChange={(e) => setDates({ ...dates, [p.stage]: e.target.value })} />
+    <AdminSection id="half" title={`Учебный год ${calendar.academic_year_title}`} summary={summary}>
+      <div className="admin-row">
+        <label className="settings-desc" htmlFor="admin-half">Семестр</label>
+        <select id="admin-half" className="teacher-select admin-select" value={value} disabled={saving}
+          onChange={(e) => onChange(e.target.value)}>
+          <option value="AUTO">По дате ({HALF_TITLES[calendar.half_by_date]})</option>
+          <option value="AUTUMN">Осенний</option>
+          <option value="SPRING">Весенний</option>
+        </select>
+      </div>
+      {calendar.half_overridden && <p className="admin-note">Задан вручную</p>}
+    </AdminSection>
+  );
+}
+
+// key — курс и даты с сервера: после сохранения или смены курса поля заполняются заново.
+function CourseDates({ row, window, saving, onSave, onSaveAll }) {
+  const [dates, setDates] = useState(() => Object.fromEntries(DATE_FIELDS.map(([k]) => [k, row.dates[k] || ''])));
+  const changed = DATE_FIELDS.some(([k]) => (row.dates[k] || '') !== dates[k]);
+  const payload = () => Object.fromEntries(Object.entries(dates).map(([k, v]) => [k, v || null]));
+  const current = row.current_stage;
+  return (
+    <>
+      {DATE_FIELDS.map(([key, label]) => (
+        <div key={key} className="admin-date-row">
+          <label className="settings-desc" htmlFor={`admin-date-${key}`}>{label}</label>
+          <input id={`admin-date-${key}`} type="date" className="teacher-select admin-date"
+            min={window.from} max={window.to} value={dates[key]}
+            onChange={(e) => setDates({ ...dates, [key]: e.target.value })} />
         </div>
       ))}
-      <p className="reg-hint admin-hint">{stageHint(calendar)}</p>
-      <button type="button" className="submit-btn admin-save" disabled={!changed || saving} onClick={save}>
-        Сохранить даты
-      </button>
-    </section>
+      {current && (
+        <p className="admin-note">Сейчас — к {STAGE_DATIVE[current]} ({formatDay(row.dates[String(current)])})</p>
+      )}
+      <div className="admin-actions">
+        <button type="button" className="submit-btn" disabled={!changed || saving} onClick={() => onSave(payload())}>
+          Сохранить
+        </button>
+        <button type="button" className="secondary-btn" disabled={saving} onClick={() => onSaveAll(payload())}>
+          Всем курсам
+        </button>
+      </div>
+    </>
+  );
+}
+
+function ScheduleSection({ calendar, saving, onChange }) {
+  const [course, setCourse] = useState(1);
+  const [allDates, setAllDates] = useState(null);
+  const row = calendar.schedule.find((r) => r.course === course) || calendar.schedule[0];
+  return (
+    <AdminSection id="schedule" title={`Сроки · ${HALF_TITLES[calendar.half]} семестр`}>
+      <div className="admin-tabs" role="tablist" aria-label="Сроки курса">
+        {calendar.schedule.map((r) => (
+          <button key={r.course} type="button" role="tab" aria-selected={r.course === row.course}
+            className={`admin-tab ${r.course === row.course ? 'admin-tab-active' : ''}`}
+            onClick={() => setCourse(r.course)}>
+            {r.course} курс
+          </button>
+        ))}
+      </div>
+      <CourseDates key={`${row.course}-${JSON.stringify(row.dates)}`} row={row} window={calendar.date_window}
+        saving={saving} onSave={(dates) => onChange([row.course], dates)} onSaveAll={setAllDates} />
+      {allDates && (
+        <ConfirmDialog title="Сроки всем курсам?" body="Сроки остальных курсов заменятся этими."
+          confirmLabel="Заменить"
+          onConfirm={() => { onChange(calendar.schedule.map((r) => r.course), allDates); setAllDates(null); }}
+          onCancel={() => setAllDates(null)} />
+      )}
+    </AdminSection>
   );
 }
 
 function GroupChip({ group, selected, onSelect }) {
-  const people = `студентов: ${group.students}, преподавателей: ${group.teachers}`;
   return (
     <button type="button" aria-pressed={selected}
       className={`admin-chip ${group.course_overridden ? 'admin-chip-manual' : ''} ${selected ? 'admin-chip-selected' : ''}`}
-      title={group.course_overridden ? `${people}; курс задан вручную` : people}
+      title={`Студентов: ${group.students}, преподавателей: ${group.teachers}`}
       onClick={() => onSelect(selected ? null : group.group)}>
-      {group.group}{group.course_overridden && <span aria-label="курс задан вручную"> ✎</span>}
+      {group.group}
+      {group.course_overridden && <Icon name="edit" label="курс задан вручную" className="admin-chip-mark" />}
     </button>
   );
 }
 
-// key — номер группы: при выборе другой группы поле курса заполняется заново.
-function GroupEditor({ group, maxCourse, saving, onSave }) {
-  const [course, setCourse] = useState(group.course_overridden ? String(group.course) : '');
-  const byNumber = group.course_by_number ? `${group.course_by_number} курс` : 'не определяется';
+// Правка студента. «Сделать администратором» — только отсюда: в списке её не задеть случайно при листании.
+function PersonForm({ person, digits, saving, onSave, onCancel, onAppoint }) {
+  const [name, setName] = useState(person.name);
+  const [group, setGroup] = useState(person.group || '');
+  const valid = name.trim().length > 1 && /^\d{6}$/.test(group);
   return (
-    <div className="admin-editor">
-      <div className="admin-editor-title">Группа {group.group}</div>
-      <div className="settings-desc">По номеру — {byNumber}. Студентов: {group.students}, преподавателей: {group.teachers}.</div>
-      <label className="select-label" htmlFor="admin-group-course">Курс в этом учебном году</label>
-      <select id="admin-group-course" className="teacher-select" value={course} onChange={(e) => setCourse(e.target.value)}>
-        <option value="">По номеру группы{group.course_by_number ? ` (${group.course_by_number})` : ''}</option>
-        {Array.from({ length: maxCourse }, (_, i) => i + 1).map((n) => (
-          <option key={n} value={n}>{n} курс</option>
-        ))}
-      </select>
-      <button type="button" className="submit-btn admin-save" disabled={saving}
-        onClick={() => onSave(group.group, course ? Number(course) : null)}>
-        Сохранить курс
-      </button>
-    </div>
-  );
-}
-
-function AddGroup({ maxCourse, saving, onSave }) {
-  const [number, setNumber] = useState('');
-  const [course, setCourse] = useState('');
-  const valid = /^\d{6}$/.test(number) && course;
-  const save = () => { onSave(number, Number(course)); setNumber(''); setCourse(''); };
-  return (
-    <div className="admin-add">
-      <div className="select-label">Группы нет в списке — задать курс по номеру</div>
-      <div className="admin-add-row">
-        <input aria-label="Номер группы" className="teacher-select" inputMode="numeric" maxLength={6}
-          placeholder="321702" value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))} />
-        <select aria-label="Курс новой группы" className="teacher-select" value={course}
-          onChange={(e) => setCourse(e.target.value)}>
-          <option value="">Курс</option>
-          {Array.from({ length: maxCourse }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
+    <li className="admin-person admin-person-form">
+      <input aria-label="ФИО" className="teacher-select admin-text" value={name} onChange={(e) => setName(e.target.value)} />
+      <GroupInput id={`admin-person-group-${person.id}`} label="Группа" value={group} digits={digits} onChange={setGroup} />
+      <div className="admin-actions">
+        <button type="button" className="submit-btn" disabled={!valid || saving} onClick={() => onSave({ name, group })}>
+          Сохранить
+        </button>
+        <button type="button" className="secondary-btn" onClick={onCancel}>Отмена</button>
       </div>
-      <button type="button" className="secondary-btn admin-save" disabled={!valid || saving} onClick={save}>
-        Задать курс
+      <button type="button" className="admin-appoint with-icon" disabled={saving} onClick={onAppoint}>
+        <Icon name="admin" /><span>Сделать администратором</span>
       </button>
+    </li>
+  );
+}
+
+// Студентов можно исправить, преподавателей — только посмотреть (editable не передан).
+function PeopleList({ title, people, editable, digits, saving, onSave, onAppoint }) {
+  const [editing, setEditing] = useState(null);
+  if (!people) return <p className="admin-note">Загрузка…</p>;
+  return (
+    <div className="admin-people">
+      <div className="admin-people-title">{title}{people.length > 0 && ` · ${people.length}`}</div>
+      {people.length === 0 && <p className="admin-note">Нет</p>}
+      <ul>
+        {people.map((p) => (editing === p.id ? (
+          <PersonForm key={p.id} person={p} digits={digits} saving={saving}
+            onSave={async (data) => { if (await onSave(p.id, data)) setEditing(null); }}
+            onCancel={() => setEditing(null)} onAppoint={() => onAppoint(p)} />
+        ) : (
+          <li key={p.id} className="admin-person">
+            <span className="admin-person-name">{p.name}</span>
+            {editable && (
+              <button type="button" className="icon-btn" onClick={() => setEditing(p.id)}>
+                <Icon name="edit" label={`Изменить: ${p.name}`} />
+              </button>
+            )}
+          </li>
+        )))}
+      </ul>
     </div>
   );
 }
 
-function GroupsSection({ calendar, saving, onChange }) {
+function GroupPanel({ group, calendar, admin, onClose, onAppoint, onRemove }) {
+  const { people, saving, changeCourse, changeUser } = admin;
+  const possible = calendar.group_digits.includes(Number(group.group[0]));
+  const loaded = people?.group === group.group;
+  return (
+    <div className="admin-panel">
+      <div className="admin-panel-head">
+        <span className="admin-panel-title">Группа {group.group}</span>
+        <button type="button" className="icon-btn" onClick={onClose}><Icon name="close" label="Закрыть" /></button>
+      </div>
+      {possible ? (
+        <div className="admin-row">
+          <label className="settings-desc" htmlFor="admin-group-course">Курс</label>
+          <select id="admin-group-course" className="teacher-select admin-select" disabled={saving}
+            value={group.course_overridden ? String(group.course) : ''}
+            onChange={(e) => changeCourse(group.group, e.target.value ? Number(e.target.value) : null)}>
+            {/* У добавленной вручную группы курс есть только записью администратора — «по номеру» её бы убрало */}
+            {!group.manual && <option value="">По номеру ({group.course_by_number})</option>}
+            {range(calendar.max_course).map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      ) : (
+        <p className="admin-note">Не из текущих курсов</p>
+      )}
+      <PeopleList title="Студенты" people={loaded ? people.students : null} editable digits={calendar.group_digits}
+        saving={saving} onSave={changeUser} onAppoint={onAppoint} />
+      <PeopleList title="Преподаватели" people={loaded ? people.teachers : null} />
+      {group.manual && (
+        <button type="button" className="admin-danger" disabled={saving}
+          onClick={() => onRemove(group.group)}>
+          <Icon name="trash" /><span>Удалить группу</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function GroupsSection({ calendar, admin }) {
   const [selected, setSelected] = useState(null);
-  const maxCourse = calendar.max_course;
-  const courses = Array.from({ length: maxCourse }, (_, i) => maxCourse - i);
+  const [appointee, setAppointee] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const courses = range(calendar.max_course).reverse();
   const unknown = calendar.groups.filter((g) => g.course == null);
   const selectedGroup = calendar.groups.find((g) => g.group === selected);
 
+  const select = (group) => { setSelected(group); admin.openGroup(group); };
   const row = (title, groups) => (
     <div className="admin-course" key={title}>
       <div className="admin-course-title">{title}</div>
       <div className="admin-chips">
-        {groups.map((g) => (
-          <GroupChip key={g.group} group={g} selected={g.group === selected} onSelect={setSelected} />
-        ))}
+        {groups.map((g) => <GroupChip key={g.group} group={g} selected={g.group === selected} onSelect={select} />)}
       </div>
     </div>
   );
 
   return (
-    <section className="settings-section admin-section">
-      <div className="settings-label">Курсы групп</div>
-      <p className="reg-hint admin-hint">
-        Курс — по первой цифре номера: это год поступления. Группы студентов и преподавателей приложения;
-        ✎ — курс задан вручную. Нажмите на группу, чтобы исправить.
-      </p>
-      {calendar.groups.length === 0 && <p className="settings-desc">Групп пока нет: никто не зарегистрирован.</p>}
+    <AdminSection id="groups" title="Группы">
+      {calendar.groups.length === 0 && <p className="admin-note">Пока нет</p>}
       {courses.map((c) => {
         const groups = calendar.groups.filter((g) => g.course === c);
-        return groups.length > 0 ? row(`${c} курс · ${semesterOf(c, calendar.half)} семестр`, groups) : null;
+        return groups.length > 0 ? row(`${c} курс · ${semesterOf(c, calendar.half)} сем.`, groups) : null;
       })}
       {unknown.length > 0 && row('Курс не определён', unknown)}
       {selectedGroup && (
-        <GroupEditor key={selectedGroup.group} group={selectedGroup} maxCourse={maxCourse} saving={saving}
-          onSave={(group, course) => { onChange(group, course); setSelected(null); }} />
+        <GroupPanel key={selectedGroup.group} group={selectedGroup} calendar={calendar} admin={admin}
+          onClose={() => select(null)} onAppoint={setAppointee} onRemove={setRemoving} />
       )}
-      <AddGroup maxCourse={maxCourse} saving={saving} onSave={onChange} />
-    </section>
+      {appointee && (
+        <ConfirmDialog title="Назначить администратором?"
+          body={`Вы уверены, что хотите сделать «${appointee.name}» администратором? Все его учебные данные будут удалены из БД!`}
+          confirmLabel="Назначить"
+          onConfirm={() => { admin.appointAdmin(appointee.id); setAppointee(null); }}
+          onCancel={() => setAppointee(null)} />
+      )}
+      {removing && (
+        <ConfirmDialog title={`Удалить группу ${removing}?`} body="Она добавлена вручную, в ней никого нет."
+          confirmLabel="Удалить"
+          onConfirm={() => { admin.removeGroup(removing); setRemoving(null); select(null); }}
+          onCancel={() => setRemoving(null)} />
+      )}
+    </AdminSection>
+  );
+}
+
+// Группа, которой нет в списке, — добавить с курсом. Раздел свёрнут: нужен редко.
+function AddGroupSection({ calendar, saving, onSave }) {
+  const [number, setNumber] = useState('');
+  const [course, setCourse] = useState('');
+  const exists = calendar.groups.some((g) => g.group === number);
+  const valid = /^\d{6}$/.test(number) && course && !exists;
+  return (
+    <AdminSection id="add" title="Новая группа" defaultOpen={false}>
+      <div className="admin-add-row">
+        <GroupInput id="admin-add-group" label="Номер группы" value={number} digits={calendar.group_digits}
+          onChange={setNumber} />
+        <select aria-label="Курс новой группы" className="teacher-select" value={course}
+          onChange={(e) => setCourse(e.target.value)}>
+          <option value="">Курс</option>
+          {range(calendar.max_course).map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+      {exists && <p className="admin-note">Уже в списке — курс меняется в группе</p>}
+      <button type="button" className="secondary-btn admin-wide" disabled={!valid || saving}
+        onClick={() => { onSave(number, Number(course)); setNumber(''); setCourse(''); }}>
+        Добавить
+      </button>
+    </AdminSection>
   );
 }
 
 export default function AdminTab({ admin }) {
-  const { calendar, error, saving, changeHalf, changeProcentovki, changeCourse } = admin;
+  const { calendar, error, saving, changeHalf, changeSchedule, changeCourse } = admin;
   return (
     <div className="tab-view">
       <h2 className="view-title">Управление</h2>
-      <p className="reg-hint admin-intro">
-        Здесь — то, что приложение определяет само. Если что-то определилось неверно, исправьте: новые загрузки
-        сразу проверяются по исправленному.
-      </p>
-      {error && <div className="status-msg admin-error" role="alert">❌ {error}</div>}
+      {error && <div className="admin-error" role="alert"><Icon name="error" /><span>{error}</span></div>}
       {!calendar && !error && <p className="description">Загрузка...</p>}
       {calendar && (
         <>
           <HalfSection calendar={calendar} saving={saving} onChange={changeHalf} />
-          <ProcentovkiSection key={JSON.stringify(calendar.procentovki)} calendar={calendar} saving={saving}
-            onSave={changeProcentovki} />
-          <GroupsSection calendar={calendar} saving={saving} onChange={changeCourse} />
+          <ScheduleSection calendar={calendar} saving={saving} onChange={changeSchedule} />
+          <GroupsSection calendar={calendar} admin={admin} />
+          <AddGroupSection calendar={calendar} saving={saving} onSave={changeCourse} />
         </>
       )}
     </div>

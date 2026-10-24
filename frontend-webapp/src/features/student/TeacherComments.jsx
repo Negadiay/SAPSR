@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AnnotationList from '../../components/AnnotationList';
+import Icon, { StatusIcon } from '../../components/Icon';
 import { downloadReviewFile, fetchAnnotations } from '../../api/submissions';
 
 // Комментарии преподавателя в файле работы: по нажатию загружаются по страницам, файл можно скачать.
@@ -26,14 +27,20 @@ export default function TeacherComments({ submission }) {
     <div className="teacher-comments">
       <div className="teacher-comments-actions">
         <button type="button" className="teacher-comments-toggle" aria-expanded={open} onClick={toggle}>
-          📝 Комментарии в файле: {submission.review_annotations ?? 0} {open ? '▲' : '▼'}
+          <Icon name="comment" />
+          <span>Комментарии в файле: {submission.review_annotations ?? 0}</span>
+          <Icon name={open ? 'chevronUp' : 'chevronDown'} />
         </button>
         <button type="button" className="teacher-comments-download" onClick={() => downloadReviewFile(submission.id)}>
           Скачать файл с пометками
         </button>
       </div>
-      {open && state.loading && <div className="teacher-comments-hint">⏳ Загрузка…</div>}
-      {open && state.error && <div className="teacher-comments-hint">❌ {state.error}</div>}
+      {open && state.loading && (
+        <div className="teacher-comments-hint with-icon"><StatusIcon tone="pending" /><span>Загрузка…</span></div>
+      )}
+      {open && state.error && (
+        <div className="teacher-comments-hint with-icon"><StatusIcon tone="error" /><span>{state.error}</span></div>
+      )}
       {open && state.annotations?.length === 0 && (
         <div className="teacher-comments-hint">Текстовых комментариев нет — пометки видны в файле.</div>
       )}

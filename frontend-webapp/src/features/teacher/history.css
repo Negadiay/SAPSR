@@ -27,13 +27,13 @@
 }
 
 .history-badge-ok {
-  background: rgba(67, 160, 71, 0.12);
-  color: #43a047;
+  background: var(--app-ok-tint, rgba(67, 160, 71, 0.12));
+  color: var(--app-ok, #43a047);
 }
 
 .history-badge-revision {
-  background: rgba(251, 140, 0, 0.12);
-  color: #fb8c00;
+  background: var(--app-warning-tint, rgba(251, 140, 0, 0.12));
+  color: var(--app-warning, #fb8c00);
 }
 
 .history-actions {
@@ -50,7 +50,7 @@
 
 .history-version-row {
   padding: 8px 14px 10px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid var(--app-line, rgba(0, 0, 0, 0.06));
   background: rgba(0, 0, 0, 0.02);
 }
 

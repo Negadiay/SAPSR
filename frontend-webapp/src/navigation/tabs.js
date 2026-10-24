@@ -1,22 +1,23 @@
 // --- Структура вкладок ---
+// icon — имя иконки из components/Icon.jsx; label — подпись кнопки для программ чтения с экрана.
 // tutorialRef — ключ элемента, который подсвечивает обучение (см. features/tutorial).
 const STUDENT_TABS = [
-  { id: 'upload',   icon: '📁', label: 'Загрузка' },
-  { id: 'works',    icon: '🔔', label: 'Работы',    tutorialRef: 'navNotif' },
-  { id: 'settings', icon: '⚙️', label: 'Настройки', tutorialRef: 'navSettings' },
+  { id: 'upload',   icon: 'upload',   label: 'Загрузка' },
+  { id: 'works',    icon: 'works',    label: 'Мои работы', tutorialRef: 'navNotif' },
+  { id: 'settings', icon: 'settings', label: 'Настройки',  tutorialRef: 'navSettings' },
 ];
 
 const TEACHER_TABS = [
-  { id: 'queue',    icon: '📋', label: 'Работы',    badge: true },
-  { id: 'history',  icon: '📚', label: 'История',   tutorialRef: 'navHistory' },
-  { id: 'notes',    icon: '📝', label: 'Заметки',   tutorialRef: 'navNotes' },
-  { id: 'settings', icon: '⚙️', label: 'Настройки', tutorialRef: 'navSettings' },
+  { id: 'queue',    icon: 'queue',    label: 'Работы',    badge: true },
+  { id: 'history',  icon: 'history',  label: 'История',   tutorialRef: 'navHistory' },
+  { id: 'notes',    icon: 'notes',    label: 'Заметки',   tutorialRef: 'navNotes' },
+  { id: 'settings', icon: 'settings', label: 'Настройки', tutorialRef: 'navSettings' },
 ];
 
 // Администратор работы не проверяет: у него только настройки календаря (решение 11).
 const ADMIN_TABS = [
-  { id: 'admin',    icon: '🛠️', label: 'Управление' },
-  { id: 'settings', icon: '⚙️', label: 'Настройки' },
+  { id: 'admin',    icon: 'admin',    label: 'Управление' },
+  { id: 'settings', icon: 'settings', label: 'Настройки' },
 ];
 
 export const getTabs = (role) => {

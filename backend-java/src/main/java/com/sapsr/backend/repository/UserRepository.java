@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRole(String role);
+    List<User> findByRoleAndGroupNumber(String role, String groupNumber);
     Optional<User> findByEmail(String email);
 
     /** Группы зарегистрированных студентов и число студентов в каждой — для экрана администратора. */

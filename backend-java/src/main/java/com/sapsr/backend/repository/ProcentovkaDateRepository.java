@@ -8,5 +8,6 @@ import java.util.List;
 
 @Repository
 public interface ProcentovkaDateRepository extends JpaRepository<ProcentovkaDate, ProcentovkaDate.Key> {
-    List<ProcentovkaDate> findByAcademicYearAndHalfOrderByStageAsc(Integer academicYear, String half);
+    /** Сроки половины учебного года — всех курсов. */
+    List<ProcentovkaDate> findByAcademicYearAndHalf(Integer academicYear, String half);
 }

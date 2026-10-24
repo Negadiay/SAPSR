@@ -1,9 +1,9 @@
 package com.sapsr.backend.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sapsr.backend.academic.AcademicCalendar;
 import com.sapsr.backend.academic.AcademicCalendar.Half;
+import com.sapsr.backend.academic.AcademicCalendar.Schedule;
+import com.sapsr.backend.admin.AdminUsers;
 import com.sapsr.backend.entity.GroupCourseOverride;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.GroupCourseOverrideRepository;
@@ -15,33 +15,40 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
 /**
- * Экран администратора (решение 11): то, что сервер определяет сам — половина года, курсы групп, даты
- * опроцентовок, — администратор видит и исправляет в приложении, не заходя в код.
+ * Экран администратора (решение 11): то, что сервер определяет сам — половина года, курсы групп, сроки
+ * по курсам, — администратор видит и исправляет в приложении, не заходя в код; там же исправляет ФИО и
+ * группы пользователей и назначает администраторов из студентов.
  *
- * Роль ADMIN не выдаётся регистрацией: её записывают в базу вручную по Telegram ID (README, «Администратор»).
- * Работы администратор не проверяет. Методы — docs/contracts/api-v1.md, раздел 14.
+ * Первого администратора записывают в базу вручную по Telegram ID (README, «Администратор»); регистрацией
+ * роль не получить. Работы администратор не проверяет. Методы — docs/contracts/api-v1.md, раздел 14.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminController {
 
-    public static final String ROLE = "ADMIN";
+    public static final String ROLE = AdminUsers.ADMIN;
 
     private static final Logger log = LoggerFactory.getLogger(AdminController.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    /** Ключи сроков в запросах и ответах: опроцентовки 1–3 и срок сдачи. */
+    private static final List<String> DATE_KEYS = List.of("1", "2", "3", "deadline");
 
     private final AcademicCalendar calendar;
     private final UserRepository users;
     private final GroupCourseOverrideRepository overrides;
+    private final AdminUsers adminUsers;
 
-    public AdminController(AcademicCalendar calendar, UserRepository users, GroupCourseOverrideRepository overrides) {
+    public AdminController(AcademicCalendar calendar, UserRepository users, GroupCourseOverrideRepository overrides,
+                           AdminUsers adminUsers) {
         this.calendar = calendar;
         this.users = users;
         this.overrides = overrides;
+        this.adminUsers = adminUsers;
     }
 
     @GetMapping("/calendar")
@@ -67,29 +74,55 @@ public class AdminController {
         return ResponseEntity.ok(view());
     }
 
-    /** {"1": "2026-10-01", "2": "2026-10-29", "3": null} — даты опроцентовок текущей половины года. */
-    @PutMapping("/calendar/procentovki")
-    public ResponseEntity<?> setProcentovki(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    /**
+     * {"courses": [1, 2, 3, 4], "dates": {"1": "2026-10-01", "2": "2026-10-29", "3": null, "deadline": "2026-12-26"}} —
+     * сроки текущей половины года для перечисленных курсов; null — дата снята.
+     */
+    @PutMapping("/calendar/schedule")
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<?> setSchedule(@RequestBody Map<String, Object> body, HttpServletRequest request) {
         Optional<ResponseEntity<?>> denied = deny(request);
         if (denied.isPresent()) return denied.get();
+
+        Set<Integer> courses = new TreeSet<>();
+        if (body.get("courses") instanceof List<?> list) {
+            for (Object c : list) {
+                try {
+                    courses.add(Integer.parseInt(String.valueOf(c)));
+                } catch (NumberFormatException e) {
+                    return invalid("courses", "Курсы — числа от 1 до " + AcademicCalendar.MAX_COURSE);
+                }
+            }
+        }
+        if (courses.isEmpty() || courses.stream().anyMatch(c -> c < 1 || c > AcademicCalendar.MAX_COURSE)) {
+            return invalid("courses", "Курсы — числа от 1 до " + AcademicCalendar.MAX_COURSE);
+        }
+
+        Map<String, Object> raw = body.get("dates") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        AcademicCalendar.Window window = calendar.window();
         Map<Integer, LocalDate> dates = new TreeMap<>();
-        for (int stage = 1; stage <= 3; stage++) {
-            Object raw = body.get(String.valueOf(stage));
-            if (raw == null || String.valueOf(raw).isBlank()) continue;
+        LocalDate previous = null;
+        for (int i = 0; i < DATE_KEYS.size(); i++) {
+            String key = DATE_KEYS.get(i);
+            Object value = raw.get(key);
+            if (value == null || String.valueOf(value).isBlank()) continue;
+            LocalDate date;
             try {
-                dates.put(stage, LocalDate.parse(String.valueOf(raw)));
+                date = LocalDate.parse(String.valueOf(value));
             } catch (DateTimeParseException e) {
-                return invalid(String.valueOf(stage), "Дата опроцентовки — в виде ГГГГ-ММ-ДД");
+                return invalid(key, "Дата — в виде ГГГГ-ММ-ДД");
             }
-        }
-        List<LocalDate> ordered = new ArrayList<>(dates.values());
-        for (int i = 1; i < ordered.size(); i++) {
-            if (!ordered.get(i).isAfter(ordered.get(i - 1))) {
-                return invalid("procentovki", "Опроцентовки идут по порядку: каждая следующая позже предыдущей");
+            if (!window.contains(date)) {
+                return invalid(key, "Дата вне семестра: " + DAY.format(window.from()) + " – " + DAY.format(window.to()));
             }
+            if (previous != null && !date.isAfter(previous)) {
+                return invalid(key, "Сроки идут по порядку: каждый следующий позже предыдущего");
+            }
+            previous = date;
+            dates.put(i + 1, date);
         }
-        calendar.setProcentovkaDates(dates, adminId(request));
-        log.info("Администратор {}: даты опроцентовок {}", adminId(request), dates);
+        calendar.setSchedule(courses, dates, adminId(request));
+        log.info("Администратор {}: сроки курсов {} — {}", adminId(request), courses, dates);
         return ResponseEntity.ok(view());
     }
 
@@ -99,11 +132,10 @@ public class AdminController {
                                        HttpServletRequest request) {
         Optional<ResponseEntity<?>> denied = deny(request);
         if (denied.isPresent()) return denied.get();
-        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр");
-        Object raw = body.get("course");
+        if (!calendar.isPossibleGroup(group)) return invalid("group", adminUsers.groupHint());
         int course;
         try {
-            course = Integer.parseInt(String.valueOf(raw));
+            course = Integer.parseInt(String.valueOf(body.get("course")));
         } catch (NumberFormatException e) {
             return invalid("course", "Курс — число от 1 до " + AcademicCalendar.MAX_COURSE);
         }
@@ -126,6 +158,73 @@ public class AdminController {
         return ResponseEntity.ok(view());
     }
 
+    /** Группу, добавленную вручную, — убрать. Только пустую: студенты и преподаватели держат группу в списке сами. */
+    @DeleteMapping("/groups/{group}")
+    public ResponseEntity<?> deleteGroup(@PathVariable String group, HttpServletRequest request) {
+        Optional<ResponseEntity<?>> denied = deny(request);
+        if (denied.isPresent()) return denied.get();
+        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр");
+        boolean added = overrides.findByAcademicYear(calendar.academicYear()).stream()
+                .anyMatch(o -> group.equals(o.getGroupNumber()));
+        if (!added) {
+            return ResponseEntity.status(404).body(Map.of("code", "NOT_FOUND",
+                    "error", "Группы " + group + " нет среди добавленных вручную"));
+        }
+        if (!adminUsers.students(group).isEmpty() || !adminUsers.teachers(group).isEmpty()) {
+            return ResponseEntity.status(409).body(Map.of("code", "GROUP_NOT_EMPTY",
+                    "error", "В группе есть люди — удалить можно только пустую"));
+        }
+        calendar.setCourse(group, null, adminId(request));
+        log.info("Администратор {}: удалена группа {}", adminId(request), group);
+        return ResponseEntity.ok(view());
+    }
+
+    /** Студенты группы и её преподаватели — чтобы исправить ФИО или группу студента без похода в базу. */
+    @GetMapping("/groups/{group}/people")
+    public ResponseEntity<?> getPeople(@PathVariable String group, HttpServletRequest request) {
+        Optional<ResponseEntity<?>> denied = deny(request);
+        if (denied.isPresent()) return denied.get();
+        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр");
+        return ResponseEntity.ok(people(group));
+    }
+
+    /** {"name": "Терешкова А.В.", "group": "321702"} — только студента. Ответ — люди прежней группы. */
+    @PutMapping("/users/{id}")
+    public ResponseEntity<?> updateUser(@PathVariable long id, @RequestBody Map<String, Object> body,
+                                        HttpServletRequest request) {
+        Optional<ResponseEntity<?>> denied = deny(request);
+        if (denied.isPresent()) return denied.get();
+        String before = users.findById(id).map(User::getGroupNumber).orElse(null);
+        try {
+            adminUsers.update(id, text(body.get("name")), text(body.get("group")));
+        } catch (AdminUsers.Invalid e) {
+            return invalid(e.field(), e.getMessage());
+        } catch (AdminUsers.NotAStudent e) {
+            return notAStudent(e);
+        } catch (AdminUsers.NotFound e) {
+            return ResponseEntity.status(404).body(Map.of("code", "NOT_FOUND", "error", e.getMessage()));
+        }
+        log.info("Администратор {}: исправлены данные пользователя {}", adminId(request), id);
+        Map<String, Object> result = new LinkedHashMap<>(view());
+        if (before != null) result.put("people", people(before));
+        return ResponseEntity.ok(result);
+    }
+
+    /** Студента — в администраторы; его учебные данные удаляются (интерфейс спрашивает подтверждение). */
+    @PostMapping("/users/{id}/admin")
+    public ResponseEntity<?> makeAdmin(@PathVariable long id, HttpServletRequest request) {
+        Optional<ResponseEntity<?>> denied = deny(request);
+        if (denied.isPresent()) return denied.get();
+        try {
+            adminUsers.makeAdmin(id, adminId(request));
+        } catch (AdminUsers.NotAStudent e) {
+            return notAStudent(e);
+        } catch (AdminUsers.NotFound e) {
+            return ResponseEntity.status(404).body(Map.of("code", "NOT_FOUND", "error", e.getMessage()));
+        }
+        return ResponseEntity.ok(view());
+    }
+
     // ── ответ ─────────────────────────────────────────────────────────────────────────────────
 
     /** Всё, что показывает экран администратора; после изменения возвращается он же. */
@@ -133,26 +232,36 @@ public class AdminController {
         Half half = calendar.half();
         Half halfByDate = calendar.halfByDate();
         int year = calendar.academicYear();
+        LocalDate today = calendar.today();
 
         Map<String, Object> view = new LinkedHashMap<>();
-        view.put("today", calendar.today().toString());
+        view.put("today", today.toString());
         view.put("academic_year", year);
         view.put("academic_year_title", year + "/" + (year + 1));
         view.put("half", half.name());
         view.put("half_by_date", halfByDate.name());
         view.put("half_overridden", half != halfByDate);
-
-        Map<Integer, LocalDate> dates = calendar.procentovkaDates();
-        List<Map<String, Object>> procentovki = new ArrayList<>();
-        for (int stage = 1; stage <= 3; stage++) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("stage", stage);
-            row.put("date", dates.containsKey(stage) ? dates.get(stage).toString() : null);
-            procentovki.add(row);
-        }
-        view.put("procentovki", procentovki);
-        view.put("current_stage", AcademicCalendar.stageByDates(calendar.today(), dates).orElse(null));
         view.put("max_course", AcademicCalendar.MAX_COURSE);
+        view.put("group_digits", AcademicCalendar.groupYearDigits(year));
+        AcademicCalendar.Window window = calendar.window();
+        view.put("date_window", Map.of("from", window.from().toString(), "to", window.to().toString()));
+
+        List<Map<String, Object>> schedule = new ArrayList<>();
+        for (Map.Entry<Integer, Schedule> e : calendar.schedules().entrySet()) {
+            Map<String, Object> dates = new LinkedHashMap<>();
+            for (int stage = 1; stage <= 3; stage++) {
+                LocalDate date = e.getValue().procentovki().get(stage);
+                dates.put(String.valueOf(stage), date == null ? null : date.toString());
+            }
+            dates.put("deadline", e.getValue().deadline() == null ? null : e.getValue().deadline().toString());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("course", e.getKey());
+            row.put("semester", AcademicCalendar.semester(e.getKey(), half));
+            row.put("dates", dates);
+            row.put("current_stage", AcademicCalendar.stageByDates(today, e.getValue().procentovki()).orElse(null));
+            schedule.add(row);
+        }
+        view.put("schedule", schedule);
         view.put("groups", groups(year, half));
         return view;
     }
@@ -163,8 +272,8 @@ public class AdminController {
         for (Object[] row : users.countStudentsByGroup()) {
             counts.computeIfAbsent((String) row[0], g -> new long[2])[0] = ((Number) row[1]).longValue();
         }
-        for (User teacher : users.findByRole("TEACHER")) {
-            for (String group : teacherGroups(teacher)) counts.computeIfAbsent(group, g -> new long[2])[1]++;
+        for (User teacher : users.findByRole(AdminUsers.TEACHER)) {
+            for (String group : AdminUsers.teacherGroups(teacher)) counts.computeIfAbsent(group, g -> new long[2])[1]++;
         }
         Map<String, Integer> overridden = new HashMap<>();
         for (GroupCourseOverride o : overrides.findByAcademicYear(year)) {
@@ -182,6 +291,8 @@ public class AdminController {
             row.put("course", course);
             row.put("course_by_number", auto);
             row.put("course_overridden", overridden.containsKey(group));
+            // Добавлена администратором и пуста: в списке держится только его записью — её можно удалить.
+            row.put("manual", overridden.containsKey(group) && e.getValue()[0] == 0 && e.getValue()[1] == 0);
             row.put("semester", course == null ? null : AcademicCalendar.semester(course, half));
             row.put("students", e.getValue()[0]);
             row.put("teachers", e.getValue()[1]);
@@ -190,17 +301,12 @@ public class AdminController {
         return groups;
     }
 
-    private static List<String> teacherGroups(User teacher) {
-        if (teacher.getTeacherGroups() == null || teacher.getTeacherGroups().isBlank()) return List.of();
-        try {
-            List<String> groups = new ArrayList<>();
-            for (JsonNode g : JSON.readTree(teacher.getTeacherGroups())) {
-                if (g.asText("").matches("\\d{6}")) groups.add(g.asText());
-            }
-            return groups;
-        } catch (Exception e) {
-            return List.of();
-        }
+    private Map<String, Object> people(String group) {
+        Map<String, Object> people = new LinkedHashMap<>();
+        people.put("group", group);
+        people.put("students", adminUsers.students(group));
+        people.put("teachers", adminUsers.teachers(group));
+        return people;
     }
 
     // ── доступ ────────────────────────────────────────────────────────────────────────────────
@@ -220,6 +326,14 @@ public class AdminController {
 
     private static Long adminId(HttpServletRequest request) {
         return (Long) request.getAttribute("telegram_id");
+    }
+
+    private static String text(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static ResponseEntity<?> notAStudent(AdminUsers.NotAStudent e) {
+        return ResponseEntity.status(409).body(Map.of("code", "NOT_A_STUDENT", "error", e.getMessage()));
     }
 
     private static ResponseEntity<?> invalid(String field, String message) {

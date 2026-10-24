@@ -62,7 +62,7 @@ class FreshDatabaseMigrationTest {
     void appliesAllMigrationsFromScratch() {
         List<String> applied = jdbc.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
-        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6");
+        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6", "7");
     }
 
     @Test
@@ -119,8 +119,10 @@ class FreshDatabaseMigrationTest {
     void adminTablesWork() {
         // Решение 11: исправления администратора — по учебному году; группы студентов для его экрана.
         overrides.saveAndFlush(new GroupCourseOverride("721701", 2026, 2, LocalDateTime.now(), 9001L));
-        procentovki.saveAndFlush(new ProcentovkaDate(2026, "AUTUMN", 2, LocalDate.of(2026, 10, 29),
+        procentovki.saveAndFlush(new ProcentovkaDate(2026, "AUTUMN", 4, 2, LocalDate.of(2026, 10, 29),
                 LocalDateTime.now(), 9001L));
+        procentovki.saveAndFlush(new ProcentovkaDate(2026, "AUTUMN", 3, ProcentovkaDate.DEADLINE,
+                LocalDate.of(2026, 12, 20), LocalDateTime.now(), 9001L));
         settings.saveAndFlush(new AcademicSetting(AcademicSetting.HALF, "SPRING", LocalDateTime.now(), 9001L));
         User a = user(8101L, "STUDENT");
         a.setGroupNumber("321702");
@@ -131,8 +133,10 @@ class FreshDatabaseMigrationTest {
 
         assertThat(overrides.findByGroupNumberAndAcademicYear("721701", 2026)).map(GroupCourseOverride::getCourse).contains(2);
         assertThat(overrides.findByGroupNumberAndAcademicYear("721701", 2027)).isEmpty();
-        assertThat(procentovki.findByAcademicYearAndHalfOrderByStageAsc(2026, "AUTUMN"))
-                .extracting(ProcentovkaDate::getHeldOn).containsExactly(LocalDate.of(2026, 10, 29));
+        assertThat(procentovki.findByAcademicYearAndHalf(2026, "AUTUMN"))
+                .extracting(ProcentovkaDate::getCourse, ProcentovkaDate::getStage)
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple(4, 2), org.assertj.core.groups.Tuple.tuple(3, 4));
+        assertThat(users.findByRoleAndGroupNumber("STUDENT", "321702")).hasSize(2);
         assertThat(settings.findById(AcademicSetting.HALF)).map(AcademicSetting::getValue).contains("SPRING");
         assertThat(users.countStudentsByGroup()).anySatisfy(r -> {
             assertThat(r[0]).isEqualTo("321702");

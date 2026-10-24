@@ -104,6 +104,8 @@ public class UploadController {
                 me.put("course", term.course());
                 me.put("semester", term.semester());
                 me.put("stage", term.stage());
+                // Срок сдачи работы — у каждого курса свой (у 3 курса весной год короче из-за практики).
+                me.put("deadline", term.deadline() == null ? null : term.deadline().toString());
                 me.put("course_overridden", term.courseOverridden());
             }
             return ResponseEntity.ok(me);
@@ -218,7 +220,7 @@ public class UploadController {
      * Студент пока вводит «Иванов И.И.»: известна только фамилия, имя и отчество остаются пустыми.
      * У преподавателя ФИО из ИИС полное: «Фамилия Имя Отчество».
      */
-    static void setNameParts(User user, String fullName, String groupNumber) {
+    public static void setNameParts(User user, String fullName, String groupNumber) {
         String[] parts = fullName.strip().split("\\s+");
         boolean initialsOnly = parts.length < 2 || parts[1].contains(".");
         user.setLastName(parts[0].isEmpty() ? null : parts[0]);

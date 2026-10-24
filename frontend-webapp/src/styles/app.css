@@ -3,6 +3,7 @@
 @import './common.css';
 @import '../navigation/nav.css';
 @import '../components/ConfirmDialog.css';
+@import '../components/Icon.css';
 @import '../features/registration/registration.css';
 @import '../features/student/upload.css';
 @import '../features/student/works.css';

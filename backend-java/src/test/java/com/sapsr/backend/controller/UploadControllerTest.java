@@ -70,8 +70,10 @@ class UploadControllerTest {
         // 23 октября 2026 года, вторая опроцентовка 29-го: студент 321702 — 4 курс, 7 семестр, этап 2.
         Clock october = Clock.fixed(LocalDateTime.of(2026, 10, 23, 12, 0).atZone(AcademicCalendar.ZONE).toInstant(),
                 AcademicCalendar.ZONE);
-        when(procentovki.findByAcademicYearAndHalfOrderByStageAsc(2026, "AUTUMN")).thenReturn(List.of(
-                new ProcentovkaDate(2026, "AUTUMN", 2, LocalDate.of(2026, 10, 29), LocalDateTime.now(), 1L)));
+        when(procentovki.findByAcademicYearAndHalf(2026, "AUTUMN")).thenReturn(List.of(
+                new ProcentovkaDate(2026, "AUTUMN", 4, 2, LocalDate.of(2026, 10, 29), LocalDateTime.now(), 1L),
+                new ProcentovkaDate(2026, "AUTUMN", 4, ProcentovkaDate.DEADLINE, LocalDate.of(2026, 12, 26),
+                        LocalDateTime.now(), 1L)));
         AcademicCalendar calendar = new AcademicCalendar(mock(AcademicSettingRepository.class),
                 mock(GroupCourseOverrideRepository.class), procentovki, october);
         controller = new UploadController(rabbit, submissions, users,
@@ -190,7 +192,7 @@ class UploadControllerTest {
         controller.uploadFile(pdf("Курсовая.pdf"), null, "course_work", request());
 
         assertThat(savedSubmission().getSemester()).isNull();
-        assertThat(savedSubmission().getStage()).isEqualTo(2);
+        assertThat(savedSubmission().getStage()).as("сроки — по курсу, а курс не определился").isNull();
     }
 
     @Test
@@ -199,7 +201,7 @@ class UploadControllerTest {
         Map<String, Object> me = (Map<String, Object>) controller.getMe(request()).getBody();
 
         assertThat(me).containsEntry("group", "321702").containsEntry("course", 4).containsEntry("semester", 7)
-                .containsEntry("stage", 2).containsEntry("course_overridden", false);
+                .containsEntry("stage", 2).containsEntry("deadline", "2026-12-26").containsEntry("course_overridden", false);
     }
 
     @Test

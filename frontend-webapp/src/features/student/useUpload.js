@@ -24,7 +24,7 @@ const saveProfile = (profile) => {
 // Форма загрузки работы: список преподавателей, выбранный файл, отправка.
 export function useUpload({ active, onUploaded }) {
   const [file, setFile]                           = useState(null);
-  const [status, setStatus]                       = useState('');
+  const [status, setStatus]                       = useState(null);
   const [teachers, setTeachers]                   = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [uploading, setUploading]                 = useState(false);
@@ -54,7 +54,7 @@ export function useUpload({ active, onUploaded }) {
     localStorage.setItem(LAST_TEACHER_KEY, teacherId);
   };
 
-  const selectFile = (nextFile) => { setFile(nextFile); setStatus(''); };
+  const selectFile = (nextFile) => { setFile(nextFile); setStatus(null); };
 
   const setProfileField = (field, value) => {
     const next = { ...profile, [field]: value };
@@ -62,37 +62,39 @@ export function useUpload({ active, onUploaded }) {
     saveProfile(next);
   };
 
-  const clearStatus = () => setStatus('');
+  const clearStatus = () => setStatus(null);
+  // Строка состояния под формой: tone — иконка и цвет (components/Icon.jsx, StatusIcon).
+  const fail = (text) => setStatus({ tone: 'error', text });
 
   const submit = async (e) => {
     e.preventDefault();
     if (!file || uploading) return;
-    setUploading(true); setStatus('⏳ Загрузка...');
+    setUploading(true); setStatus({ tone: 'pending', text: 'Загрузка...' });
     try {
       if (selectedTeacherId) localStorage.setItem(LAST_TEACHER_KEY, selectedTeacherId);
       const res = await uploadSubmission(file, selectedTeacherId, profile);
       if (res.ok) {
-        setStatus('✅ Работа успешно отправлена!'); setFile(null);
+        setStatus({ tone: 'ok', text: 'Работа успешно отправлена!' }); setFile(null);
         notifyHaptic('success');
         onUploaded();
         showPopup({ title: 'Готово!', message: 'Файл отправлен на проверку.', buttons: [{ type: 'ok' }] });
       } else {
         notifyHaptic('error');
         if (res.status === 413) {
-          setStatus('❌ Файл слишком большой. Максимальный размер — 50 МБ.');
+          fail('Файл слишком большой. Максимальный размер — 50 МБ.');
         } else if (res.status === 415 || res.status === 400) {
           const err = await readError(res);
-          setStatus(`❌ ${err.error || 'Недопустимый формат файла. Загрузите PDF.'}`);
+          fail(err.error || 'Недопустимый формат файла. Загрузите PDF.');
         } else if (res.status === 401 || res.status === 403) {
-          setStatus('❌ Ошибка авторизации. Перезапустите приложение.');
+          fail('Ошибка авторизации. Перезапустите приложение.');
         } else if (res.status >= 500) {
-          setStatus('❌ Ошибка сервера. Попробуйте чуть позже.');
+          fail('Ошибка сервера. Попробуйте чуть позже.');
         } else {
           const err = await readError(res);
-          setStatus(`❌ ${err.error || `Ошибка ${res.status}`}`);
+          fail(err.error || `Ошибка ${res.status}`);
         }
       }
-    } catch { setStatus('❌ Нет соединения с сервером. Проверьте интернет.'); }
+    } catch { fail('Нет соединения с сервером. Проверьте интернет.'); }
     finally { setUploading(false); }
   };
 

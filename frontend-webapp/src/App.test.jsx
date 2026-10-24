@@ -51,7 +51,8 @@ const start = (routes) => {
   return { api, user };
 };
 
-const tabButton = (icon) => within(document.querySelector('.bottom-nav')).getByRole('button', { name: new RegExp(icon) });
+// Вкладки — иконки без текста; у кнопки есть подпись для программ чтения с экрана.
+const tabButton = (label) => within(document.querySelector('.bottom-nav')).getByRole('button', { name: label });
 
 describe('вход', () => {
   it('незарегистрированному пользователю предлагает выбрать роль', async () => {
@@ -195,7 +196,7 @@ describe('кабинет студента', () => {
     expect(submit).toBeEnabled();
     await user.click(submit);
 
-    expect(await screen.findByText('✅ Работа успешно отправлена!')).toBeInTheDocument();
+    expect(await screen.findByText('Работа успешно отправлена!')).toBeInTheDocument();
     const { body } = api.find('POST', '/upload')[0];
     expect(body.get('file').name).toBe('моя работа.pdf');
     expect(body.get('teacher_id')).toBe('8');
@@ -208,7 +209,7 @@ describe('кабинет студента', () => {
     await screen.findByRole('option', { name: 'Петров П.П.' });
     await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'big.pdf', { type: 'application/pdf' }));
     await user.click(submit);
-    expect(await screen.findByText('❌ Файл слишком большой. Максимальный размер — 50 МБ.')).toBeInTheDocument();
+    expect(await screen.findByText('Файл слишком большой. Максимальный размер — 50 МБ.')).toBeInTheDocument();
   });
 
   it('без преподавателей отправка недоступна', async () => {
@@ -222,15 +223,15 @@ describe('кабинет студента', () => {
     const { user } = start(studentRoutes);
     await screen.findByRole('heading', { name: 'Загрузка работы' });
     await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'черновик.pdf', { type: 'application/pdf' }));
-    await user.click(tabButton('🔔'));
-    await user.click(tabButton('📁'));
+    await user.click(tabButton('Мои работы'));
+    await user.click(tabButton('Загрузка'));
     expect(screen.getByText('черновик.pdf')).toBeInTheDocument();
   });
 
   it('показывает версии одной работы одной карточкой', async () => {
     const { user } = start(studentRoutes);
     await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('🔔'));
+    await user.click(tabButton('Мои работы'));
 
     const cards = await waitFor(() => {
       const found = document.querySelectorAll('.notif-line');
@@ -238,17 +239,20 @@ describe('кабинет студента', () => {
       return found;
     });
     expect(cards[0]).toHaveTextContent('Kursach.pdf');
-    expect(cards[0]).toHaveTextContent('v1 🔄');
-    expect(cards[0]).toHaveTextContent('v2 ✅');
-    expect(cards[0]).toHaveTextContent('✅ Оформление ОК');
-    expect(cards[1]).toHaveTextContent('❌ Ошибки оформления');
+    const steps = cards[0].querySelectorAll('.iteration-step');
+    expect(steps[0]).toHaveTextContent('v1');
+    expect(within(steps[0]).getByRole('img', { name: 'на доработке' })).toBeInTheDocument();
+    expect(within(steps[1]).getByRole('img', { name: 'оформление ОК' })).toBeInTheDocument();
+    expect(cards[0]).toHaveTextContent('Оформление ОК');
+    expect(cards[1]).toHaveTextContent('Ошибки оформления');
+    expect(cards[1].querySelector('.notif-status svg.status-error')).not.toBeNull();
     expect(cards[1]).toHaveClass('notif-error');
   });
 
   it('отзывает работу только после подтверждения', async () => {
     const { api, user } = start({ ...studentRoutes, 'DELETE /submissions/5': {} });
     await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('🔔'));
+    await user.click(tabButton('Мои работы'));
     await user.click(await screen.findByRole('button', { name: 'Отозвать работу' }));
 
     expect(screen.getByText('Отозвать работу?')).toBeInTheDocument();
@@ -287,7 +291,7 @@ describe('кабинет преподавателя', () => {
   it('принимает работу', async () => {
     const { api, user } = start({ ...teacherRoutes, 'POST /teacher/submissions/1/verdict': {} });
     await user.click(await screen.findByText('kursach.pdf'));
-    await user.click(screen.getByRole('button', { name: '✅ Принять' }));
+    await user.click(screen.getByRole('button', { name: 'Принять' }));
     await waitFor(() => expect(api.find('POST', '/teacher/submissions/1/verdict')).toHaveLength(1));
     expect(api.find('POST', '/teacher/submissions/1/verdict')[0].body).toEqual({ verdict: 'APPROVED', comment: '' });
   });
@@ -296,7 +300,7 @@ describe('кабинет преподавателя', () => {
     const { api, user } = start(teacherRoutes);
     await user.click(await screen.findByText('kursach.pdf'));
 
-    expect(screen.getByRole('button', { name: '🔄 На доработку' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'На доработку' })).toBeDisabled();
     expect(screen.getByText('Чтобы отправить на доработку, загрузите работу с вашими пометками.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(api.find('POST', '/teacher/submissions/1/verdict')).toHaveLength(0);
@@ -305,21 +309,21 @@ describe('кабинет преподавателя', () => {
   it('в истории сворачивает версии одной работы и раскрывает их по нажатию', async () => {
     const { user } = start(teacherRoutes);
     await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('📚'));
+    await user.click(tabButton('История'));
 
-    expect(await screen.findByText('✅ Принято')).toBeInTheDocument();
+    expect(await screen.findByText('Принято')).toBeInTheDocument();
     expect(screen.getByText('2 версии')).toBeInTheDocument();
-    expect(screen.queryByText('💬 Нет списка литературы')).not.toBeInTheDocument();
+    expect(screen.queryByText('Нет списка литературы')).not.toBeInTheDocument();
 
     await user.click(screen.getByText('old.pdf'));
-    expect(screen.getByText('💬 Нет списка литературы')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '📄 Скачать v1' })).toBeInTheDocument();
+    expect(screen.getByText('Нет списка литературы')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Скачать v1' })).toBeInTheDocument();
   });
 
-  it('заметка сохраняется, а 🔍 открывает очередь с поиском по студенту из неё', async () => {
+  it('заметка сохраняется, а кнопка с лупой открывает очередь с поиском по студенту из неё', async () => {
     const { user } = start(teacherRoutes);
     await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('📝'));
+    await user.click(tabButton('Заметки'));
     expect(screen.getByText('Нет заметок. Нажмите «+ Новая заметка»')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '+ Новая заметка' }));
@@ -337,8 +341,8 @@ describe('кабинет преподавателя', () => {
     localStorage.setItem('sapsr_notes_42', JSON.stringify([{ id: 1, text: 'Старая заметка' }]));
     const { user } = start(teacherRoutes);
     await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('📝'));
-    await user.click(screen.getByTitle('Удалить'));
+    await user.click(tabButton('Заметки'));
+    await user.click(screen.getByRole('button', { name: 'Удалить заметку' }));
     expect(screen.getByText('Удалить заметку?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Удалить' }));
     expect(screen.queryByText('Старая заметка')).not.toBeInTheDocument();
@@ -350,7 +354,7 @@ describe('настройки и обучение', () => {
   it('тема, контраст и размер шрифта применяются и запоминаются', async () => {
     const { user } = start(studentRoutes);
     await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('⚙️'));
+    await user.click(tabButton('Настройки'));
     const app = document.querySelector('.App');
     expect(app).toHaveClass('font-normal');
     expect(app).not.toHaveClass('app-dark');
@@ -373,7 +377,7 @@ describe('настройки и обучение', () => {
   it('после выхода можно войти под сохранённой ролью', async () => {
     const { user } = start(teacherRoutes);
     await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('⚙️'));
+    await user.click(tabButton('Настройки'));
     await user.click(screen.getByRole('button', { name: 'Выйти из системы' }));
     expect(screen.getByText('Выберите вашу роль в системе')).toBeInTheDocument();
 

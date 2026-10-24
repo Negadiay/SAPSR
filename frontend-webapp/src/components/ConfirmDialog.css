@@ -39,8 +39,8 @@
 }
 
 .withdraw-confirm-btn {
-  background: #e53935;
-  color: #fff;
+  background: var(--app-error, #e53935);
+  color: var(--app-on-error, #fff);
   border: none;
   border-radius: 10px;
   padding: 9px 18px;

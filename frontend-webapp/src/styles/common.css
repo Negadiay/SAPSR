@@ -12,7 +12,7 @@
   max-width: 340px;
   height: 50vh;
   background: var(--tg-theme-secondary-bg-color, #dff0e9);
-  border: 1px solid rgba(46, 141, 138, 0.15);
+  border: 1px solid var(--app-line, rgba(46, 141, 138, 0.15));
   border-radius: 15px;
   padding: 15px;
   overflow-y: auto;
@@ -33,7 +33,7 @@
 
 .refresh-btn:active {
   background: var(--tg-theme-button-color, #2e8d8a);
-  color: #fff;
+  color: var(--app-on-button, #fff);
 }
 
 .notif-empty {

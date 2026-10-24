@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './styles/app.css';
 
 import Screen from './components/Screen';
+import Icon from './components/Icon';
 import ConfirmDialog from './components/ConfirmDialog';
 import BottomNav from './navigation/BottomNav';
 import { getTabs } from './navigation/tabs';
@@ -24,6 +25,7 @@ import NotesTab from './features/teacher/NotesTab';
 import { useAdminCalendar } from './features/admin/useAdminCalendar';
 import AdminTab from './features/admin/AdminTab';
 import { useSettings } from './features/settings/useSettings';
+import { presetFor, themeVariables } from './features/settings/customTheme';
 import SettingsTab from './features/settings/SettingsTab';
 import { useTutorial } from './features/tutorial/useTutorial';
 import TutorialOverlay from './features/tutorial/TutorialOverlay';
@@ -71,8 +73,21 @@ function App() {
 
   const tabId = tabs[activeTab]?.id;
 
+  // Своя тема заменяет ночной и контрастный режимы: её цвета — переменными CSS на корне.
+  const custom = settings.custom.enabled ? settings.custom.colors : null;
+  const themeClass = custom
+    ? 'app-custom'
+    : `${settings.theme === 'dark' ? 'app-dark' : ''} ${settings.contrast ? 'app-contrast' : ''}`;
+  // Фон страницы под приложением виден, когда экран оттягивают за край, — красим его в цвет темы.
+  const pageBackground = custom ? custom.bg : presetFor(settings.theme, settings.contrast).bg;
+  useEffect(() => {
+    document.documentElement.style.backgroundColor = pageBackground;
+    document.body.style.backgroundColor = pageBackground;
+  }, [pageBackground]);
+
   return (
-    <div className={`App ${settings.theme === 'dark' ? 'app-dark' : ''} font-${settings.fontSize} ${settings.contrast ? 'app-contrast' : ''} ${keyboardOpen ? 'keyboard-open' : ''}`}>
+    <div className={`App ${themeClass} font-${settings.fontSize} ${keyboardOpen ? 'keyboard-open' : ''}`}
+      style={custom ? themeVariables(custom) : undefined}>
 
       {/* Диалог подтверждения удаления заметки */}
       {teacher.notes.deleteConfirmId !== null && (
@@ -99,7 +114,7 @@ function App() {
       {/* Кнопка туториала; у администратора обучения нет */}
       {step === 'main' && userRole !== 'admin' && (
         <button className="tutorial-btn" onClick={tutorial.start} title="Справка">
-          💡
+          <Icon name="help" label="Справка" />
         </button>
       )}
 

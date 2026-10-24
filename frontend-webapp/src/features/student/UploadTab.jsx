@@ -1,9 +1,10 @@
-import { WORK_TYPES, workFileName } from '../../lib/workName';
-import { lastNameOf } from '../../lib/names';
+import { WORK_TYPES } from '../../lib/workName';
+import Icon, { StatusIcon } from '../../components/Icon';
 
 const STAGE_DATIVE = { 1: '1-й', 2: '2-й', 3: '3-й' };
+const formatDay = (iso) => iso.split('-').reverse().join('.');
 
-// Курс, семестр и этап студент не выбирает: их определяет сервер по группе и учебному календарю
+// Курс, семестр, этап и срок сдачи студент не выбирает: их определяет сервер по группе и учебному календарю
 // (решение 11), а ошибки исправляет администратор. От них зависят требования методички.
 function TermLine({ me }) {
   if (!me) return null;
@@ -19,7 +20,8 @@ function TermLine({ me }) {
     <div className="upload-term">
       <span className="upload-term-main">{me.course} курс · {me.semester} семестр</span>
       <span className="upload-term-stage">
-        {me.stage ? `проверка к ${STAGE_DATIVE[me.stage]} опроцентовке` : 'итоговая сдача'}
+        {me.stage ? `к ${STAGE_DATIVE[me.stage]} опроцентовке` : 'итоговая сдача'}
+        {me.deadline && ` · сдача до ${formatDay(me.deadline)}`}
       </span>
     </div>
   );
@@ -40,19 +42,13 @@ function ProfileSelects({ profile, setProfileField, me }) {
   );
 }
 
-// me — свои данные из GET /me: группа и фамилия для имени файла по форме.
+// me — свои данные из GET /me: курс, семестр, этап и срок сдачи.
+// Имя файла по форме студенту не подсказывается: преподаватель скачивает работу под ним в любом случае (решение 10).
 export default function UploadTab({ upload, me, teacherSelectRef, fileUploadRef, submitRef }) {
   const {
     file, status, teachers, selectedTeacherId, uploading, profile,
     selectTeacher, selectFile, setProfileField, submit,
   } = upload;
-  // Имя по форме нужно преподавателю, чтобы работы не путались у него на диске.
-  const expectedName = workFileName({
-    workType: profile.work_type, semester: me?.semester, group: me?.group, lastName: lastNameOf(me),
-  });
-  const placeholder = expectedName ? `Загрузите документ с названием ${expectedName}` : 'Нажмите, чтобы выбрать файл (.pdf)';
-  const nameDiffers = file && expectedName && !expectedName.includes('<')
-    && file.name.toLowerCase() !== expectedName.toLowerCase();
 
   return (
     <div className="tab-view">
@@ -73,25 +69,27 @@ export default function UploadTab({ upload, me, teacherSelectRef, fileUploadRef,
             </div>
           )}
           <ProfileSelects profile={profile} setProfileField={setProfileField} me={me} />
-          <label htmlFor="file-upload" className="custom-file-upload" ref={fileUploadRef}
-            title={file ? file.name : placeholder}>
-            <span style={{ fontSize: 'calc(var(--app-font-size) * 2.15)' }}>📁</span>
-            <span className="upload-file-name">{file ? file.name : placeholder}</span>
+          <label htmlFor="file-upload" className="custom-file-upload" ref={fileUploadRef}>
+            <Icon name={file ? 'file' : 'upload'} className="upload-icon" />
+            <span className="upload-file-name">{file ? file.name : 'Прикрепите файл работы'}</span>
           </label>
-          <input id="file-upload" type="file" accept=".pdf"
+          <input id="file-upload" type="file" accept=".pdf,application/pdf"
             onChange={(e) => selectFile(e.target.files[0])} />
-          {nameDiffers && <p className="reg-hint">Название по форме: {expectedName}</p>}
           {teachers.length === 0 && (
             <p className="reg-hint" style={{ color: '#e53935' }}>Нет доступных преподавателей. Попробуйте позже.</p>
           )}
-          <button type="submit" className="submit-btn" ref={submitRef}
+          <button type="submit" className="submit-btn with-icon" ref={submitRef}
             disabled={!file || uploading || teachers.length === 0 || !selectedTeacherId}
             style={{ marginTop: '20px' }}>
-            {uploading ? '⏳ Отправка...' : 'Отправить'}
+            {uploading ? <><Icon name="loading" /><span>Отправка...</span></> : 'Отправить'}
           </button>
         </form>
       </div>
-      {status && <div className="status-msg">{status}</div>}
+      {status && (
+        <div className="status-msg with-icon" role="status">
+          <StatusIcon tone={status.tone} /><span>{status.text}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,80 @@
+/* --- ЦВЕТОВОЙ КРУГ (components/ColorWheel.jsx) --- */
+.color-wheel-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0 6px;
+}
+
+/* Оттенок по кругу (0° — красный, сверху, по часовой), к центру — белее */
+.color-wheel {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle closest-side, #fff, rgba(255, 255, 255, 0)),
+    conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 4px 14px rgba(0, 0, 0, 0.15);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* Яркость: круг темнеет вместе с ползунком */
+.color-wheel-shade {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #000;
+  pointer-events: none;
+}
+
+.color-wheel-marker {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.color-brightness {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 190px;
+  height: 14px;
+  margin: 0;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.color-brightness::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.color-brightness::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.color-wheel:focus-visible,
+.color-brightness:focus-visible {
+  outline: 3px solid var(--tg-theme-button-color, #2e8d8a);
+  outline-offset: 3px;
+}

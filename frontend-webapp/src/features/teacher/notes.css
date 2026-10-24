@@ -1,7 +1,7 @@
 /* --- ЗАМЕТКИ ПРЕПОДАВАТЕЛЯ --- */
 .add-note-btn {
   background: var(--tg-theme-button-color, #2e8d8a);
-  color: #fff;
+  color: var(--app-on-button, #fff);
   border: none;
   border-radius: 10px;
   padding: 9px 20px;
@@ -50,7 +50,7 @@
 /* Компактные кнопки заметок — только иконки */
 .note-action-btn {
   background: none;
-  border: 1px solid rgba(0,0,0,0.15);
+  border: 1px solid var(--app-line, rgba(0,0,0,0.15));
   border-radius: 10px;
   padding: 0;
   font-size: 18px;
@@ -73,8 +73,8 @@
 }
 
 .note-action-delete {
-  border-color: #e53935;
-  color: #e53935;
+  border-color: var(--app-error, #e53935);
+  color: var(--app-error, #e53935);
 }
 
 .note-action-find {

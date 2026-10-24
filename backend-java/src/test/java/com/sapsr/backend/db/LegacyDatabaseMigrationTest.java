@@ -39,7 +39,7 @@ class LegacyDatabaseMigrationTest {
     void baselinesExistingSchemaAndAppliesOnlyNewMigrations() {
         List<Map<String, Object>> history = jdbc.queryForList(
                 "SELECT version, type FROM flyway_schema_history WHERE success ORDER BY installed_rank");
-        assertThat(history).extracting(row -> row.get("version")).containsExactly("1", "2", "3", "4", "5", "6");
+        assertThat(history).extracting(row -> row.get("version")).containsExactly("1", "2", "3", "4", "5", "6", "7");
         assertThat(history.get(0).get("type")).isEqualTo("BASELINE");
     }
 

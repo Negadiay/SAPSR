@@ -1,3 +1,5 @@
+import Icon from '../../components/Icon';
+
 export default function NotesTab({ notes: notesState, onFind, addNoteRef }) {
   const {
     notes, noteInput, setNoteInput, editingNoteId,
@@ -37,12 +39,12 @@ export default function NotesTab({ notes: notesState, onFind, addNoteRef }) {
               <>
                 <p className="note-text">{note.text}</p>
                 <div className="note-actions">
-                  <button className="note-action-btn note-action-icon" title="Изменить"
-                    onClick={() => startEdit(note)}>✏️</button>
-                  <button className="note-action-btn note-action-delete note-action-icon" title="Удалить"
-                    onClick={() => requestDelete(note.id)}>🗑</button>
+                  <button className="note-action-btn note-action-icon" title="Изменить заметку"
+                    aria-label="Изменить заметку" onClick={() => startEdit(note)}><Icon name="edit" /></button>
+                  <button className="note-action-btn note-action-delete note-action-icon" title="Удалить заметку"
+                    aria-label="Удалить заметку" onClick={() => requestDelete(note.id)}><Icon name="trash" /></button>
                   <button className="note-action-btn note-action-find note-action-icon" title="Найти студента"
-                    onClick={() => onFind(note.text)}>🔍</button>
+                    aria-label="Найти студента" onClick={() => onFind(note.text)}><Icon name="search" /></button>
                 </div>
               </>
             )}

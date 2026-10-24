@@ -3,32 +3,33 @@ import { downloadSubmissionPdf } from '../../api/teacher';
 import { downloadReport } from '../../api/submissions';
 import { formatDate } from '../../lib/format';
 import { ORIGIN_LABELS, summarizeFindings } from '../../lib/findings';
+import Icon, { StatusIcon } from '../../components/Icon';
 
 const MAX_CONTENT_FINDINGS = 5;
 
 // Содержательная проверка не закончилась (queue-v2.md, раздел 6): отклонённая работа видна сразу после
 // проверки оформления, а содержание может не успеть или не удаться.
 const CONTENT_STATE = {
-  PENDING: '🧠 Содержание ещё проверяется',
-  TIMEOUT: '🧠 Содержание не проверено — не успело по времени',
-  FAILED: '🧠 Содержание проверить не удалось',
+  PENDING: 'Содержание ещё проверяется',
+  TIMEOUT: 'Содержание не проверено — не успело по времени',
+  FAILED: 'Содержание проверить не удалось',
 };
 
 // Итог автоматической проверки одной строкой: оформление и содержание.
 function AutoCheckLine({ submission, summary }) {
-  const format = submission.status === 'REJECTED'
-    ? `❌ Ошибки оформления: ${summary.formatErrors}`
-    : '✅ Оформление ОК';
+  const rejected = submission.status === 'REJECTED';
   const contentState = CONTENT_STATE[submission.content_status];
+  const content = contentState || (summary.content.length > 0
+    ? `Содержание: ${summary.content.length}${summary.needsReview > 0 ? ` (на вашу проверку: ${summary.needsReview})` : ''}`
+    : null);
   return (
     <div className="ts-autocheck">
-      <span className={submission.status === 'REJECTED' ? 'ts-autocheck-bad' : 'ts-autocheck-ok'}>{format}</span>
-      {contentState && <span className="ts-autocheck-content">{' · '}{contentState}</span>}
-      {!contentState && summary.content.length > 0 && (
-        <span className="ts-autocheck-content">
-          {' · '}🧠 Содержание: {summary.content.length}
-          {summary.needsReview > 0 && ` (на вашу проверку: ${summary.needsReview})`}
-        </span>
+      <span className={`with-icon ${rejected ? 'ts-autocheck-bad' : 'ts-autocheck-ok'}`}>
+        <StatusIcon tone={rejected ? 'error' : 'ok'} />
+        <span>{rejected ? `Ошибки оформления: ${summary.formatErrors}` : 'Оформление ОК'}</span>
+      </span>
+      {content && (
+        <span className="ts-autocheck-content with-icon"><Icon name="content" /><span>{content}</span></span>
       )}
     </div>
   );
@@ -87,7 +88,7 @@ export default function QueueTab({ queue, searchRef, listRef }) {
                 </div>
                 <div className="ts-row-bottom">
                   <span className="ts-file">{s.file_name}</span>
-                  <span className="ts-chevron">{isExpanded ? '▲' : '▼'}</span>
+                  <span className="ts-chevron"><Icon name={isExpanded ? 'chevronUp' : 'chevronDown'} /></span>
                 </div>
                 {s.version > 1 && (
                   // Решение 9: срок сдачи засчитывается по первой версии.
@@ -98,18 +99,22 @@ export default function QueueTab({ queue, searchRef, listRef }) {
               {isExpanded && (
                 <div className="ts-actions">
                   <div className="ts-downloads">
-                    <button className="download-btn-sm" onClick={() => downloadSubmissionPdf(s.id)}>📄 Скачать PDF</button>
-                    <button className="download-btn-sm" onClick={() => downloadReport(s.id)}>📋 Отчёт проверки</button>
+                    <button className="download-btn-sm with-icon" onClick={() => downloadSubmissionPdf(s.id)}>
+                      <Icon name="file" /><span>Скачать PDF</span>
+                    </button>
+                    <button className="download-btn-sm with-icon" onClick={() => downloadReport(s.id)}>
+                      <Icon name="report" /><span>Отчёт проверки</span>
+                    </button>
                   </div>
                   <ContentFindings findings={summary.content} />
                   <ReviewFileBlock submission={s} queue={queue} />
-                  <button className="approve-btn" disabled={verdictLoading}
+                  <button className="approve-btn with-icon" disabled={verdictLoading}
                     onClick={() => submitVerdict(s.id, 'APPROVED')}>
-                    ✅ Принять
+                    <Icon name="ok" /><span>Принять</span>
                   </button>
-                  <button className="revision-btn" disabled={verdictLoading || !canSendRevision(s)}
+                  <button className="revision-btn with-icon" disabled={verdictLoading || !canSendRevision(s)}
                     onClick={() => submitVerdict(s.id, 'REVISION')}>
-                    🔄 На доработку
+                    <Icon name="revision" /><span>На доработку</span>
                   </button>
                   {!canSendRevision(s) && (
                     <div className="ts-finding-meta">Чтобы отправить на доработку, загрузите работу с вашими пометками.</div>
