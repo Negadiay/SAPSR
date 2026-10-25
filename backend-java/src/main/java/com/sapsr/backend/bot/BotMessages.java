@@ -11,12 +11,15 @@ import java.util.*;
 /**
  * Тексты сообщений бота — HTML-разметка Telegram (parse_mode=HTML). Всё, что пришло от людей
  * (имена, названия файлов, комментарии, тексты замечаний), экранируется.
+ *
+ * Сообщения короткие: заголовок, имя файла, две-три строки итога. Подробности — в приложении,
+ * кнопка под сообщением открывает нужный экран ({@link AppLink}).
  */
 public final class BotMessages {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
-    /** Сколько главных ошибок оформления показать студенту прямо в сообщении. */
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
+    /** Сколько главных ошибок оформления показать прямо в сообщении. */
     private static final int TOP_FORMAT_ERRORS = 3;
     /** Сколько комментариев из файла преподавателя показать в сообщении; остальные — в файле. */
     private static final int MAX_COMMENTS = 15;
@@ -25,44 +28,53 @@ public final class BotMessages {
     private static final int QUOTE_CHARS = 60;
     /** Запас до предела Telegram в 4096 символов. */
     private static final int MESSAGE_BUDGET = 3800;
+    private static final String CONTENT_PENDING = "Содержание проверяется — итог появится в этом сообщении.";
 
     private BotMessages() {}
 
     // ── приветствие и справка ──────────────────────────────────────────────
 
-    public static String welcome() {
-        return """
-                <b>SAPSR — проверка пояснительных записок</b>
-
-                <b>Студенту:</b> загрузите работу в приложении. Она пройдёт автоматическую проверку оформления \
-                и содержания и сразу уйдёт преподавателю.
-                <b>Преподавателю:</b> работы студентов, отчёты проверки и возврат работы с пометками — там же.
-
-                Сюда будут приходить уведомления: итог проверки, решение преподавателя и его комментарии.
-                Открыть приложение — кнопкой ниже или кнопкой «Открыть» слева от поля ввода.""";
+    /** role — роль из базы: STUDENT, TEACHER, ADMIN; null — ещё не зарегистрирован. */
+    public static String welcome(String role) {
+        String title = "<b>SAPSR — проверка курсовых работ</b>\n\n";
+        return title + switch (role == null ? "" : role) {
+            case "STUDENT" -> "Сдайте работу в приложении: оформление и содержание проверятся автоматически, "
+                    + "затем она уйдёт преподавателю. Итог проверки и решение преподавателя придут сюда.";
+            case "TEACHER" -> "Работы студентов приходят к вам уже проверенными автоматически. "
+                    + "О новых работах сообщу сюда.";
+            case "ADMIN" -> "Сроки, курсы групп и данные студентов — в разделе «Управление».";
+            default -> "Откройте приложение и выберите роль: студент или преподаватель.";
+        };
     }
 
-    public static String help() {
-        return """
-                <b>Как пользоваться</b>
-
-                1. Откройте приложение кнопкой ниже.
-                2. Студент выбирает преподавателя и вид работы и загружает PDF — семестр и этап опроцентовки \
-                приложение определяет само.
-                3. Через несколько минут здесь появится итог проверки, а работа — у преподавателя.
-                4. Преподаватель принимает работу или возвращает её с пометками в файле — комментарии придут сюда же.
-
-                /start — открыть приложение
-                /help — эта справка""";
+    public static String help(String role) {
+        return switch (role == null ? "" : role) {
+            case "STUDENT" -> """
+                    <b>Как сдать работу</b>
+                    1. Нажмите «Сдать работу».
+                    2. Выберите преподавателя и вид работы, прикрепите PDF.
+                    3. Через несколько минут здесь появится итог проверки.
+                    4. Решение преподавателя и его комментарии тоже придут сюда.""";
+            case "TEACHER" -> """
+                    <b>Как проверять</b>
+                    1. Нажмите «Работы на проверку».
+                    2. Откройте работу: итог автоматической проверки, замечания, файл.
+                    3. Примите её или верните на доработку с файлом с пометками.""";
+            case "ADMIN" -> """
+                    <b>Администратору</b>
+                    Сроки опроцентовок, курсы групп и данные студентов — в разделе «Управление».""";
+            default -> """
+                    <b>SAPSR</b>
+                    Откройте приложение и выберите роль: студент или преподаватель.""";
+        };
     }
 
     public static String unknownMessage() {
-        return "Я присылаю уведомления о проверке работ, а сами работы — в приложении. "
-                + "Откройте его кнопкой ниже. Справка — /help.";
+        return "Я присылаю уведомления о работах, а сами работы — в приложении. Справка — /help.";
     }
 
     public static String startupNotice() {
-        return "🔄 <b>SAPSR снова работает.</b> Открыть приложение — кнопкой ниже.";
+        return "SAPSR снова работает.";
     }
 
     // ── итог автоматической проверки ──────────────────────────────────────
@@ -100,112 +112,94 @@ public final class BotMessages {
         return new Findings(errors, warnings, content, review, top);
     }
 
-    public static String resultForStudent(String fileName, boolean passed, String errorsJson) {
-        return resultForStudent(fileName, passed, errorsJson, false);
+    /** Оформление проверено, содержание ещё проверяется. Это сообщение бот потом заменит итогом. */
+    public static String checkingForStudent(String fileName, boolean passed, String errorsJson) {
+        Findings f = findings(errorsJson);
+        StringBuilder text = header(passed, f, fileName);
+        if (passed) {
+            if (f.formatWarnings() > 0) text.append("Предупреждений: ").append(f.formatWarnings()).append(".\n");
+        } else {
+            appendTopErrors(text, f);
+        }
+        text.append(CONTENT_PENDING);
+        if (!passed) text.append("\nРабота уже у преподавателя, срок засчитан. Исправьте ошибки и загрузите новую версию.");
+        return text.toString();
     }
 
     /**
-     * Итог проверки оформления. {@code contentPending} — содержание ещё проверяется (фаза format протокола v2):
-     * итог по содержанию придёт вторым сообщением, а прошедшая оформление работа уйдёт преподавателю после него.
+     * Итог проверки. {@code contentChecked} — содержание проверялось; {@code contentNote} — почему оно не проверено
+     * (не хватило времени, сбой), null — проверено или не проверялось вовсе.
      */
-    public static String resultForStudent(String fileName, boolean passed, String errorsJson, boolean contentPending) {
+    public static String resultForStudent(String fileName, boolean passed, String errorsJson,
+                                          boolean contentChecked, String contentNote) {
         Findings f = findings(errorsJson);
-        StringBuilder text = new StringBuilder(passed
-                ? "✅ <b>Работа прошла проверку оформления</b>\n"
-                : "❌ <b>В работе есть ошибки оформления</b>\n");
-        text.append("📄 ").append(escape(fileName)).append("\n\n");
+        StringBuilder text = header(passed, f, fileName);
         if (passed) {
-            text.append(f.formatWarnings() > 0
-                    ? "Оформление: предупреждений — " + f.formatWarnings() + ".\n"
-                    : "Оформление: замечаний нет.\n");
+            text.append("Оформление: без ошибок");
+            if (f.formatWarnings() > 0) text.append(", предупреждений — ").append(f.formatWarnings());
+            text.append(".\n");
         } else {
-            text.append("Оформление: ошибок — ").append(f.formatErrors())
-                    .append(f.formatWarnings() > 0 ? ", предупреждений — " + f.formatWarnings() : "").append(".\n");
-            for (String message : f.topErrors()) text.append("• ").append(escape(message)).append('\n');
-            int hidden = f.formatErrors() - f.topErrors().size();
-            if (hidden > 0) text.append("• и ещё ").append(hidden).append(" — в отчёте\n");
+            appendTopErrors(text, f);
         }
-        if (contentPending) {
-            text.append("Содержание ещё проверяется — итог придёт отдельным сообщением.\n");
+        if (contentNote != null) {
+            text.append("Содержание: не проверено (").append(escape(contentNote)).append(").\n");
         } else if (f.content() > 0) {
-            text.append("Содержание: замечаний — ").append(f.content())
-                    .append(". Они сдаче не мешают.\n");
+            text.append("Содержание: ").append(count(f.content(), "замечание", "замечания", "замечаний"))
+                    .append(", сдаче не мешают.\n");
+        } else if (contentChecked) {
+            text.append("Содержание: без замечаний.\n");
         }
-        text.append('\n');
-        if (passed) {
-            text.append(contentPending
-                    ? "Работа уйдёт преподавателю, как только закончится проверка содержания."
-                    : "Работа передана преподавателю. Полный отчёт — в приложении.");
-        } else {
-            // Решение 9: преподаватель получает и отклонённую работу — срок сдачи засчитан.
-            text.append("Работа всё равно у преподавателя — срок сдачи засчитан. Исправьте ошибки и загрузите "
-                    + "новую версию: она заменит эту. Полный отчёт — в приложении.");
-        }
-        return text.toString();
-    }
-
-    /** Итог содержательной проверки — второе сообщение после итога оформления. */
-    public static String contentForStudent(String fileName, boolean passed, String errorsJson) {
-        Findings f = findings(errorsJson);
-        StringBuilder text = new StringBuilder("🧠 <b>Проверка содержания закончена</b>\n");
-        text.append("📄 ").append(escape(fileName)).append("\n\n");
-        if (f.content() > 0) {
-            text.append("Содержание: замечаний — ").append(f.content());
-            if (f.needsReview() > 0) text.append(", из них на проверку преподавателю — ").append(f.needsReview());
-            text.append(". Сдаче они не мешают.\n");
-        } else {
-            text.append("Содержание: замечаний нет.\n");
-        }
-        text.append('\n').append(passed
-                ? "Работа передана преподавателю. Полный отчёт — в приложении."
-                : "Отчёт у преподавателя дополнен. Полный отчёт — в приложении.");
-        return text.toString();
-    }
-
-    /** Содержательная проверка не успела за тайм-аут или не удалась — работа уходит с отчётом по оформлению. */
-    public static String contentIncompleteForStudent(String fileName, boolean passed, String reason) {
-        StringBuilder text = new StringBuilder("⚠️ <b>Содержание проверить не удалось</b>\n");
-        text.append("📄 ").append(escape(fileName)).append("\n\n");
-        text.append(escape(reason)).append(" В отчёте — только оформление.\n\n");
+        // Решение 9: отклонённая работа тоже у преподавателя — срок сдачи засчитан.
         text.append(passed
-                ? "Работа передана преподавателю."
-                : "Работа у преподавателя вместе с ошибками оформления.");
+                ? "Работа у преподавателя."
+                : "Работа у преподавателя, срок засчитан. Исправьте ошибки и загрузите новую версию — она заменит эту.");
         return text.toString();
     }
 
-    /** Проверка не состоялась: файл не читается, зашифрован, обработчик не ответил. */
-    public static String failedForStudent(String fileName, String message) {
-        return "⚠️ <b>Проверка не удалась</b>\n"
-                + "📄 " + escape(fileName) + "\n\n"
-                + escape(message) + "\n\n"
-                + "Загрузите работу снова. Преподавателю она не отправлена.";
+    private static StringBuilder header(boolean passed, Findings f, String fileName) {
+        StringBuilder text = new StringBuilder(passed
+                ? "✅ <b>Оформление без ошибок</b>\n"
+                : "❌ <b>Ошибки в оформлении: " + Math.max(f.formatErrors(), 1) + "</b>\n");
+        return text.append(escape(fileName)).append("\n\n");
     }
 
-    public static String resultForTeacher(String studentName, String fileName, boolean passed, boolean newVersion,
-                                          LocalDateTime firstSubmittedAt, String errorsJson) {
-        return resultForTeacher(studentName, fileName, passed, newVersion, firstSubmittedAt, errorsJson, null);
+    private static void appendTopErrors(StringBuilder text, Findings f) {
+        for (String message : f.topErrors()) text.append("• ").append(escape(message)).append('\n');
+        int hidden = f.formatErrors() - f.topErrors().size();
+        if (hidden > 0) text.append("• и ещё ").append(hidden).append(" — в приложении\n");
+        if (!f.topErrors().isEmpty()) text.append('\n');
     }
 
-    /** {@code contentNote} — почему в отчёте нет содержательной части (тайм-аут, сбой); null — отчёт полный. */
-    public static String resultForTeacher(String studentName, String fileName, boolean passed, boolean newVersion,
-                                          LocalDateTime firstSubmittedAt, String errorsJson, String contentNote) {
+    /** Проверка не состоялась: файл не читается, зашифрован, проверка зависла. */
+    public static String failedForStudent(String fileName, String reason) {
+        return "⚠️ <b>Работу не удалось проверить</b>\n"
+                + escape(fileName) + "\n\n"
+                + escape(reason) + "\n"
+                + "Загрузите её снова — преподавателю она не отправлена.";
+    }
+
+    /**
+     * Работа на проверку преподавателю. {@code firstSubmittedAt} — когда пришла первая версия (у новой версии),
+     * {@code contentNote} — почему содержание не проверено; null — отчёт полный.
+     */
+    public static String resultForTeacher(String studentName, String group, String fileName, boolean passed,
+                                          boolean newVersion, LocalDateTime firstSubmittedAt, String errorsJson,
+                                          String contentNote) {
         Findings f = findings(errorsJson);
         StringBuilder text = new StringBuilder(newVersion ? "📥 <b>Новая версия работы</b>\n" : "📥 <b>Новая работа</b>\n");
-        text.append("👤 ").append(escape(studentName)).append('\n');
-        text.append("📄 ").append(escape(fileName)).append('\n');
+        text.append(escape(studentName));
+        if (group != null && !group.isBlank()) text.append(" · ").append(escape(group));
+        text.append('\n').append(escape(fileName)).append('\n');
         if (newVersion && firstSubmittedAt != null) {
-            text.append("Первая версия пришла ").append(DATE_TIME.format(firstSubmittedAt)).append(".\n");
+            text.append("Первая версия — ").append(DATE_TIME.format(firstSubmittedAt)).append('\n');
         }
-        text.append('\n').append(passed ? "Оформление: ✅ без ошибок" : "Оформление: ❌ ошибок — " + f.formatErrors());
-        text.append('\n');
+        text.append('\n').append(passed ? "Оформление: без ошибок" : "Оформление: ошибок — " + f.formatErrors());
         if (contentNote != null) {
-            text.append("Содержание: ⚠️ ").append(escape(contentNote)).append('\n');
+            text.append("\nСодержание: не проверено (").append(escape(contentNote)).append(')');
         } else if (f.content() > 0) {
-            text.append("Содержание: замечаний — ").append(f.content());
-            if (f.needsReview() > 0) text.append(", на вашу проверку — ").append(f.needsReview());
-            text.append('\n');
+            text.append("\nСодержание: ").append(count(f.content(), "замечание", "замечания", "замечаний"));
+            if (f.needsReview() > 0) text.append(", ").append(f.needsReview()).append(" — на ваше решение");
         }
-        text.append("\nОткройте кабинет, чтобы посмотреть отчёт и вынести решение.");
         return text.toString();
     }
 
@@ -219,18 +213,18 @@ public final class BotMessages {
                                            List<Annotation> annotations, boolean hasReviewFile) {
         StringBuilder text = new StringBuilder(approved
                 ? "✅ <b>Работа принята</b>\n"
-                : "🔄 <b>Работа отправлена на доработку</b>\n");
-        text.append("👤 Преподаватель: ").append(escape(teacherName)).append('\n');
-        text.append("📄 ").append(escape(fileName)).append('\n');
+                : "🔄 <b>Работа возвращена на доработку</b>\n");
+        text.append(escape(fileName)).append('\n');
+        text.append("Преподаватель: ").append(escape(teacherName)).append('\n');
         if (comment != null && !comment.isBlank()) {
-            text.append("\n💬 ").append(escape(cut(comment.strip(), MAX_COMMENT_CHARS))).append('\n');
+            text.append('\n').append(escape(cut(comment.strip(), MAX_COMMENT_CHARS))).append('\n');
         }
         if (annotations != null && !annotations.isEmpty()) {
-            text.append("\n<b>Комментарии в файле работы:</b>\n");
+            text.append("\n<b>Комментарии:</b>\n");
             appendComments(text, annotations);
-            text.append("\nФайл с пометками — в приложении, в «Моих работах».");
+            text.append("\nФайл с пометками — в приложении.");
         } else if (hasReviewFile) {
-            text.append("\nФайл работы с пометками преподавателя — в приложении, в «Моих работах».");
+            text.append("\nПометки — в файле, он в приложении.");
         }
         return text.toString();
     }
@@ -265,7 +259,7 @@ public final class BotMessages {
                 item.append("   ↳ ").append(escape(cut(reply.getComment().strip(), MAX_COMMENT_CHARS))).append('\n');
             }
             if (number >= MAX_COMMENTS || text.length() + item.length() > MESSAGE_BUDGET) {
-                text.append("…и ещё ").append(roots.size() - number).append(" — в файле работы.\n");
+                text.append("…и ещё ").append(roots.size() - number).append(" — в файле.\n");
                 return;
             }
             text.append(item);
@@ -297,6 +291,13 @@ public final class BotMessages {
 
     private static String cut(String text, int max) {
         return text.length() <= max ? text : text.substring(0, max).strip() + "…";
+    }
+
+    /** «2 замечания», «5 замечаний», «21 замечание». */
+    static String count(int n, String one, String few, String many) {
+        int mod100 = n % 100, mod10 = n % 10;
+        String word = mod100 >= 11 && mod100 <= 14 ? many : mod10 == 1 ? one : mod10 >= 2 && mod10 <= 4 ? few : many;
+        return n + " " + word;
     }
 
     /** Экранирование для parse_mode=HTML: Telegram требует заменить &, < и >. */

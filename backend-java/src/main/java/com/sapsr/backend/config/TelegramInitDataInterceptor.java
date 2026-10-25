@@ -65,28 +65,28 @@ public class TelegramInitDataInterceptor implements HandlerInterceptor {
         }
 
         if (initData == null || initData.isBlank()) {
-            return reject(response, 401, "NO_INIT_DATA", "Missing Authorization header (initData)");
+            return reject(response, 401, "NO_INIT_DATA", "Откройте приложение из Telegram.");
         }
 
         Map<String, String> params;
         try {
             params = parseInitData(initData);
         } catch (IllegalArgumentException e) {
-            return reject(response, 401, "INIT_DATA_FORMAT", "Invalid initData format");
+            return reject(response, 401, "INIT_DATA_FORMAT", "Откройте приложение из Telegram.");
         }
         String hash = params.remove("hash");
         if (hash == null) {
-            return reject(response, 401, "INIT_DATA_FORMAT", "No hash in initData");
+            return reject(response, 401, "INIT_DATA_FORMAT", "Откройте приложение из Telegram.");
         }
         if (!verifyHash(params, hash)) {
-            return reject(response, 403, "INIT_DATA_SIGNATURE", "Invalid initData signature");
+            return reject(response, 403, "INIT_DATA_SIGNATURE", "Откройте приложение из Telegram.");
         }
 
         Instant authDate = parseAuthDate(params.get("auth_date"));
         Instant now = clock.instant();
         if (authDate == null || authDate.isAfter(now.plus(CLOCK_SKEW)) || authDate.isBefore(now.minus(maxAge))) {
             return reject(response, 401, "INIT_DATA_EXPIRED",
-                    "Данные запуска устарели — закройте и откройте приложение заново");
+                    "Сессия устарела. Закройте и откройте приложение.");
         }
 
         Long telegramId = extractTelegramId(params.get("user"));

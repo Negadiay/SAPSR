@@ -2,7 +2,7 @@
 // и отчества в базе нет — инициалы берутся из full_name.
 const initial = (name) => (name ? `${name.trim()[0].toUpperCase()}.` : '');
 
-export const lastNameOf = (me) => (me ? me.last_name || (me.full_name || '').trim().split(/\s+/)[0] || '' : '');
+const lastNameOf = (me) => (me ? me.last_name || (me.full_name || '').trim().split(/\s+/)[0] || '' : '');
 
 export const shortName = (me) => {
   if (!me) return '';

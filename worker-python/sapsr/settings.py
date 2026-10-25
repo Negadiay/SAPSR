@@ -77,7 +77,7 @@ class Settings:
             rabbitmq_host=get("RABBITMQ_HOST", "localhost"),
             rabbitmq_port=int(get("RABBITMQ_PORT", "5672")),
             rabbitmq_user=get("RABBITMQ_USER", ""),
-            rabbitmq_password=get("RABBITMQ_PASSWORD", get("RABBITMQ_PASS", "")),
+            rabbitmq_password=get("RABBITMQ_PASSWORD", ""),
             tasks_queue=get("SAPSR_TASKS_QUEUE", "pdf_tasks_queue"),
             results_queue=get("SAPSR_RESULTS_QUEUE", "pdf_results_queue"),
             progress_queue=get("SAPSR_PROGRESS_QUEUE", "pdf_progress_queue"),

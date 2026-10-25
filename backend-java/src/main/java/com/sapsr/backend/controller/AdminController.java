@@ -113,10 +113,10 @@ public class AdminController {
                 return invalid(key, "Дата — в виде ГГГГ-ММ-ДД");
             }
             if (!window.contains(date)) {
-                return invalid(key, "Дата вне семестра: " + DAY.format(window.from()) + " – " + DAY.format(window.to()));
+                return invalid(key, "Дата вне полугодия: " + DAY.format(window.from()) + " – " + DAY.format(window.to()) + ".");
             }
             if (previous != null && !date.isAfter(previous)) {
-                return invalid(key, "Сроки идут по порядку: каждый следующий позже предыдущего");
+                return invalid(key, "Каждый срок — позже предыдущего.");
             }
             previous = date;
             dates.put(i + 1, date);
@@ -137,10 +137,10 @@ public class AdminController {
         try {
             course = Integer.parseInt(String.valueOf(body.get("course")));
         } catch (NumberFormatException e) {
-            return invalid("course", "Курс — число от 1 до " + AcademicCalendar.MAX_COURSE);
+            return invalid("course", "Курс — число от 1 до " + AcademicCalendar.MAX_COURSE + ".");
         }
         if (course < 1 || course > AcademicCalendar.MAX_COURSE) {
-            return invalid("course", "Курс — число от 1 до " + AcademicCalendar.MAX_COURSE);
+            return invalid("course", "Курс — число от 1 до " + AcademicCalendar.MAX_COURSE + ".");
         }
         calendar.setCourse(group, course, adminId(request));
         log.info("Администратор {}: группа {} — {} курс", adminId(request), group, course);
@@ -152,7 +152,7 @@ public class AdminController {
     public ResponseEntity<?> resetCourse(@PathVariable String group, HttpServletRequest request) {
         Optional<ResponseEntity<?>> denied = deny(request);
         if (denied.isPresent()) return denied.get();
-        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр");
+        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр.");
         calendar.setCourse(group, null, adminId(request));
         log.info("Администратор {}: группа {} — курс по номеру", adminId(request), group);
         return ResponseEntity.ok(view());
@@ -163,16 +163,16 @@ public class AdminController {
     public ResponseEntity<?> deleteGroup(@PathVariable String group, HttpServletRequest request) {
         Optional<ResponseEntity<?>> denied = deny(request);
         if (denied.isPresent()) return denied.get();
-        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр");
+        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр.");
         boolean added = overrides.findByAcademicYear(calendar.academicYear()).stream()
                 .anyMatch(o -> group.equals(o.getGroupNumber()));
         if (!added) {
             return ResponseEntity.status(404).body(Map.of("code", "NOT_FOUND",
-                    "error", "Группы " + group + " нет среди добавленных вручную"));
+                    "error", "Группы " + group + " нет среди добавленных вручную."));
         }
         if (!adminUsers.students(group).isEmpty() || !adminUsers.teachers(group).isEmpty()) {
             return ResponseEntity.status(409).body(Map.of("code", "GROUP_NOT_EMPTY",
-                    "error", "В группе есть люди — удалить можно только пустую"));
+                    "error", "В группе есть люди — удалить нельзя."));
         }
         calendar.setCourse(group, null, adminId(request));
         log.info("Администратор {}: удалена группа {}", adminId(request), group);
@@ -184,7 +184,7 @@ public class AdminController {
     public ResponseEntity<?> getPeople(@PathVariable String group, HttpServletRequest request) {
         Optional<ResponseEntity<?>> denied = deny(request);
         if (denied.isPresent()) return denied.get();
-        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр");
+        if (!group.matches("\\d{6}")) return invalid("group", "Номер группы — шесть цифр.");
         return ResponseEntity.ok(people(group));
     }
 
@@ -314,12 +314,12 @@ public class AdminController {
     private Optional<ResponseEntity<?>> deny(HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId == null) {
-            return Optional.of(ResponseEntity.status(401).body(Map.of("code", "UNAUTHORIZED", "error", "Не авторизован")));
+            return Optional.of(ResponseEntity.status(401).body(Map.of("code", "UNAUTHORIZED", "error", "Откройте приложение из Telegram.")));
         }
         boolean admin = users.findById(telegramId).map(u -> ROLE.equals(u.getRole())).orElse(false);
         if (!admin) {
             return Optional.of(ResponseEntity.status(403).body(Map.of("code", "FORBIDDEN",
-                    "error", "Раздел только для администратора")));
+                    "error", "Раздел только для администратора.")));
         }
         return Optional.empty();
     }

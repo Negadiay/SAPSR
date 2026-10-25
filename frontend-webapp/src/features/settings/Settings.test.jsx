@@ -1,40 +1,80 @@
 import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../../App';
 import ColorWheel from '../../components/ColorWheel';
 import { mockApi, stubTelegram } from '../../test/mockApi';
 import { PRESETS, presetFor, readabilityIssues, sanitizeColors, themeVariables } from './customTheme';
 
-vi.mock('framer-motion', () => ({
-  AnimatePresence: ({ children }) => children,
-  motion: { div: ({ className, children }) => <div className={className}>{children}</div> },
-}));
-
 const studentRoutes = {
-  'GET /me': { role: 'STUDENT', telegram_id: 42 },
+  'GET /me': { role: 'STUDENT', telegram_id: 42, full_name: 'Терешкова А.В. (гр. 321702)', last_name: 'Терешкова', group: '321702', course: 4 },
   'GET /teachers': [],
   'GET /submissions': [],
 };
 
-const openSettings = async () => {
-  stubTelegram();
+const start = async (telegram = {}) => {
+  stubTelegram(telegram);
   mockApi(studentRoutes);
   const user = userEvent.setup();
   render(<App />);
-  await screen.findByRole('heading', { name: 'Загрузка работы' });
-  await user.click(within(document.querySelector('.bottom-nav')).getByRole('button', { name: 'Настройки' }));
+  await screen.findByRole('heading', { name: 'Мои работы' });
+  return user;
+};
+
+const openSettings = async (telegram) => {
+  const user = await start(telegram);
+  await user.click(screen.getByTitle('Настройки'));
+  await screen.findByRole('heading', { name: 'Настройки' });
   return user;
 };
 
 const app = () => document.querySelector('.App');
 const variable = (name) => app().style.getPropertyValue(name);
 
+describe('тема', () => {
+  it('по умолчанию — как в Telegram: тёмный Telegram — тёмное приложение', async () => {
+    await start({ colorScheme: 'dark' });
+    expect(app()).toHaveClass('app-dark');
+    expect(variable('--bg')).toBe(PRESETS.dark.bg);
+  });
+
+  it('светлую и тёмную можно выбрать вручную, выбор запоминается', async () => {
+    const user = await openSettings({ colorScheme: 'dark', platform: 'android' });
+    expect(screen.getByRole('radio', { name: 'Как в Telegram' })).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Светлая' }));
+    expect(app()).not.toHaveClass('app-dark');
+    expect(localStorage.getItem('sapsr_theme_mode')).toBe('light');
+  });
+
+  it('прежний выбор «ночного режима» сохраняется, а прежняя «светлая» становится «как в Telegram»', async () => {
+    localStorage.setItem('sapsr_theme', 'dark');
+    await start({ colorScheme: 'light' });
+    expect(app()).toHaveClass('app-dark');
+  });
+
+  it('высокий контраст и размер текста', async () => {
+    const user = await openSettings();
+    await user.click(screen.getByRole('switch', { name: 'Высокий контраст' }));
+    expect(app()).toHaveClass('app-contrast');
+    expect(variable('--text')).toBe(PRESETS.contrastLight.text);
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Размер текста' }), { target: { value: '3' } });
+    expect(app()).toHaveClass('font-xlarge');
+    expect(screen.getByText('Очень крупный')).toBeInTheDocument();
+  });
+
+  it('в профиле — «Фамилия И. О.», группа и курс', async () => {
+    await openSettings();
+    expect(screen.getByText('Терешкова А. В.')).toBeInTheDocument();
+    expect(screen.getByText('Группа 321702 · 4 курс')).toBeInTheDocument();
+  });
+});
+
 describe('своя тема: цвета', () => {
   it('основы — цвета встроенных тем, и все они читаются', () => {
-    expect(presetFor('light', false)).toBe(PRESETS.light);
-    expect(presetFor('dark', true)).toBe(PRESETS.contrastDark);
+    expect(presetFor(false, false)).toBe(PRESETS.light);
+    expect(presetFor(true, true)).toBe(PRESETS.contrastDark);
     for (const colors of Object.values(PRESETS)) expect(readabilityIssues(colors)).toEqual([]);
   });
 
@@ -49,87 +89,83 @@ describe('своя тема: цвета', () => {
   });
 
   it('переменные: цвета как есть, подписи на плашках — читаемые', () => {
-    const vars = themeVariables({ ...PRESETS.dark, nav: '#ffffff' });
-    expect(vars['--tg-theme-bg-color']).toBe('#212d2f');
-    expect(vars['--app-on-nav']).toBe('rgba(17, 17, 17, 0.8)');
-    expect(vars['--app-on-error']).toBe('#111111');
+    const vars = themeVariables({ ...PRESETS.dark, error: '#ff8080' });
+    expect(vars['--bg']).toBe(PRESETS.dark.bg);
+    expect(vars['--on-error']).toBe('#111111');
   });
 });
 
 describe('своя тема: настройки', () => {
-  it('включается под контрастным режимом, начинается с текущих цветов и заменяет ночной и контрастный', async () => {
-    localStorage.setItem('sapsr_theme', 'dark');
+  it('начинается с текущих цветов и заменяет тему и контраст', async () => {
+    localStorage.setItem('sapsr_theme_mode', 'dark');
     const user = await openSettings();
     expect(app()).toHaveClass('app-dark');
 
-    await user.click(screen.getByRole('button', { name: 'Переключить свою тему' }));
+    await user.click(screen.getByRole('switch', { name: 'Своя тема' }));
     expect(app()).toHaveClass('app-custom');
-    expect(app()).not.toHaveClass('app-dark');
-    expect(variable('--tg-theme-bg-color')).toBe('#212d2f');
-    expect(screen.getByRole('button', { name: 'Переключить ночной режим' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Переключить контрастный режим' })).toBeDisabled();
+    expect(variable('--bg')).toBe(PRESETS.dark.bg);
+    expect(screen.getByRole('radio', { name: 'Светлая' })).toBeDisabled();
+    expect(screen.getByRole('switch', { name: 'Высокий контраст' })).toBeDisabled();
     // Цвета раскрываются сразу.
-    expect(screen.getByLabelText('Фон')).toHaveValue('#212d2f');
+    expect(screen.getByLabelText('Фон')).toHaveValue(PRESETS.dark.bg);
 
-    await user.click(screen.getByRole('button', { name: 'Переключить свою тему' }));
-    expect(app()).toHaveClass('app-dark');
-    expect(variable('--tg-theme-bg-color')).toBe('');
+    await user.click(screen.getByRole('switch', { name: 'Своя тема' }));
+    expect(app()).not.toHaveClass('app-custom');
   });
 
   it('цвет задаётся кодом HEX; ошибка в коде не применяется и откатывается', async () => {
     const user = await openSettings();
-    await user.click(screen.getByRole('button', { name: 'Переключить свою тему' }));
+    await user.click(screen.getByRole('switch', { name: 'Своя тема' }));
 
     const bg = screen.getByLabelText('Фон');
     await user.clear(bg);
     await user.type(bg, '#FFF8E7');
-    expect(variable('--tg-theme-bg-color')).toBe('#fff8e7');
+    expect(variable('--bg')).toBe('#fff8e7');
     expect(JSON.parse(localStorage.getItem('sapsr_custom_theme')).colors.bg).toBe('#fff8e7');
 
     const button = screen.getByLabelText('Кнопки');
     await user.clear(button);
     await user.type(button, '#12');
     expect(button).toHaveAttribute('aria-invalid', 'true');
-    expect(variable('--tg-theme-button-color')).toBe('#2e8d8a');
+    expect(variable('--accent')).toBe(PRESETS.light.button);
     await user.tab();
-    expect(button).toHaveValue('#2e8d8a');
+    expect(button).toHaveValue(PRESETS.light.button);
 
     await user.clear(button);
     await user.type(button, 'c50');
     await user.tab();
     expect(button).toHaveValue('#cc5500');
-    expect(variable('--tg-theme-button-color')).toBe('#cc5500');
+    expect(variable('--accent')).toBe('#cc5500');
   });
 
   it('предупреждает, если текст сливается с фоном, и основа возвращает всё одним нажатием', async () => {
     const user = await openSettings();
-    await user.click(screen.getByRole('button', { name: 'Переключить свою тему' }));
+    await user.click(screen.getByRole('switch', { name: 'Своя тема' }));
 
     const text = screen.getByLabelText('Текст');
     await user.clear(text);
     await user.type(text, '#e8f4f0');
-    expect(screen.getByRole('status')).toHaveTextContent('Текст на фоне читается плохо');
+    expect(screen.getByRole('status')).toHaveTextContent('Текст на фоне плохо читается');
     // Раздел темы при этом пишется чёрным или белым — иначе и предупреждение не прочесть.
-    const section = screen.getByText('Тема оформления').closest('.settings-section');
+    const section = screen.getByText('Тема').closest('.settings-card');
     expect(section).toHaveClass('theme-safe');
-    expect(variable('--app-safe-text')).toBe('#111111');
+    expect(variable('--safe-text')).toBe('#111111');
 
     await user.click(screen.getByRole('button', { name: 'Тёмная' }));
     expect(screen.queryByRole('status')).toBeNull();
     expect(section).not.toHaveClass('theme-safe');
-    expect(variable('--tg-theme-text-color')).toBe('#d1dbd8');
-    expect(screen.getByLabelText('Текст')).toHaveValue('#d1dbd8');
+    expect(variable('--text')).toBe(PRESETS.dark.text);
   });
 
-  it('цветовой круг открывается у выбранного цвета; своя тема сохраняется до следующего запуска', async () => {
+  it('цветовой круг открывается у выбранного цвета', async () => {
     const user = await openSettings();
-    await user.click(screen.getByRole('button', { name: 'Переключить свою тему' }));
+    await user.click(screen.getByRole('switch', { name: 'Своя тема' }));
     await user.click(screen.getByRole('button', { name: 'Кнопки: цветовой круг' }));
     const wheel = screen.getByRole('slider', { name: 'Кнопки: оттенок и насыщенность' });
     wheel.focus();
     await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
-    const changed = variable('--tg-theme-button-color');
-    expect(changed).not.toBe('#2e8d8a');
+    const changed = variable('--accent');
+    expect(changed).not.toBe(PRESETS.light.button);
     expect(screen.getByLabelText('Кнопки')).toHaveValue(changed);
   });
 
@@ -139,7 +175,7 @@ describe('своя тема: настройки', () => {
     mockApi(studentRoutes);
     render(<App />);
     expect(app()).toHaveClass('app-custom');
-    expect(variable('--tg-theme-bg-color')).toBe('#fff8e7');
+    expect(variable('--bg')).toBe('#fff8e7');
     expect(document.documentElement.style.backgroundColor).toBe('rgb(255, 248, 231)');
   });
 });

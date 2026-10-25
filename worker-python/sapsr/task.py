@@ -30,10 +30,6 @@ class CheckProfile(_Lenient):
     semester: Optional[int] = None
     stage: Optional[int] = None
 
-    @property
-    def empty(self) -> bool:
-        return self.work_type is None and self.semester is None and self.stage is None
-
 
 class StudentInfo(_Lenient):
     # Персональные данные: в логи не пишутся.

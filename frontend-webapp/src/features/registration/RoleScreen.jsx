@@ -1,9 +1,10 @@
 import Screen from '../../components/Screen';
 import Icon from '../../components/Icon';
+import StatusLine from '../../components/StatusLine';
 
 const ROLES = [
-  ['student', 'student', 'Студент'],
-  ['teacher', 'teacher', 'Преподаватель'],
+  { role: 'student', label: 'Студент', note: 'Сдать работу на проверку' },
+  { role: 'teacher', label: 'Преподаватель', note: 'Проверять работы студентов' },
 ];
 
 export default function RoleScreen({ registration, registeredRole }) {
@@ -11,29 +12,31 @@ export default function RoleScreen({ registration, registeredRole }) {
 
   return (
     <Screen>
-      <p className="description">Выберите вашу роль в системе</p>
-      <div className="role-container">
-        {ROLES.map(([role, icon, label]) => (
-          <div className="role-row" key={role}>
-            <button className="role-card" onClick={() => selectRole(role)}>
-              <span className="role-icon"><Icon name={icon} /></span>
-              <span className="role-text">{label}</span>
+      <h2 className="screen-lead">Выберите роль</h2>
+      <ul className="card-list">
+        {ROLES.map(({ role, label, note }) => (
+          <li key={role} className="role-row">
+            <button type="button" className="card card-link role-card" onClick={() => selectRole(role)}>
+              <Icon name={role} className="role-icon" />
+              <span className="card-main">
+                <span className="card-title">{label}</span>
+                <span className="card-subtitle">{note}</span>
+              </span>
+              <Icon name="chevronRight" className="card-chevron" />
             </button>
             {registeredRole === role && (
-              <button className="role-login-btn" onClick={() => loginExisting(role)}>
-                Войти
-              </button>
+              <button type="button" className="btn btn-primary" onClick={() => loginExisting(role)}>Войти</button>
             )}
-          </div>
+          </li>
         ))}
-        {/* Администратора не регистрируют — роль задаётся в базе (решение 11); после выхода — только вход. */}
-        {registeredRole === 'admin' && (
-          <button className="role-login-btn" onClick={() => loginExisting('admin')}>
-            Войти как администратор
-          </button>
-        )}
-      </div>
-      {regError && <div className="reg-error role-error">{regError}</div>}
+      </ul>
+      {/* Администратора не регистрируют — роль задаётся в базе (решение 11); после смены роли — только вход. */}
+      {registeredRole === 'admin' && (
+        <button type="button" className="btn btn-primary btn-block" onClick={() => loginExisting('admin')}>
+          Войти как администратор
+        </button>
+      )}
+      {regError && <StatusLine tone="error" className="form-status">{regError}</StatusLine>}
     </Screen>
   );
 }

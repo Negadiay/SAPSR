@@ -20,7 +20,7 @@ function HexInput({ id, value, onChange }) {
     if (hex !== value) onChange(hex);
   };
   return (
-    <input id={id} className="teacher-select theme-hex" value={text} maxLength={7} spellCheck={false}
+    <input id={id} className="input theme-hex" value={text} maxLength={7} spellCheck={false}
       autoCapitalize="off" autoComplete="off" aria-invalid={normalizeHex(text) === null}
       onChange={(e) => {
         setText(e.target.value);
@@ -68,7 +68,7 @@ export default function ThemeEditor({ colors, onChange, onPreset }) {
           {issues.map((issue) => (
             <p key={issue.what} className="theme-issue">
               <StatusIcon tone="warning" />
-              <span>{issue.what} читается плохо: {ratioText(issue.ratio)} : 1, нужно от {ratioText(issue.min)} : 1</span>
+              <span>{issue.what} плохо читается: контраст {ratioText(issue.ratio)} из {ratioText(issue.min)}</span>
             </p>
           ))}
         </div>

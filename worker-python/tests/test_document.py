@@ -10,6 +10,15 @@ from sapsr.document.build import build_document, join_lines
 from sapsr.document.extract import extract
 from sapsr.document.labeling import RuleLabeler
 from sapsr.document.model import Document
+from sapsr.document.text import font_display_name
+
+
+@pytest.mark.typical
+def test_font_name_is_readable():
+    """В замечании — «Times New Roman», а не внутреннее имя шрифта из PDF."""
+    assert font_display_name("AAAAAA+TimesNewRomanPSMT") == "Times New Roman"
+    assert font_display_name("Arial,Bold") == "Arial"
+    assert font_display_name("VOAZZS+SFRM1440") == "SFRM1440"
 
 
 def build(kb, raw):

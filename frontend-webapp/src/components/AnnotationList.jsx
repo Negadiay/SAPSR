@@ -26,16 +26,16 @@ export default function AnnotationList({ annotations }) {
   return (
     <div className="annotation-list">
       {pages.map(({ page, items }) => (
-        <div key={page} className="annotation-page">
-          <div className="annotation-page-title">Страница {page}</div>
+        <div key={page}>
+          <p className="annotation-page-title">Страница {page}</p>
           {items.map((a) => (
             <div key={a.id} className={`annotation-item ${a.reply_to_id ? 'annotation-reply' : ''}`}>
               <span className="annotation-kind">
-              {a.reply_to_id ? <span className="with-icon"><Icon name="reply" /><span>Ответ</span></span> : (KIND_LABELS[a.kind] || a.kind)}
-            </span>
+                {a.reply_to_id ? <><Icon name="reply" /> Ответ</> : (KIND_LABELS[a.kind] || a.kind)}
+              </span>
               {a.quoted_text && <blockquote className="annotation-quote">«{a.quoted_text}»</blockquote>}
-              {a.comment && <div className="annotation-comment">{a.comment}</div>}
-              {!a.comment && !a.quoted_text && <div className="annotation-comment annotation-muted">пометка на странице {page}</div>}
+              {a.comment && <p className="annotation-comment">{a.comment}</p>}
+              {!a.comment && !a.quoted_text && <p className="annotation-comment annotation-muted">Пометка без текста</p>}
             </div>
           ))}
         </div>

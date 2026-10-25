@@ -1,5 +1,6 @@
 package com.sapsr.backend.service;
 
+import com.sapsr.backend.academic.AcademicCalendar;
 import com.sapsr.backend.entity.EmailVerification;
 import com.sapsr.backend.repository.EmailVerificationRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,19 +43,18 @@ public class EmailVerificationService {
         EmailVerification verification = new EmailVerification();
         verification.setEmail(email.toLowerCase());
         verification.setCode(code);
-        verification.setExpiresAt(LocalDateTime.now().plusSeconds(CODE_TTL_SECONDS));
+        verification.setExpiresAt(LocalDateTime.now(AcademicCalendar.ZONE).plusSeconds(CODE_TTL_SECONDS));
         repository.save(verification);
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromEmail);
         message.setTo(email);
-        message.setSubject("SAPSR — Код подтверждения");
+        message.setSubject("Код для SAPSR: " + code);
         message.setText(
                 "Здравствуйте!\n\n" +
-                "Ваш код подтверждения для регистрации в системе SAPSR:\n\n" +
-                "    " + code + "\n\n" +
-                "Код действителен 5 минут.\n\n" +
-                "Если вы не запрашивали код — просто проигнорируйте это письмо."
+                "Код для входа в SAPSR: " + code + "\n" +
+                "Он действует " + CODE_TTL_SECONDS / 60 + " минут.\n\n" +
+                "Если вы его не запрашивали, удалите это письмо."
         );
         mailSender.send(message);
     }
@@ -66,7 +66,7 @@ public class EmailVerificationService {
         if (opt.isEmpty()) return false;
 
         EmailVerification v = opt.get();
-        if (LocalDateTime.now().isAfter(v.getExpiresAt())) return false;
+        if (LocalDateTime.now(AcademicCalendar.ZONE).isAfter(v.getExpiresAt())) return false;
         if (!v.getCode().equals(code)) return false;
 
         v.setUsed(true);

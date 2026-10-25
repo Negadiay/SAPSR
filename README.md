@@ -46,8 +46,8 @@
   - структура документа (титульный лист, оглавление, разделы)
 - **Telegram Mini App** — единый интерфейс для студентов и преподавателей без установки отдельного приложения
 - **Асинхронная обработка** — очередь RabbitMQ гарантирует стабильность при высокой нагрузке
-- **Кабинет преподавателя** — вердикты, комментарии, шаблоны ответов, уведомления в Telegram
-- **Кабинет студента** — загрузка работы, отслеживание статуса, детальный отчёт об ошибках
+- **Кабинет преподавателя** — итог автоматической проверки, возврат работы с пометками в PDF, решение, уведомления в Telegram
+- **Кабинет студента** — сдача работы, ход проверки по шагам, замечания с подсказками, комментарии преподавателя, версии
 - **Верификация email** — подтверждение роли преподавателя по домену `@bsuir.by`
 - **Доступность** — переключение тем, размеров шрифта, режима высокой контрастности
 
@@ -89,7 +89,7 @@
 | Компонент | Технология |
 |-----------|------------|
 | Backend | Java 21, Spring Boot 4.0.3, Spring Data JPA, Spring AMQP |
-| Frontend | React 19, Vite 8, Framer Motion |
+| Frontend | React 19, Vite 8 |
 | Worker | Python 3.10+, pdfplumber, pika, pydantic, CLIPS (clipspy), rapidfuzz; языковая модель — Ollama (`qwen3.5:4b`) |
 | База данных | PostgreSQL 16 |
 | Очередь сообщений | RabbitMQ 3 |
@@ -132,7 +132,7 @@ SAPSR/
 │
 ├── docker-compose.yml          # PostgreSQL + RabbitMQ
 ├── dev-seed.example.sql        # Образец тестовых данных; свой dev-seed.sql — не в git
-├── start.bat                   # Скрипт автозапуска (Windows)
+├── start-docker.bat            # Запуск всего состава в Docker (Windows)
 └── test-fixtures/              # Тестовые PDF-файлы
 ```
 
@@ -155,10 +155,12 @@ SAPSR/
 ### Автоматический запуск (Windows)
 
 ```bat
-start.bat
+start-docker.bat
 ```
 
-Скрипт последовательно поднимает инфраструктуру Docker, запускает Python-воркер, Java-бэкенд и фронтенд-сервер в отдельных окнах терминала.
+Скрипт поднимает весь состав в Docker: базу, очередь, обработчик, бэкенд, интерфейс (nginx) и ngrok с закреплённым адресом.
+
+**Один раз в @BotFather — кнопка «Открыть» в списке чатов.** Её адрес (главное мини-приложение бота) задаётся только в BotFather: `/mybots` → бот → **Bot Settings** → **Configure Mini App** → **Edit Mini App URL** → `https://<NGROK_DOMAIN>/`. Кнопку меню внутри чата бэкенд обновляет сам при каждом запуске, а эту — нет: со старым адресом она открывает приложение без сервера.
 
 ---
 
@@ -224,7 +226,7 @@ docker exec -it sapsr-postgres psql -U sapsr_user -d sapsr_db -c "INSERT INTO us
 
 **Следующих** назначает администратор: человек регистрируется студентом со своего отдельного аккаунта, администратор находит его в группе на экране «Управление», открывает правку и делает администратором — после подтверждения учебные данные этого аккаунта (работы, группа, почта) удаляются.
 
-Для администратора нужен отдельный аккаунт Telegram: у одного аккаунта одна роль. Снять роль — `DELETE FROM users WHERE telegram_id = 123456789 AND role = 'ADMIN';`. Сразу после назначения стоит открыть «Управление» и ввести сроки текущего семестра — у каждого курса свои, кнопка «Всем курсам» копирует их на все: без дат этап не определяется и проверяются все требования семестра.
+Для администратора нужен отдельный аккаунт Telegram: у одного аккаунта одна роль. Снять роль — `DELETE FROM users WHERE telegram_id = 123456789 AND role = 'ADMIN';`. Сразу после назначения стоит открыть «Управление» и ввести сроки текущего семестра — у каждого курса свои, кнопка «Для всех курсов» копирует их на все: без дат этап не определяется и проверяются все требования семестра.
 
 ---
 
@@ -279,14 +281,6 @@ npm test
 npm run lint
 ```
 
-### Worker
-
-```bash
-cd worker-python
-pip install -r requirements-dev.txt
-python -m pytest
-```
-
 Сеть, RabbitMQ и Ollama не нужны: модель заменяет заглушка, ИИС — тестовый справочник. Подробнее — `worker-python/README.md`.
 
 ---
@@ -301,9 +295,9 @@ telegram.bot.token=YOUR_BOT_TOKEN
 telegram.bot.username=YOUR_BOT_USERNAME
 
 # База данных
-spring.datasource.url=jdbc:postgresql://localhost:5433/sapsr
-spring.datasource.username=postgres
-spring.datasource.password=postgres
+spring.datasource.url=jdbc:postgresql://localhost:5433/sapsr_db
+spring.datasource.username=sapsr_user
+spring.datasource.password=<POSTGRES_PASSWORD из .env>
 
 # RabbitMQ
 spring.rabbitmq.host=localhost
@@ -314,12 +308,17 @@ spring.mail.username=YOUR_EMAIL@gmail.com
 spring.mail.password=YOUR_APP_PASSWORD
 
 # Домен преподавателей
-teacher.email.domain=@bsuir.by
+sapsr.teacher.allowed-domain=@bsuir.by
+
+# Сообщение «SAPSR снова работает» всем при запуске — по умолчанию выключено
+sapsr.bot.startup-notice=false
 ```
+
+Время во всей системе — по Минску, независимо от часового пояса машины (VPN для ngrok его меняет): бэкенд ставит себе пояс `Europe/Minsk` при запуске, в `docker-compose.yml` у сервисов `TZ=Europe/Minsk`.
 
 ### `frontend-webapp/vite.config.js`
 
-Укажите базовый URL бэкенда в разделе `proxy` или через переменную окружения `VITE_API_BASE_URL`.
+Укажите базовый URL бэкенда в разделе `proxy` или через переменную окружения `VITE_API_BASE`.
 
 ---
 

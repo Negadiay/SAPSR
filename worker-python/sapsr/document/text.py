@@ -73,9 +73,12 @@ def normalize_person_name(value: str) -> str:
     return re.sub(r"(?<=\b[а-я])\.\s+(?=[а-я]\.)", ".", text)
 
 
-def norm_num(value: str) -> str:
-    """'2 . 2' → '2.2'"""
-    return re.sub(r"\s", "", value or "")
+def font_display_name(font_name: str) -> str:
+    """Имя шрифта для людей: «AAAAAA+TimesNewRomanPSMT» → «Times New Roman», «Arial,Bold» → «Arial»."""
+    base = (font_name or "").split("+", 1)[-1]
+    base = re.split(r"[,-]", base, maxsplit=1)[0]
+    base = re.sub(r"(?:PSMT|PS|MT)$", "", base)
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", base) or (font_name or "")
 
 
 def font_family_key(font_name: str) -> str:

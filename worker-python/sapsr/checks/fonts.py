@@ -6,7 +6,12 @@ from typing import Optional
 
 from sapsr.checks.context import CheckContext
 from sapsr.checks.registry import Hit, NoParams, Params, check
-from sapsr.document.text import font_family_key, font_style_key, pages_to_range
+from sapsr.document.text import (
+    font_display_name,
+    font_family_key,
+    font_style_key,
+    pages_to_range,
+)
 from sapsr.report.model import Evidence
 
 
@@ -64,7 +69,7 @@ def family(ctx: CheckContext, params: FamilyParams) -> list[Hit]:
     if pct <= params.min_share_pct:
         return []
     return [Hit(
-        values={"font": ctx.dominant_main_font(), "affected": len(bad), "pct": pct},
+        values={"font": font_display_name(ctx.dominant_main_font()), "affected": len(bad), "pct": pct},
         evidence=[Evidence(page=p) for p in bad],
         pages=bad,
         location=f"Страницы: {pages_to_range(bad)}",
@@ -88,6 +93,6 @@ def reference_font(ctx: CheckContext, params: NoParams) -> list[Hit]:
     if not ref_font or font_style_key(ref_font) == font_style_key(main_font):
         return []
     pages = [m.page for m in metrics]
-    return [Hit(values={"main_font": main_font, "ref_font": ref_font},
+    return [Hit(values={"main_font": font_display_name(main_font), "ref_font": font_display_name(ref_font)},
                 evidence=[Evidence(page=pages[0])], pages=pages,
                 location=f"Страницы: {pages_to_range(pages)}")]

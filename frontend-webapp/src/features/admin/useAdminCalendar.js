@@ -19,7 +19,7 @@ export function useAdminCalendar({ active }) {
     try {
       const res = await request();
       if (!res.ok) {
-        setError((await readError(res)).error || `Ошибка ${res.status}`);
+        setError((await readError(res)).error || 'Не удалось сохранить.');
         return false;
       }
       const body = await res.json();
@@ -30,7 +30,7 @@ export function useAdminCalendar({ active }) {
       }
       return true;
     } catch {
-      setError('Нет соединения с сервером.');
+      setError('Нет связи с сервером.');
       return false;
     } finally { setSaving(false); }
   };

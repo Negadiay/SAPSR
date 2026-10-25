@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { matchesSearch } from './fuzzySearch';
-import { formatCountdown, formatDate } from './format';
-import { groupByFileName } from './submissions';
+import { count, formatCountdown, formatDate, formatDay } from './format';
+import { chainOf, groupVersions } from './submissions';
+import { contentStep, formatStep, teacherStep, workStatus } from './status';
+import { splitFindings, summarizeFindings } from './findings';
 
 describe('matchesSearch', () => {
   const fields = ['Кузнецова А.А. (гр. 321701)', 'zapiska.pdf', '2026-10-02T10:00:00Z'];
@@ -47,40 +49,99 @@ describe('formatCountdown', () => {
   });
 });
 
-describe('formatDate', () => {
+describe('formatDate — всегда по Минску', () => {
+  const now = new Date('2026-10-25T12:00:00+03:00');
+
   it('для пустого значения возвращает пустую строку', () => {
     expect(formatDate('')).toBe('');
     expect(formatDate(undefined)).toBe('');
   });
 
-  it('форматирует дату и время по-русски', () => {
-    expect(formatDate('2026-10-02T10:00:00')).toBe('02.10.2026 10:00');
+  it('время сервера без пояса показывает как есть, без перевода в пояс телефона', () => {
+    expect(formatDate('2026-10-02T10:00:00')).toBe('02.10.2026, 10:00');
+    expect(formatDate('2026-10-02T10:00:00.123456')).toBe('02.10.2026, 10:00');
+  });
+
+  it('время с поясом переводит в минское', () => {
+    expect(formatDate('2026-10-02T07:00:00Z')).toBe('02.10.2026, 10:00');
+    expect(formatDate('2026-10-02T09:00:00+02:00')).toBe('02.10.2026, 10:00');
+  });
+
+  it('в текущем году можно без года', () => {
+    expect(formatDate('2026-10-02T10:00:00', { short: true, now })).toBe('02.10, 10:00');
+    expect(formatDate('2025-10-02T10:00:00', { short: true, now })).toBe('02.10.2025, 10:00');
+    expect(formatDay('2026-12-26', { short: true, now })).toBe('26.12');
+    expect(formatDay('2026-12-26')).toBe('26.12.2026');
   });
 });
 
-describe('groupByFileName', () => {
+describe('count', () => {
+  it('склоняет по числу', () => {
+    expect(count(1, 'версия', 'версии', 'версий')).toBe('1 версия');
+    expect(count(3, 'версия', 'версии', 'версий')).toBe('3 версии');
+    expect(count(5, 'версия', 'версии', 'версий')).toBe('5 версий');
+    expect(count(12, 'версия', 'версии', 'версий')).toBe('12 версий');
+    expect(count(22, 'версия', 'версии', 'версий')).toBe('22 версии');
+  });
+});
+
+describe('groupVersions — по цепочке parent_id, а не по имени файла', () => {
   const submissions = [
-    { id: 1, file_name: 'Kursach.pdf', created_at: '2026-10-01T10:00:00Z' },
-    { id: 2, file_name: 'other.pdf', created_at: '2026-09-01T10:00:00Z' },
-    { id: 3, file_name: 'kursach.PDF', created_at: '2026-10-03T10:00:00Z' },
+    { id: 3, parent_id: 1, file_name: 'Новое имя.pdf', created_at: '2026-10-03T10:00:00' },
+    { id: 2, file_name: 'Курсовая.pdf', created_at: '2026-09-01T10:00:00' },
+    { id: 1, file_name: 'Курсовая.pdf', created_at: '2026-10-01T10:00:00' },
   ];
 
-  it('объединяет версии по названию файла без учёта регистра и расширения', () => {
-    const groups = groupByFileName(submissions);
-    expect(groups).toHaveLength(2);
-    expect(groups[0].items.map(s => s.id)).toEqual([3, 1]);
+  it('версии одной работы — вместе, даже с другим именем файла', () => {
+    const groups = groupVersions(submissions);
+    expect(groups.map((g) => g.items.map((s) => s.id))).toEqual([[3, 1], [2]]);
   });
 
-  it('ставит последнюю версию первой и сортирует группы по ней', () => {
-    const groups = groupByFileName(submissions);
-    expect(groups.map(g => g.latest.id)).toEqual([3, 2]);
+  it('разные работы с одинаковым именем не склеиваются', () => {
+    expect(groupVersions(submissions).map((g) => g.latest.id)).toEqual([3, 2]);
   });
 
-  it('называет группу по первому встреченному файлу', () => {
-    expect(groupByFileName(submissions)[0].fileName).toBe('Kursach.pdf');
+  it('цепочку можно найти по любой версии', () => {
+    expect(chainOf(submissions, 1).latest.id).toBe(3);
+    expect(groupVersions([])).toEqual([]);
+  });
+});
+
+describe('состояние работы', () => {
+  const FINDINGS = JSON.stringify([
+    { severity: 'major', category: 'format', origin: 'symbolic', message: 'Левое поле' },
+    { severity: 'minor', category: 'format', origin: 'symbolic', message: 'Интервал' },
+    { severity: 'major', category: 'content', origin: 'hybrid', needs_teacher_review: true, message: 'Противоречие' },
+  ]);
+
+  it('одной строкой для списка: решение преподавателя важнее итога проверки', () => {
+    expect(workStatus({ status: 'REJECTED', teacher_verdict: 'REVISION' })).toEqual({ tone: 'warning', label: 'На доработке' });
+    expect(workStatus({ status: 'REJECTED', format_errors: FINDINGS }).label).toBe('Ошибки в оформлении: 1');
+    expect(workStatus({ status: 'PROCESSING', content_status: 'PENDING' }).label).toBe('Проверяется содержание');
+    expect(workStatus({ status: 'QUEUED' }).label).toBe('В очереди');
   });
 
-  it('для пустого списка возвращает пустой', () => {
-    expect(groupByFileName([])).toEqual([]);
+  it('по шагам: оформление, содержание, преподаватель', () => {
+    const work = { status: 'REJECTED', content_status: 'DONE', format_errors: FINDINGS };
+    expect(formatStep(work)).toEqual({ tone: 'error', text: 'Ошибок: 1, предупреждений: 1' });
+    expect(contentStep(work)).toEqual({ tone: 'warning', text: '1 замечание, на решение преподавателя: 1' });
+    expect(teacherStep(work)).toEqual({ tone: 'pending', text: 'Ждёт решения' });
+  });
+
+  it('сбой — словами, без кода', () => {
+    const failed = { status: 'FAILED', failure_code: 'PDF_ENCRYPTED' };
+    expect(formatStep(failed)).toEqual({ tone: 'error', text: 'Файл защищён паролем.' });
+    expect(contentStep(failed).tone).toBe('muted');
+  });
+
+  it('содержание не проверено — объясняет почему', () => {
+    expect(contentStep({ status: 'SUCCESS', content_status: 'TIMEOUT' }).text).toBe('Не проверено: не хватило времени');
+  });
+
+  it('замечания делятся на оформление (сначала ошибки) и содержание', () => {
+    const { format, content } = splitFindings(FINDINGS);
+    expect(format.map((f) => f.message)).toEqual(['Левое поле', 'Интервал']);
+    expect(content.map((f) => f.message)).toEqual(['Противоречие']);
+    expect(summarizeFindings('не JSON')).toEqual({ formatErrors: 0, formatWarnings: 0, content: [], needsReview: 0 });
   });
 });

@@ -1,5 +1,6 @@
 package com.sapsr.backend.review;
 
+import com.sapsr.backend.academic.AcademicCalendar;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sapsr.backend.entity.Annotation;
 import com.sapsr.backend.entity.ReviewFile;
@@ -87,7 +88,7 @@ public class ReviewFileService {
         file.setStorageKey(stored.key());
         file.setFileSha256(stored.sha256());
         file.setOriginalFileName(originalFileName);
-        file.setUploadedAt(LocalDateTime.now());
+        file.setUploadedAt(LocalDateTime.now(AcademicCalendar.ZONE));
         file.setWarnings(json.writeValueAsString(warnings));
         file = reviewFiles.save(file);
 

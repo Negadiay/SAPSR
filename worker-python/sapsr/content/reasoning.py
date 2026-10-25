@@ -135,12 +135,3 @@ def split_constructs(source: str) -> list[str]:
     if depth != 0:
         raise ValueError("несбалансированные скобки в правилах CLIPS")
     return constructs
-
-
-def rule_names(source: str) -> set[str]:
-    names = set()
-    for construct in split_constructs(source):
-        parts = construct[1:].split(None, 2)
-        if len(parts) >= 2 and parts[0] == "defrule":
-            names.add(parts[1])
-    return names

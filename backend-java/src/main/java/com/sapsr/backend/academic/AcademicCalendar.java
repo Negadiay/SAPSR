@@ -48,15 +48,7 @@ public class AcademicCalendar {
     /** Последний день осенней половины — 15 января: середина января, конец зимней сессии. */
     static final int AUTUMN_LAST_JANUARY_DAY = 15;
 
-    public enum Half {
-        AUTUMN("осенний"), SPRING("весенний");
-
-        private final String title;
-
-        Half(String title) { this.title = title; }
-
-        public String title() { return title; }
-    }
+    public enum Half { AUTUMN, SPRING }
 
     /** Сроки курса в половине года: опроцентовки 1–3 (только введённые) и срок сдачи работы. */
     public record Schedule(Map<Integer, LocalDate> procentovki, LocalDate deadline) {
@@ -191,10 +183,6 @@ public class AcademicCalendar {
     public Optional<Integer> courseOverride(String group) {
         if (group == null) return Optional.empty();
         return overrides.findByGroupNumberAndAcademicYear(group, academicYear()).map(GroupCourseOverride::getCourse);
-    }
-
-    public Optional<Integer> course(String group) {
-        return courseOverride(group).or(() -> courseByGroup(group, academicYear()));
     }
 
     /** Сроки всех курсов текущей половины года; у курса без введённых дат — пустые. */

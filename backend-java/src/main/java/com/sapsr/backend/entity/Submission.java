@@ -70,6 +70,10 @@ public class Submission {
     @Column(name = "teacher_message_id")
     private Integer teacherMessageId;
 
+    // Сообщение студенту об итоге проверки: итог содержания бот дописывает в него же.
+    @Column(name = "student_message_id")
+    private Integer studentMessageId;
+
     // Предыдущая версия этой же работы (решение 9). Новая версия заменяет её в очереди преподавателя.
     @Column(name = "parent_id")
     private Integer parentId;
@@ -160,6 +164,8 @@ public class Submission {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public Integer getTeacherMessageId() { return teacherMessageId; }
     public void setTeacherMessageId(Integer teacherMessageId) { this.teacherMessageId = teacherMessageId; }
+    public Integer getStudentMessageId() { return studentMessageId; }
+    public void setStudentMessageId(Integer studentMessageId) { this.studentMessageId = studentMessageId; }
     public Integer getParentId() { return parentId; }
     public void setParentId(Integer parentId) { this.parentId = parentId; }
     public LocalDateTime getFirstSubmittedAt() { return firstSubmittedAt; }

@@ -1,5 +1,6 @@
 package com.sapsr.backend.service;
 
+import com.sapsr.backend.academic.AcademicCalendar;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sapsr.backend.pipeline.Notice;
@@ -37,7 +38,7 @@ public class ResultListenerService {
 
     @Autowired
     public ResultListenerService(PipelineState state, NoticeSender sender, SubmissionRepository submissions) {
-        this(state, sender, submissions, Clock.systemDefaultZone());
+        this(state, sender, submissions, Clock.system(AcademicCalendar.ZONE));
     }
 
     ResultListenerService(PipelineState state, NoticeSender sender, SubmissionRepository submissions, Clock clock) {

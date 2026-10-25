@@ -15,6 +15,9 @@ import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.service.BsuirApiService;
 import com.sapsr.backend.service.EmailVerificationService;
 import com.sapsr.backend.storage.LocalFileStorage;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -372,6 +375,52 @@ class UploadControllerTest {
         assertThat(user.getFirstName()).isEqualTo("Анна");
         assertThat(user.getMiddleName()).isEqualTo("Сергеевна");
         assertThat(user.getGroupNumber()).isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void studentListShowsVersionTeacherAndFailureReason() {
+        User teacher = users.findById(TEACHER_ID).orElseThrow();
+        teacher.setFullName("Гракова Наталья Викторовна");
+        Submission v1 = new Submission();
+        v1.setId(150);
+        v1.setStatus("REJECTED");
+        v1.setTeacher(teacher);
+        Submission v2 = new Submission();
+        v2.setId(153);
+        v2.setParentId(150);
+        v2.setStatus("FAILED");
+        v2.setFailureCode("PDF_ENCRYPTED");
+        v2.setWorkType("course_project");
+        v2.setTeacher(teacher);
+        when(submissions.findByStudent_TelegramIdOrderByCreatedAtDesc(STUDENT_ID)).thenReturn(List.of(v2, v1));
+
+        List<Map<String, Object>> list = (List<Map<String, Object>>) controller.getSubmissions(request()).getBody();
+
+        assertThat(list.get(0)).containsEntry("version", 2).containsEntry("parent_id", 150)
+                .containsEntry("failure_code", "PDF_ENCRYPTED").containsEntry("work_type", "course_project")
+                .containsEntry("teacher_id", TEACHER_ID).containsEntry("teacher_name", "Гракова Наталья Викторовна");
+        assertThat(list.get(1)).containsEntry("version", 1);
+    }
+
+    @Test
+    void reportIsReadablePdfWithoutDeveloperDetails() throws IOException {
+        Submission s = new Submission();
+        s.setId(153);
+        s.setStatus("REJECTED");
+        s.setStudent(users.findById(STUDENT_ID).orElseThrow());
+        s.setCreatedAt(LocalDateTime.of(2026, 10, 25, 10, 2));
+        s.setFormatErrors("[{\"severity\":\"major\",\"category\":\"format\",\"origin\":\"symbolic\",\"page\":\"2–8\","
+                + "\"message\":\"Левое поле 15 мм вместо 30\",\"found\":\"На 7 страницах\",\"fix\":\"Установите поле 30 мм\"}]");
+        when(submissions.findById(153)).thenReturn(Optional.of(s));
+
+        byte[] pdf = controller.getReport(153, request()).getBody();
+
+        try (PDDocument doc = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(doc);
+            assertThat(text).contains("Отчёт о проверке работы").contains("25.10.2026, 10:02")
+                    .contains("Левое поле 15 мм вместо 30").contains("Как исправить:");
+        }
     }
 
     private ResponseEntity<?> upload(String fileName) {

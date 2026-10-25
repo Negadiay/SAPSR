@@ -1,15 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../../App';
 import { mockApi, jsonResponse, stubTelegram } from '../../test/mockApi';
 
 // Экран администратора (решение 11): то, что сервер определяет сам, видно строками и исправляется.
-
-vi.mock('framer-motion', () => ({
-  AnimatePresence: ({ children }) => children,
-  motion: { div: ({ className, children }) => <div className={className}>{children}</div> },
-}));
 
 const AUTUMN_DATES = { 1: '2026-10-01', 2: '2026-10-29', 3: null, deadline: '2026-12-26' };
 
@@ -61,8 +56,8 @@ const start = (routes) => {
 
 const section = (title) => screen.getByText(title).closest('.admin-section');
 const ready = () => screen.findByText('Учебный год 2026/2027');
-const dialog = () => document.querySelector('.confirm-dialog');
-const navButton = (label) =>within(document.querySelector('.bottom-nav')).getByRole('button', { name: label });
+const dialog = () => document.querySelector('.dialog');
+const openSettings = (user) => user.click(screen.getByTitle('Настройки'));
 
 describe('администратор', () => {
   it('видит год, семестр, сроки по курсам и группы по курсам', async () => {
@@ -72,18 +67,18 @@ describe('администратор', () => {
     expect(screen.getByLabelText('Семестр')).toHaveValue('AUTO');
     expect(screen.getByRole('option', { name: 'По дате (осенний)' })).toBeInTheDocument();
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['1 курс', '2 курс', '3 курс', '4 курс']);
-    expect(screen.getByText('Сейчас — к 2-й (29.10.2026)')).toBeInTheDocument();
+    expect(screen.getByText(/^Сейчас: 2-я опроцентовка, 29\.10/)).toBeInTheDocument();
 
     const groups = section('Группы');
-    const fourth = within(groups).getByText('4 курс · 7 сем.').closest('.admin-course');
+    const fourth = within(groups).getByText('4 курс · 7 семестр').closest('.admin-course');
     expect(within(fourth).getByRole('button', { name: '321702' })).toBeInTheDocument();
-    const second = within(groups).getByText('2 курс · 3 сем.').closest('.admin-course');
+    const second = within(groups).getByText('2 курс · 3 семестр').closest('.admin-course');
     expect(within(second).getByRole('img', { name: 'курс задан вручную' })).toBeInTheDocument();
     const unknown = within(groups).getByText('Курс не определён').closest('.admin-course');
     expect(within(unknown).getByRole('button', { name: '921701' })).toBeInTheDocument();
-    // Работ у администратора нет — только две вкладки и без обучения.
-    expect(within(document.querySelector('.bottom-nav')).getAllByRole('button')).toHaveLength(2);
-    expect(screen.queryByTitle('Справка')).toBeNull();
+    // Работ у администратора нет: в заголовке только справка и настройки.
+    expect(screen.getByTitle('Справка')).toBeInTheDocument();
+    expect(screen.queryByTitle('Заметки')).toBeNull();
   });
 
   it('весенний семестр сдвигает курсы вперёд по году, а не назад', async () => {
@@ -97,8 +92,8 @@ describe('администратор', () => {
     await waitFor(() => expect(api.find('PUT', '/admin/calendar/half')).toHaveLength(1));
     expect(api.find('PUT', '/admin/calendar/half')[0].body).toEqual({ half: 'SPRING' });
     expect(await screen.findByText('Задан вручную')).toBeInTheDocument();
-    expect(screen.getByText('4 курс · 8 сем.')).toBeInTheDocument();
-    expect(screen.getByText('1 курс · 2 сем.')).toBeInTheDocument();
+    expect(screen.getByText('4 курс · 8 семестр')).toBeInTheDocument();
+    expect(screen.getByText('1 курс · 2 семестр')).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Семестр'), 'AUTO');
     await waitFor(() => expect(api.find('PUT', '/admin/calendar/half')).toHaveLength(2));
@@ -131,12 +126,12 @@ describe('администратор', () => {
     const { api, user } = start({ ...adminRoutes, 'PUT /admin/calendar/schedule': CALENDAR });
     await ready();
 
-    await user.click(screen.getByRole('button', { name: 'Всем курсам' }));
-    expect(screen.getByText('Сроки всем курсам?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Для всех курсов' }));
+    expect(screen.getByText('Сроки для всех курсов?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Отмена' }));
     expect(api.find('PUT', '/admin/calendar/schedule')).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: 'Всем курсам' }));
+    await user.click(screen.getByRole('button', { name: 'Для всех курсов' }));
     await user.click(screen.getByRole('button', { name: 'Заменить' }));
     await waitFor(() => expect(api.find('PUT', '/admin/calendar/schedule')).toHaveLength(1));
     expect(api.find('PUT', '/admin/calendar/schedule')[0].body.courses).toEqual([1, 2, 3, 4]);
@@ -230,8 +225,8 @@ describe('администратор', () => {
     await user.click(screen.getByRole('button', { name: '321702' }));
     await user.click(await screen.findByRole('button', { name: 'Изменить: Терешкова Ана Викторовна' }));
     await user.click(screen.getByRole('button', { name: 'Сделать администратором' }));
-    expect(screen.getByText('Вы уверены, что хотите сделать «Терешкова Ана Викторовна» администратором? '
-      + 'Все его учебные данные будут удалены из БД!')).toBeInTheDocument();
+    expect(screen.getByText('«Терешкова Ана Викторовна» станет администратором. '
+      + 'Работы и учебные данные этого аккаунта удалятся безвозвратно.')).toBeInTheDocument();
     await user.click(within(dialog()).getByRole('button', { name: 'Отмена' }));
     expect(api.find('POST', '/admin/users/101/admin')).toHaveLength(0);
 
@@ -258,7 +253,7 @@ describe('администратор', () => {
     expect(screen.queryByText('Первая цифра — 3, 4, 5 или 6')).toBeNull();
     // Такая группа уже есть — курс ей меняют в её карточке, а не «добавлением».
     await user.selectOptions(screen.getByLabelText('Курс новой группы'), '3');
-    expect(screen.getByText('Уже в списке — курс меняется в группе')).toBeInTheDocument();
+    expect(screen.getByText('Группа уже есть — курс меняется в ней.')).toBeInTheDocument();
     expect(add).toBeDisabled();
 
     await user.clear(number);
@@ -309,20 +304,17 @@ describe('администратор', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Раздел только для администратора');
   });
 
-  it('после выхода входит снова — регистрироваться ему не нужно', async () => {
+  it('роль администратора в приложении не сменить', async () => {
     const { user } = start(adminRoutes);
     await ready();
-    await user.click(navButton('Настройки'));
-    await user.click(screen.getByRole('button', { name: 'Выйти из системы' }));
-
-    await user.click(await screen.findByRole('button', { name: 'Войти как администратор' }));
-    expect(await screen.findByRole('heading', { name: 'Управление' })).toBeInTheDocument();
+    await openSettings(user);
+    expect(screen.queryByRole('button', { name: 'Сменить роль' })).toBeNull();
   });
 
   it('в настройках — «Администратор», даже без имени, и без лишних пояснений', async () => {
     const { user } = start(adminRoutes);
     await ready();
-    await user.click(navButton('Настройки'));
+    await openSettings(user);
     expect(screen.getByText('Администратор')).toBeInTheDocument();
     expect(screen.queryByText(/баз[еы] данных/)).toBeNull();
   });

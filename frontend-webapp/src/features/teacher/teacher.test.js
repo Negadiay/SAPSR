@@ -63,18 +63,18 @@ describe('useTeacherNotes', () => {
     expect(stored()).toEqual([{ id: note.id, text: 'Готово' }]);
   });
 
-  it('удаляет заметку только после подтверждения', () => {
+  it('новая заметка — сверху', () => {
+    const { result } = renderHook(() => useTeacherNotes(teacher));
+    addNote(result, 'Старая');
+    addNote(result, 'Новая');
+    expect(result.current.notes.map((n) => n.text)).toEqual(['Новая', 'Старая']);
+  });
+
+  it('удаляет заметку', () => {
     const { result } = renderHook(() => useTeacherNotes(teacher));
     addNote(result, 'Удалить меня');
-    const { id } = result.current.notes[0];
-    act(() => result.current.requestDelete(id));
-    expect(result.current.notes).toHaveLength(1);
-    act(() => result.current.cancelDelete());
-    expect(result.current.notes).toHaveLength(1);
-    act(() => result.current.requestDelete(id));
-    act(() => result.current.confirmDelete());
+    act(() => result.current.remove(result.current.notes[0].id));
     expect(result.current.notes).toEqual([]);
-    expect(result.current.deleteConfirmId).toBeNull();
     expect(stored()).toEqual([]);
   });
 

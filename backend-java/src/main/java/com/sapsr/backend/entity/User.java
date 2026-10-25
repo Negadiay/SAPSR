@@ -2,9 +2,14 @@ package com.sapsr.backend.entity;
 
 import jakarta.persistence.*;
 
+import java.util.regex.Pattern;
+
 @Entity
 @Table(name = "users")
 public class User {
+
+    /** Хвост «(гр. 321702)», который регистрация дописывает к ФИО студента. */
+    private static final Pattern GROUP_SUFFIX = Pattern.compile("\\s*\\(гр\\.\\s*\\d{6}\\)\\s*$");
 
     @Id
     @Column(name = "telegram_id")
@@ -39,6 +44,14 @@ public class User {
     private String groupNumber;
 
     public User() {}
+
+    /** ФИО для показа — без «(гр. 321702)», которое регистрация дописывает студентам. */
+    public String displayName() {
+        String full = fullName == null ? "" : fullName;
+        String name = GROUP_SUFFIX.matcher(full).replaceFirst("").strip();
+        if (name.isEmpty() && lastName != null) name = lastName;
+        return name;
+    }
 
     public Long getTelegramId() { return telegramId; }
     public void setTelegramId(Long telegramId) { this.telegramId = telegramId; }

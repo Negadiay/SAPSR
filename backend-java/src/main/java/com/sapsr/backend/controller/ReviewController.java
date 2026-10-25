@@ -46,17 +46,17 @@ public class ReviewController {
                                               @RequestParam("file") MultipartFile file,
                                               HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return error(401, "UNAUTHORIZED", "Не авторизован");
+        if (telegramId == null) return error(401, "UNAUTHORIZED", "Откройте приложение из Telegram.");
         Optional<User> teacher = userRepository.findById(telegramId);
         if (teacher.isEmpty() || !"TEACHER".equals(teacher.get().getRole())) {
-            return error(403, "FORBIDDEN", "Доступ запрещён");
+            return error(403, "FORBIDDEN", "Раздел только для преподавателя.");
         }
         Optional<Submission> opt = submissionRepository.findById(id);
-        if (opt.isEmpty()) return error(404, "NOT_FOUND", "Работа не найдена");
+        if (opt.isEmpty()) return error(404, "NOT_FOUND", "Работа не найдена. Возможно, её отозвали.");
         Submission submission = opt.get();
-        if (!isTeacherOf(submission, telegramId)) return error(403, "FORBIDDEN", "Эта работа не назначена вам");
-        if (hasVerdict(submission)) return error(409, "VERDICT_ALREADY_SET", "По работе уже вынесен вердикт");
-        if (file == null || file.isEmpty()) return error(400, "VALIDATION_ERROR", "Файл пустой");
+        if (!isTeacherOf(submission, telegramId)) return error(403, "FORBIDDEN", "Это работа другого преподавателя.");
+        if (hasVerdict(submission)) return error(409, "VERDICT_ALREADY_SET", "Решение по работе уже принято.");
+        if (file == null || file.isEmpty()) return error(400, "VALIDATION_ERROR", "Файл пустой.");
 
         try {
             ReviewFileService.Attached attached = reviewFiles.attach(
@@ -67,20 +67,20 @@ public class ReviewController {
             body.put("warnings", attached.warnings());
             return ResponseEntity.ok(body);
         } catch (ReviewFileService.NotAPdfException e) {
-            return error(400, "NOT_A_PDF", "Файл не открывается как PDF. Сохраните работу с пометками в PDF и загрузите снова.");
+            return error(400, "NOT_A_PDF", "Это не PDF. Сохраните файл в PDF и загрузите снова.");
         } catch (IOException e) {
             System.err.println("[REVIEW] Не удалось сохранить размеченный файл работы #" + id + ": " + e.getMessage());
-            return error(500, "INTERNAL", "Не удалось сохранить файл");
+            return error(500, "INTERNAL", "Не удалось сохранить файл. Попробуйте ещё раз.");
         }
     }
 
     @GetMapping("/submissions/{id}/annotations")
     public ResponseEntity<?> getAnnotations(@PathVariable Integer id, HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return error(401, "UNAUTHORIZED", "Не авторизован");
+        if (telegramId == null) return error(401, "UNAUTHORIZED", "Откройте приложение из Telegram.");
         Optional<Submission> opt = submissionRepository.findById(id);
-        if (opt.isEmpty()) return error(404, "NOT_FOUND", "Работа не найдена");
-        if (!canView(opt.get(), telegramId)) return error(403, "FORBIDDEN", "Нет доступа");
+        if (opt.isEmpty()) return error(404, "NOT_FOUND", "Работа не найдена. Возможно, её отозвали.");
+        if (!canView(opt.get(), telegramId)) return error(403, "FORBIDDEN", "Это не ваша работа.");
 
         Map<String, Object> body = new LinkedHashMap<>();
         Optional<ReviewFile> file = reviewFiles.find(id);
@@ -95,17 +95,17 @@ public class ReviewController {
     @GetMapping("/submissions/{id}/review-file")
     public ResponseEntity<?> downloadReviewFile(@PathVariable Integer id, HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return error(401, "UNAUTHORIZED", "Не авторизован");
+        if (telegramId == null) return error(401, "UNAUTHORIZED", "Откройте приложение из Telegram.");
         Optional<Submission> opt = submissionRepository.findById(id);
-        if (opt.isEmpty()) return error(404, "NOT_FOUND", "Работа не найдена");
+        if (opt.isEmpty()) return error(404, "NOT_FOUND", "Работа не найдена. Возможно, её отозвали.");
         Submission submission = opt.get();
-        if (!canView(submission, telegramId)) return error(403, "FORBIDDEN", "Нет доступа");
+        if (!canView(submission, telegramId)) return error(403, "FORBIDDEN", "Это не ваша работа.");
         Optional<ReviewFile> file = reviewFiles.find(id);
-        if (file.isEmpty()) return error(404, "NOT_FOUND", "Размеченного файла нет");
+        if (file.isEmpty()) return error(404, "NOT_FOUND", "Файла с пометками нет.");
 
         try {
             Path path = reviewFiles.pathOf(file.get());
-            if (!Files.isRegularFile(path)) return error(404, "NOT_FOUND", "Размеченного файла нет");
+            if (!Files.isRegularFile(path)) return error(404, "NOT_FOUND", "Файла с пометками нет.");
             ContentDisposition disposition = ContentDisposition.attachment()
                     .filename(withCommentsSuffix(WorkFileName.forDownload(submission)), StandardCharsets.UTF_8)
                     .build();
@@ -114,7 +114,7 @@ public class ReviewController {
                     .header("Content-Disposition", disposition.toString())
                     .body(Files.readAllBytes(path));
         } catch (IOException | IllegalArgumentException e) {
-            return error(500, "INTERNAL", "Не удалось прочитать файл");
+            return error(500, "INTERNAL", "Не удалось прочитать файл.");
         }
     }
 

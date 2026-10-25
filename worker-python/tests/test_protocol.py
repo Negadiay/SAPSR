@@ -14,7 +14,7 @@ from main import Publisher, Worker
 from sapsr.directories import StaticDirectory
 from sapsr.pipeline import CheckService
 from sapsr.settings import Settings
-from sapsr.task import InvalidTask, parse_task
+from sapsr.task import CheckProfile, InvalidTask, parse_task
 
 KEY = "2026/10/8f3a2c1e-5b7d-4e2a-9c4f-1a2b3c4d5e6f.pdf"
 TRACE = "4b1e0c7a-2f3d-4a5b-8c6d-7e8f9a0b1c2d"
@@ -220,13 +220,13 @@ def test_contract_task_example_parses():
 
 def test_v1_task_still_accepted():
     task = parse_task(json.dumps({"task_id": 5, "file_path": "/app/storage/x.pdf", "status": "PROCESSING"}).encode())
-    assert task.schema_ == 1 and task.file.storage_key is None and task.profile.empty
+    assert task.schema_ == 1 and task.file.storage_key is None and task.profile == CheckProfile()
 
 
 def test_null_profile_and_student():
     task = parse_task(json.dumps({"schema": 2, "task_id": 5, "file": {"storage_key": "a.pdf"},
                                   "profile": None, "student": None, "trace_id": TRACE}).encode())
-    assert task.profile.empty and task.student.last_name is None
+    assert task.profile == CheckProfile() and task.student.last_name is None
 
 
 def test_invalid_task_message_has_no_personal_data():

@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sapsr.backend.academic.AcademicCalendar;
+import com.sapsr.backend.bot.AppLink;
 import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.entity.Submission;
+import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,8 +31,8 @@ import java.util.Optional;
  *
  * Преподаватель получает работу один раз — когда отчёт окончательный: пришла содержательная часть, она не
  * успела за тайм-аут или не удалась. Отклонённая по оформлению работа видна у него в очереди сразу (решение 9),
- * а уведомление приходит с полным отчётом. Студент узнаёт итог оформления сразу, итог содержания — вторым
- * сообщением.
+ * а уведомление приходит с полным отчётом. Студент получает одно сообщение на работу: итог оформления сразу,
+ * а итог содержания бот дописывает в то же сообщение.
  */
 @Service
 public class PipelineState {
@@ -57,7 +60,7 @@ public class PipelineState {
 
     @Autowired
     public PipelineState(SubmissionRepository submissions, PipelineTimeouts timeouts) {
-        this(submissions, timeouts, Clock.systemDefaultZone());
+        this(submissions, timeouts, Clock.system(AcademicCalendar.ZONE));
     }
 
     public PipelineState(SubmissionRepository submissions, PipelineTimeouts timeouts, Clock clock) {
@@ -80,7 +83,9 @@ public class PipelineState {
         if (s.getFormatReceivedAt() == null) s.setFormatReceivedAt(now);
         List<Notice> notices = new ArrayList<>();
         if (!repeated && !superseded(s)) {
-            student(s, BotMessages.resultForStudent(s.displayFileName(), passed, errorsJson)).ifPresent(notices::add);
+            // Включена ли была модель, протокол 1 не сообщает: строку «без замечаний» не пишем.
+            studentResult(s, BotMessages.resultForStudent(s.displayFileName(), passed, errorsJson, false, null))
+                    .ifPresent(notices::add);
             teacher(s, passed, null).ifPresent(notices::add);
         }
         submissions.save(s);
@@ -110,8 +115,10 @@ public class PipelineState {
         s.setContentStatus(last ? CONTENT_NONE : CONTENT_PENDING);
         List<Notice> notices = new ArrayList<>();
         if (!superseded(s)) {
-            student(s, BotMessages.resultForStudent(s.displayFileName(), passed, s.getFormatErrors(), !last))
-                    .ifPresent(notices::add);
+            String text = last
+                    ? BotMessages.resultForStudent(s.displayFileName(), passed, s.getFormatErrors(), false, null)
+                    : BotMessages.checkingForStudent(s.displayFileName(), passed, s.getFormatErrors());
+            studentResult(s, text).ifPresent(notices::add);
             if (last) teacher(s, passed, null).ifPresent(notices::add);
         }
         submissions.save(s);
@@ -123,10 +130,9 @@ public class PipelineState {
         Submission s = locked(taskId);
         if (s == null || closed(s, "content")) return List.of();
         String before = s.getContentStatus();
-        boolean formatSeen = s.getFormatReceivedAt() != null;
         LocalDateTime now = now();
         storeReport(s, report);
-        if (!formatSeen) s.setFormatReceivedAt(now);
+        if (s.getFormatReceivedAt() == null) s.setFormatReceivedAt(now);
         if (s.getProcessingStartedAt() == null) s.setProcessingStartedAt(now);
         s.setContentStatus(CONTENT_DONE);
         // После тайм-аута или повтором: отчёт заменяется полным, статус и уведомления — как были.
@@ -137,11 +143,9 @@ public class PipelineState {
         s.setStatus(passed ? SUCCESS : REJECTED);
         List<Notice> notices = new ArrayList<>();
         if (!superseded(s)) {
-            String fileName = s.displayFileName();
-            // Фаза format потерялась — студент ещё ничего не знает, ему нужен полный итог.
-            student(s, formatSeen
-                    ? BotMessages.contentForStudent(fileName, passed, s.getFormatErrors())
-                    : BotMessages.resultForStudent(fileName, passed, s.getFormatErrors())).ifPresent(notices::add);
+            // Фаза format потерялась — сообщения ещё нет, итог уйдёт новым.
+            studentResult(s, BotMessages.resultForStudent(s.displayFileName(), passed, s.getFormatErrors(), true, null))
+                    .ifPresent(notices::add);
             teacher(s, passed, null).ifPresent(notices::add);
         }
         submissions.save(s);
@@ -157,17 +161,14 @@ public class PipelineState {
             s.setStatus(FAILED);
             s.setFailureCode(code);
             List<Notice> notices = new ArrayList<>();
-            if (!superseded(s)) {
-                student(s, BotMessages.failedForStudent(s.displayFileName(), message)).ifPresent(notices::add);
-            }
+            if (!superseded(s)) studentFailed(s, message).ifPresent(notices::add);
             submissions.save(s);
             return notices;
         }
         if (!CONTENT_PENDING.equals(s.getContentStatus())) return List.of();
         // После фазы format — как тайм-аут: работа уходит преподавателю с отчётом по оформлению.
         s.setFailureCode(code);
-        return contentIncomplete(s, CONTENT_FAILED, "CONTENT_FAILED",
-                "Содержательная проверка не удалась.", "проверка содержания не удалась");
+        return contentIncomplete(s, CONTENT_FAILED, "CONTENT_FAILED", "Проверка содержания не удалась.", "сбой проверки");
     }
 
     // ── сторож (PipelineWatchdog) ──────────────────────────────────────────────────────────────
@@ -181,8 +182,7 @@ public class PipelineState {
         }
         long minutes = Math.max(1, timeouts.content().toMinutes());
         return contentIncomplete(s, CONTENT_TIMEOUT, "CONTENT_TIMEOUT",
-                "Содержательная проверка не уложилась в " + minutes + " мин.",
-                "не проверено — проверка не уложилась в " + minutes + " мин");
+                "Проверка содержания не уложилась в " + minutes + " мин.", "не хватило времени");
     }
 
     @Transactional
@@ -197,27 +197,25 @@ public class PipelineState {
         s.setFailureCode(FAILURE_STUCK);
         log.warn("Работа #{}: нет фазы format дольше {} — FAILED", s.getId(), timeouts.stuck());
         List<Notice> notices = new ArrayList<>();
-        if (!superseded(s)) {
-            student(s, BotMessages.failedForStudent(s.displayFileName(),
-                    "Проверка не завершилась: обработчик не ответил.")).ifPresent(notices::add);
-        }
+        if (!superseded(s)) studentFailed(s, "Проверка зависла и остановлена.").ifPresent(notices::add);
         submissions.save(s);
         return notices;
     }
 
     // ── общее ──────────────────────────────────────────────────────────────────────────────────
 
+    /** Содержание не проверено (тайм-аут, сбой): работа уходит преподавателю с отчётом по оформлению. */
     private List<Notice> contentIncomplete(Submission s, String contentStatus, String warningCode,
-                                           String reason, String teacherNote) {
+                                           String reportNote, String note) {
         s.setContentStatus(contentStatus);
         if (PROCESSING.equals(s.getStatus())) s.setStatus(SUCCESS);
-        addWarning(s, warningCode, reason + " В отчёте — только оформление.");
+        addWarning(s, warningCode, reportNote + " В отчёте — только оформление.");
         boolean passed = !REJECTED.equals(s.getStatus());
         List<Notice> notices = new ArrayList<>();
         if (!superseded(s)) {
-            student(s, BotMessages.contentIncompleteForStudent(s.displayFileName(), passed, reason))
+            studentResult(s, BotMessages.resultForStudent(s.displayFileName(), passed, s.getFormatErrors(), true, note))
                     .ifPresent(notices::add);
-            teacher(s, passed, teacherNote).ifPresent(notices::add);
+            teacher(s, passed, note).ifPresent(notices::add);
         }
         submissions.save(s);
         return notices;
@@ -241,9 +239,20 @@ public class PipelineState {
         return s.getId() != null && submissions.existsByParentId(s.getId());
     }
 
-    private Optional<Notice> student(Submission s, String html) {
+    /** Итог проверки студенту: в его сообщение об этой работе, если оно уже есть, иначе новым. */
+    private Optional<Notice> studentResult(Submission s, String html) {
         if (s.getStudent() == null) return Optional.empty();
-        return Optional.of(Notice.student(s.getStudent().getTelegramId(), html));
+        List<AppLink> links = List.of(AppLink.work(s.getId()));
+        Long chatId = s.getStudent().getTelegramId();
+        return Optional.of(s.getStudentMessageId() != null
+                ? Notice.studentUpdate(chatId, s.getStudentMessageId(), html, links, s.getId())
+                : Notice.student(chatId, html, links, s.getId()));
+    }
+
+    private Optional<Notice> studentFailed(Submission s, String reason) {
+        if (s.getStudent() == null) return Optional.empty();
+        return Optional.of(Notice.student(s.getStudent().getTelegramId(),
+                BotMessages.failedForStudent(s.displayFileName(), reason), List.of(AppLink.resubmit()), null));
     }
 
     /**
@@ -254,11 +263,12 @@ public class PipelineState {
         if (s.getTeacher() == null || s.getTeacherNotifiedAt() != null) return Optional.empty();
         if (s.getTeacherVerdict() != null && !s.getTeacherVerdict().isBlank()) return Optional.empty();
         s.setTeacherNotifiedAt(now());
-        String studentName = s.getStudent() != null && s.getStudent().getFullName() != null
-                ? s.getStudent().getFullName() : "Студент";
-        String html = BotMessages.resultForTeacher(studentName, s.displayFileName(), passed, s.getParentId() != null,
-                s.getFirstSubmittedAt(), s.getFormatErrors(), contentNote);
-        return Optional.of(Notice.teacher(s.getTeacher().getTelegramId(), html, s.getId()));
+        User student = s.getStudent();
+        String studentName = student != null && !student.displayName().isEmpty() ? student.displayName() : "Студент";
+        String html = BotMessages.resultForTeacher(studentName, student != null ? student.getGroupNumber() : null,
+                s.displayFileName(), passed, s.getParentId() != null, s.getFirstSubmittedAt(), s.getFormatErrors(),
+                contentNote);
+        return Optional.of(Notice.teacher(s.getTeacher().getTelegramId(), html, List.of(AppLink.work(s.getId())), s.getId()));
     }
 
     private static void storeReport(Submission s, JsonNode report) {

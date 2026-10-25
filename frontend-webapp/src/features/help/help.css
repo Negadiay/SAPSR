@@ -1,0 +1,16 @@
+/* --- СПРАВКА --- */
+.sheet-overlay { align-items: flex-end; }
+
+.sheet {
+  max-width: 32em;
+  border-radius: 1.2em 1.2em 0 0;
+  padding-bottom: calc(1.1em + env(safe-area-inset-bottom, 0px));
+}
+
+.help-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  margin: 0.9em 0 1.2em;
+  padding-left: 1.3em;
+}

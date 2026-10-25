@@ -6,6 +6,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-sapsr_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       POSTGRES_DB: sapsr_db
+      # Время — по Минску, даже если машина (с VPN для ngrok) считает себя в другом поясе.
+      TZ: Europe/Minsk
     # Только с этого компьютера: снаружи база не видна. Сервисы внутри Compose ходят по имени postgres-db.
     ports:
       - "127.0.0.1:5433:5432"
@@ -41,6 +43,7 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
+      TZ: Europe/Minsk
       RABBITMQ_USER: ${RABBITMQ_USER:-rmq_user}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
       # Файлы работ по ключу storage_key (queue-v2.md, раздел 3).
@@ -71,6 +74,8 @@ services:
     restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/sapsr_db
+      # Бэкенд и так ставит себе пояс Минска при запуске (BackendApplication); строка — для журналов контейнера.
+      TZ: Europe/Minsk
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-sapsr_user}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       SPRING_RABBITMQ_HOST: rabbitmq

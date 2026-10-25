@@ -7,7 +7,12 @@ import pytest
 
 from conftest import HYBRID, final_report
 from sapsr.content.claims import Claim
-from sapsr.content.reasoning import Reasoner, rule_names
+from sapsr.content.reasoning import Reasoner, split_constructs
+
+
+def rule_names(source: str) -> set[str]:
+    return {parts[1] for parts in (c[1:].split(None, 2) for c in split_constructs(source))
+            if len(parts) >= 2 and parts[0] == "defrule"}
 
 
 def claim(cid, attr, values, section, kind, exhaustive=True):

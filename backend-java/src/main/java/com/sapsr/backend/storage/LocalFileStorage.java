@@ -1,5 +1,6 @@
 package com.sapsr.backend.storage;
 
+import com.sapsr.backend.academic.AcademicCalendar;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -26,7 +27,7 @@ public class LocalFileStorage implements FileStorage {
 
     @Autowired
     public LocalFileStorage(@Value("${sapsr.storage.root:../storage}") String root) {
-        this(Paths.get(root), Clock.systemDefaultZone());
+        this(Paths.get(root), Clock.system(AcademicCalendar.ZONE));
     }
 
     public LocalFileStorage(Path root, Clock clock) {

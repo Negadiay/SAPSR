@@ -20,10 +20,15 @@ public class NoticeSender {
 
     public void send(List<Notice> notices) {
         for (Notice notice : notices) {
-            Integer messageId = bot.notifyUser(notice.chatId(), notice.html());
-            if (notice.teacherMessageFor() != null && messageId != null) {
-                submissions.setTeacherMessageId(notice.teacherMessageFor(), messageId);
+            // Заменить не вышло (сообщение удалили или оно слишком старое) — отправляем новое.
+            if (notice.editMessageId() != null
+                    && bot.edit(notice.chatId(), notice.editMessageId(), notice.html(), notice.links())) {
+                continue;
             }
+            Integer messageId = bot.send(notice.chatId(), notice.html(), notice.links());
+            if (notice.submissionId() == null || messageId == null) continue;
+            if (notice.to() == Notice.Recipient.TEACHER) submissions.setTeacherMessageId(notice.submissionId(), messageId);
+            else submissions.setStudentMessageId(notice.submissionId(), messageId);
         }
     }
 }

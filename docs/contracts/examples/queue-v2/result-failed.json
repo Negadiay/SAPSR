@@ -3,6 +3,6 @@
   "task_id": 153,
   "phase": "failed",
   "final": true,
-  "error": { "code": "PDF_ENCRYPTED", "message": "Файл защищён паролем. Сохраните его без пароля и загрузите снова." },
+  "error": { "code": "PDF_ENCRYPTED", "message": "Файл защищён паролем. Сохраните его без пароля." },
   "trace_id": "4b1e0c7a-2f3d-4a5b-8c6d-7e8f9a0b1c2d"
 }

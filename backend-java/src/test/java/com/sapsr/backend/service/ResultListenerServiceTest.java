@@ -80,6 +80,7 @@ class ResultListenerServiceTest {
         User student = new User();
         student.setTelegramId(STUDENT_ID);
         student.setFullName("Терешкова А.В. (гр. 321702)");
+        student.setGroupNumber("321702");
         User teacher = new User();
         teacher.setTelegramId(TEACHER_ID);
         work = new Submission();
@@ -89,7 +90,10 @@ class ResultListenerServiceTest {
         work.setTeacher(teacher);
         work.setOriginalFileName("Курсовая.pdf");
         when(submissions.findByIdForUpdate(153)).thenReturn(Optional.of(work));
-        when(bot.notifyUser(anyLong(), anyString())).thenReturn(555);
+        when(bot.send(anyLong(), anyString(), any())).thenReturn(555);
+        // Номер сообщения студенту база запоминает отдельным запросом — здесь его повторяет заглушка.
+        doAnswer(call -> { work.setStudentMessageId(call.getArgument(1)); return 1; })
+                .when(submissions).setStudentMessageId(eq(153), anyInt());
     }
 
     // ── результат v1 ─────────────────────────────────────────────────────────────────────────
@@ -102,17 +106,14 @@ class ResultListenerServiceTest {
         assertThat(work.getStatus()).isEqualTo("REJECTED");
         assertThat(work.getContentStatus()).isEqualTo("DONE");
         verify(submissions).setTeacherMessageId(153, 555);
-        String teacherText = sent(TEACHER_ID);
-        assertThat(teacherText).startsWith("📥 <b>Новая работа</b>")
-                .contains("👤 Терешкова А.В. (гр. 321702)")
-                .contains("Оформление: ❌ ошибок — 1")
-                .contains("Содержание: замечаний — 2, на вашу проверку — 1");
-        String studentText = sent(STUDENT_ID);
-        assertThat(studentText).startsWith("❌ <b>В работе есть ошибки оформления</b>")
-                .contains("Оформление: ошибок — 1.")
+        verify(submissions).setStudentMessageId(153, 555);
+        assertThat(sent(TEACHER_ID)).startsWith("📥 <b>Новая работа</b>\nТерешкова А.В. · 321702\nКурсовая.pdf")
+                .contains("Оформление: ошибок — 1")
+                .contains("Содержание: 2 замечания, 1 — на ваше решение");
+        assertThat(sent(STUDENT_ID)).startsWith("❌ <b>Ошибки в оформлении: 1</b>")
                 .contains("• Левое поле меньше 30 мм")
-                .contains("Содержание: замечаний — 2")
-                .contains("срок сдачи засчитан");
+                .contains("Содержание: 2 замечания")
+                .contains("срок засчитан");
     }
 
     @Test
@@ -123,8 +124,8 @@ class ResultListenerServiceTest {
 
         listener.handleResult("{\"task_id\": 153, \"status\": \"SUCCESS\", \"errors\": []}");
 
-        assertThat(sent(TEACHER_ID)).contains("Новая версия работы").contains("Первая версия пришла 20.10.2026 09:15")
-                .contains("Оформление: ✅ без ошибок").doesNotContain("Содержание");
+        assertThat(sent(TEACHER_ID)).contains("Новая версия работы").contains("Первая версия — 20.10.2026, 09:15")
+                .contains("Оформление: без ошибок").doesNotContain("Содержание");
     }
 
     @Test
@@ -144,7 +145,7 @@ class ResultListenerServiceTest {
 
     @Test
     @Tag("typical")
-    void passedFormatWaitsForContentThenGoesToTeacherOnce() throws IOException {
+    void studentGetsOneMessageThatIsCompletedAfterContent() throws IOException {
         listener.handleResult(example("result-format.json"));
 
         assertThat(work.getStatus()).isEqualTo("PROCESSING");
@@ -152,18 +153,32 @@ class ResultListenerServiceTest {
         assertThat(work.getReport()).contains("FMT-MARGIN-LEFT");
         // Неблокирующее замечание уровня major в форме v1 — предупреждение, как переводит обработчик.
         assertThat(work.getFormatErrors()).contains("\"severity\":\"warning\"");
-        assertThat(sent(STUDENT_ID)).startsWith("✅ <b>Работа прошла проверку оформления</b>")
-                .contains("Содержание ещё проверяется").contains("уйдёт преподавателю");
-        verify(bot, never()).notifyUser(eq(TEACHER_ID), anyString());
+        assertThat(sent(STUDENT_ID)).startsWith("✅ <b>Оформление без ошибок</b>")
+                .contains("итог появится в этом сообщении");
+        verify(bot, never()).send(eq(TEACHER_ID), anyString(), any());
 
         clearInvocations(bot);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
         listener.handleResult(example("result-content.json"));
         listener.handleResult(example("result-content.json"));  // повтор доставки
 
         assertThat(work.getStatus()).isEqualTo("SUCCESS");
         assertThat(work.getContentStatus()).isEqualTo("DONE");
-        assertThat(sent(STUDENT_ID)).startsWith("🧠 <b>Проверка содержания закончена</b>");
-        assertThat(sent(TEACHER_ID)).startsWith("📥 <b>Новая работа</b>").contains("Содержание: замечаний");
+        assertThat(edited(STUDENT_ID)).contains("Содержание:").endsWith("Работа у преподавателя.");
+        verify(bot, never()).send(eq(STUDENT_ID), anyString(), any());
+        assertThat(sent(TEACHER_ID)).startsWith("📥 <b>Новая работа</b>").contains("Содержание:");
+    }
+
+    @Test
+    @Tag("boundary")
+    void deletedMessageIsReplacedByNewOne() throws IOException {
+        listener.handleResult(example("result-format.json"));
+        clearInvocations(bot);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(false);
+
+        listener.handleResult(example("result-content.json"));
+
+        assertThat(sent(STUDENT_ID)).contains("Работа у преподавателя.");
     }
 
     @Test
@@ -172,18 +187,18 @@ class ResultListenerServiceTest {
         listener.handleResult(FORMAT_REJECTED);
 
         assertThat(work.getStatus()).isEqualTo("REJECTED");
-        assertThat(sent(STUDENT_ID)).startsWith("❌ <b>В работе есть ошибки оформления</b>")
-                .contains("Содержание ещё проверяется").contains("срок сдачи засчитан");
-        verify(bot, never()).notifyUser(eq(TEACHER_ID), anyString());
+        assertThat(sent(STUDENT_ID)).startsWith("❌ <b>Ошибки в оформлении: 1</b>")
+                .contains("Содержание проверяется").contains("срок засчитан");
+        verify(bot, never()).send(eq(TEACHER_ID), anyString(), any());
 
         clearInvocations(bot);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
         listener.handleResult(CONTENT_REJECTED);
 
         assertThat(work.getStatus()).isEqualTo("REJECTED");
-        assertThat(sent(STUDENT_ID)).contains("Содержание: замечаний — 1, из них на проверку преподавателю — 1")
-                .contains("Отчёт у преподавателя дополнен");
-        assertThat(sent(TEACHER_ID)).contains("Оформление: ❌ ошибок — 1")
-                .contains("Содержание: замечаний — 1, на вашу проверку — 1");
+        assertThat(edited(STUDENT_ID)).contains("Содержание: 1 замечание, сдаче не мешают.");
+        assertThat(sent(TEACHER_ID)).contains("Оформление: ошибок — 1")
+                .contains("Содержание: 1 замечание, 1 — на ваше решение");
     }
 
     @Test
@@ -193,12 +208,13 @@ class ResultListenerServiceTest {
         listener.handleResult(FORMAT_REJECTED);
         work.setTeacherVerdict("REVISION");
         clearInvocations(bot);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
 
         listener.handleResult(CONTENT_REJECTED);
 
         assertThat(work.getContentStatus()).isEqualTo("DONE");
-        assertThat(sent(STUDENT_ID)).startsWith("🧠 <b>Проверка содержания закончена</b>");
-        verify(bot, never()).notifyUser(eq(TEACHER_ID), anyString());
+        assertThat(edited(STUDENT_ID)).contains("Содержание: 1 замечание");
+        verify(bot, never()).send(eq(TEACHER_ID), anyString(), any());
     }
 
     @Test
@@ -208,9 +224,9 @@ class ResultListenerServiceTest {
 
         assertThat(work.getStatus()).isEqualTo("FAILED");
         assertThat(work.getFailureCode()).isEqualTo("PDF_ENCRYPTED");
-        assertThat(sent(STUDENT_ID)).startsWith("⚠️ <b>Проверка не удалась</b>")
-                .contains("Файл защищён паролем").contains("Загрузите работу снова");
-        verify(bot, never()).notifyUser(eq(TEACHER_ID), anyString());
+        assertThat(sent(STUDENT_ID)).startsWith("⚠️ <b>Работу не удалось проверить</b>")
+                .contains("Файл защищён паролем").contains("Загрузите её снова");
+        verify(bot, never()).send(eq(TEACHER_ID), anyString(), any());
 
         // Поздняя фаза по закрытой работе — в лог, без изменений.
         clearInvocations(bot);
@@ -224,14 +240,15 @@ class ResultListenerServiceTest {
     void failureAfterFormatSendsWorkWithFormatReport() throws IOException {
         listener.handleResult(example("result-format.json"));
         clearInvocations(bot);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
 
         listener.handleResult(example("result-failed.json"));
 
         assertThat(work.getStatus()).isEqualTo("SUCCESS");
         assertThat(work.getContentStatus()).isEqualTo("FAILED");
         assertThat(work.getReport()).contains("CONTENT_FAILED");
-        assertThat(sent(STUDENT_ID)).startsWith("⚠️ <b>Содержание проверить не удалось</b>");
-        assertThat(sent(TEACHER_ID)).contains("Содержание: ⚠️ проверка содержания не удалась");
+        assertThat(edited(STUDENT_ID)).contains("Содержание: не проверено (сбой проверки).");
+        assertThat(sent(TEACHER_ID)).contains("Содержание: не проверено (сбой проверки)");
     }
 
     @Test
@@ -239,6 +256,7 @@ class ResultListenerServiceTest {
     void contentTimeoutSendsWorkAndLateContentReplacesReportSilently() throws IOException {
         listener.handleResult(example("result-format.json"));
         clearInvocations(bot);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
         when(submissions.findContentOverdue(any())).thenAnswer(call ->
                 work.getFormatReceivedAt().isBefore(call.getArgument(0)) ? List.of(153) : List.of());
         when(submissions.findStuck(any())).thenReturn(List.of());
@@ -252,8 +270,8 @@ class ResultListenerServiceTest {
         assertThat(work.getStatus()).isEqualTo("SUCCESS");
         assertThat(work.getContentStatus()).isEqualTo("TIMEOUT");
         assertThat(work.getReport()).contains("CONTENT_TIMEOUT").contains("не уложилась в 5 мин");
-        assertThat(sent(TEACHER_ID)).contains("не проверено — проверка не уложилась в 5 мин");
-        assertThat(sent(STUDENT_ID)).contains("Содержательная проверка не уложилась в 5 мин");
+        assertThat(sent(TEACHER_ID)).contains("не проверено (не хватило времени)");
+        assertThat(edited(STUDENT_ID)).contains("не проверено (не хватило времени)");
 
         clearInvocations(bot);
         listener.handleResult(example("result-content.json"));
@@ -278,7 +296,7 @@ class ResultListenerServiceTest {
         watchdog.tick();
         assertThat(work.getStatus()).isEqualTo("FAILED");
         assertThat(work.getFailureCode()).isEqualTo("STUCK");
-        assertThat(sent(STUDENT_ID)).contains("обработчик не ответил");
+        assertThat(sent(STUDENT_ID)).contains("Проверка зависла и остановлена.");
     }
 
     @Test
@@ -309,9 +327,18 @@ class ResultListenerServiceTest {
         return json.toString();
     }
 
+    /** Единственное новое сообщение этому человеку. */
     private String sent(long chatId) {
         ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
-        verify(bot, atLeastOnce()).notifyUser(eq(chatId), text.capture());
+        verify(bot, atLeastOnce()).send(eq(chatId), text.capture(), any());
+        assertThat(text.getAllValues()).hasSize(1);
+        return text.getValue();
+    }
+
+    /** Единственная правка сообщения, отправленного раньше (номер 555). */
+    private String edited(long chatId) {
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(bot, atLeastOnce()).edit(eq(chatId), eq(555), text.capture(), any());
         assertThat(text.getAllValues()).hasSize(1);
         return text.getValue();
     }

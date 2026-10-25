@@ -1,5 +1,6 @@
 package com.sapsr.backend.pipeline;
 
+import com.sapsr.backend.academic.AcademicCalendar;
 import com.sapsr.backend.repository.SubmissionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +30,7 @@ public class PipelineWatchdog {
     @Autowired
     public PipelineWatchdog(SubmissionRepository submissions, PipelineState state, NoticeSender sender,
                             PipelineTimeouts timeouts) {
-        this(submissions, state, sender, timeouts, Clock.systemDefaultZone());
+        this(submissions, state, sender, timeouts, Clock.system(AcademicCalendar.ZONE));
     }
 
     public PipelineWatchdog(SubmissionRepository submissions, PipelineState state, NoticeSender sender,

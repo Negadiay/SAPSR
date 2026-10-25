@@ -1,9 +1,7 @@
 import { useStudentWorks } from './useStudentWorks';
-import { useUpload } from './useUpload';
 
-// Всё состояние кабинета студента; живёт выше вкладок, чтобы не теряться при переключении.
+// Состояние кабинета студента живёт выше экранов, чтобы не теряться при переходах.
 export function useStudentWorkspace({ active }) {
   const works = useStudentWorks({ active });
-  const upload = useUpload({ active, onUploaded: works.refresh });
-  return { works, upload };
+  return { works };
 }

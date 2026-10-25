@@ -5,13 +5,16 @@ import { notifyHaptic } from '../../telegram/webApp';
 
 const STUDENT_INPUT_ALLOWED_RE = /[^А-ЯЁа-яё.,\s\d]/g;
 const STUDENT_REG_RE = /^[А-ЯЁ][а-яё]+\s[А-ЯЁ]\.[А-ЯЁ]\.,\s\d{6}$/;
+const OFFLINE = 'Нет связи с сервером. Попробуйте позже.';
+const ROLE_TITLES = { student: 'студент', teacher: 'преподаватель', admin: 'администратор' };
 
-const registrationErrorText = (message, fallback) => {
-  const text = String(message || '').toLowerCase();
-  if (text.includes('не найден') && (text.includes('iis') || text.includes('иис'))) {
-    return 'Почта не обнаружена в ИИС БГУИР';
-  }
-  return message || fallback;
+const normalizeStudentInput = (value) => value.trim().replace(/\s+/g, ' ');
+
+// Что не так в строке «Иванов И.И., 321702»; пусто — всё верно.
+export const studentInputProblem = (value) => {
+  const input = normalizeStudentInput(value);
+  if (!input) return 'Введите ФИО и группу.';
+  return STUDENT_REG_RE.test(input) ? '' : 'Пример: Иванов И.И., 321702';
 };
 
 // Состояние и действия экранов выбора роли, регистрации и подтверждения кода.
@@ -56,24 +59,24 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
     try {
       const res = await fetchMe();
       if (!res.ok) {
-        setRegError('Не удалось войти. Откройте мини-приложение из Telegram ещё раз.');
+        setRegError('Не удалось войти. Закройте приложение и откройте снова.');
         return;
       }
       const data = await res.json();
       const dbRole = data.role && data.role !== 'NONE' ? data.role.toLowerCase() : '';
       if (dbRole !== role) {
-        setRegError('Для этой роли нет сохранённой регистрации');
+        setRegError(`Вы не зарегистрированы как ${ROLE_TITLES[role]}.`);
         return;
       }
       if (data.telegram_id) setCurrentUserId(String(data.telegram_id));
-      onLoggedIn();
-      enter(role);
+      onLoggedIn?.();
+      enter(role, data);
     } catch {
-      setRegError('Сервер недоступен');
+      setRegError(OFFLINE);
     }
   };
 
-  const backToRole = () => setStep('role');
+  const backToRole = () => { setRegError(''); setStep('role'); };
 
   const reset = () => {
     signOut();
@@ -81,14 +84,14 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
   };
 
   // --- Регистрация студента ---
-  const changeRegInput = (value) => setRegInput(value.replace(STUDENT_INPUT_ALLOWED_RE, ''));
+  const changeRegInput = (value) => { setRegInput(value.replace(STUDENT_INPUT_ALLOWED_RE, '')); setRegError(''); };
 
   const submitStudent = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     setRegError('');
-    const normalizedInput = regInput.trim().replace(/\s+/g, ' ');
-    const match = normalizedInput.match(STUDENT_REG_RE);
-    if (!match) { setRegError('Формат: Иванов И.И., 123456'); return; }
+    const normalizedInput = normalizeStudentInput(regInput);
+    const problem = studentInputProblem(normalizedInput);
+    if (problem) { setRegError(problem); return; }
     const groupNumber = normalizedInput.slice(-6);
     const namePart = normalizedInput.slice(0, -8);
     const fullName = namePart + ' (гр. ' + groupNumber + ')';
@@ -101,9 +104,9 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
         onRegistered('student');
       } else {
         const err = await readError(res);
-        setRegError(err.error || 'Ошибка регистрации');
+        setRegError(err.error || 'Не удалось зарегистрироваться.');
       }
-    } catch { setRegError('Сервер недоступен'); }
+    } catch { setRegError(OFFLINE); }
     finally { setRegistering(false); }
   };
 
@@ -120,9 +123,9 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
         setRegCode('');
       } else {
         const err = await readError(res);
-        setRegError(registrationErrorText(err.error, 'Ошибка отправки кода'));
+        setRegError(err.error || 'Не удалось отправить код.');
       }
-    } catch { setRegError('Сервер недоступен'); }
+    } catch { setRegError(OFFLINE); }
     finally { setSendingCode(false); }
   };
 
@@ -130,7 +133,7 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
     e?.preventDefault();
     setRegError('');
     const email = teacherEmail.trim().toLowerCase();
-    if (!email) { setRegError('Введите email'); return; }
+    if (!email) { setRegError('Введите почту.'); return; }
     await requestCode(email, () => {
       setTeacherEmail(email);
       setStep('confirm_code');
@@ -143,10 +146,10 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
   };
 
   const confirmCode = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     setRegError('');
-    if (!regCode.trim()) { setRegError('Введите код из письма'); return; }
-    if (codeTimeLeft <= 0) { setRegError('Срок действия кода истёк. Нажмите «Отправить код повторно».'); return; }
+    if (!regCode.trim()) { setRegError('Введите код из письма.'); return; }
+    if (codeTimeLeft <= 0) { setRegError('Код устарел — запросите новый.'); return; }
     setRegistering(true);
     try {
       const res = await registerTeacher(teacherEmail.trim(), regCode.trim());
@@ -158,9 +161,9 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
         onRegistered('teacher');
       } else {
         const err = await readError(res);
-        setRegError(err.error || 'Ошибка регистрации');
+        setRegError(err.error || 'Не удалось зарегистрироваться.');
       }
-    } catch { setRegError('Сервер недоступен'); }
+    } catch { setRegError(OFFLINE); }
     finally { setRegistering(false); }
   };
 

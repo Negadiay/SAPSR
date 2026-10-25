@@ -22,16 +22,49 @@ export function mockApi(routes) {
   };
 }
 
+// Родная кнопка Telegram: запоминает параметры и обработчик, click() — как нажатие пользователя.
+const nativeButton = () => {
+  const button = { visible: false, params: {}, handlers: new Set() };
+  Object.assign(button, {
+    show: vi.fn(() => { button.visible = true; }),
+    hide: vi.fn(() => { button.visible = false; }),
+    onClick: vi.fn((h) => button.handlers.add(h)),
+    offClick: vi.fn((h) => button.handlers.delete(h)),
+    setParams: vi.fn((p) => { Object.assign(button.params, p); button.visible = p.is_visible ?? button.visible; }),
+    showProgress: vi.fn(),
+    hideProgress: vi.fn(),
+    click: () => button.handlers.forEach((h) => h()),
+  });
+  return button;
+};
+
 // Мини-приложение, открытое пользователем Telegram с указанным id.
-export function stubTelegram({ userId = 42, platform = 'unknown' } = {}) {
+// native — клиент Telegram с родными кнопками «Назад», главной и «Настройки» (Bot API 7+).
+export function stubTelegram({ userId = 42, platform = 'unknown', native = false, colorScheme } = {}) {
   const webApp = {
     initData: 'user=' + encodeURIComponent(JSON.stringify({ id: userId })),
     platform,
+    colorScheme,
     ready: vi.fn(),
     expand: vi.fn(),
-    showPopup: vi.fn(),
     HapticFeedback: { notificationOccurred: vi.fn() },
   };
+  if (native) {
+    Object.assign(webApp, {
+      isVersionAtLeast: () => true,
+      BackButton: nativeButton(),
+      MainButton: nativeButton(),
+      SettingsButton: nativeButton(),
+      disableVerticalSwipes: vi.fn(),
+      setHeaderColor: vi.fn(),
+      setBackgroundColor: vi.fn(),
+      setBottomBarColor: vi.fn(),
+      enableClosingConfirmation: vi.fn(),
+      disableClosingConfirmation: vi.fn(),
+      onEvent: vi.fn(),
+      offEvent: vi.fn(),
+    });
+  }
   window.Telegram = { WebApp: webApp };
   return webApp;
 }

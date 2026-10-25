@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -20,7 +18,6 @@ public class TeacherController {
     private final UserRepository userRepository;
     private final BsuirApiService bsuirApiService;
 
-    private static final Pattern GROUP_PATTERN = Pattern.compile("\\(гр\\.\\s*(\\d{6})\\)");
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public TeacherController(UserRepository userRepository, BsuirApiService bsuirApiService) {
@@ -95,15 +92,8 @@ public class TeacherController {
         try {
             Long telegramId = (Long) request.getAttribute("telegram_id");
             if (telegramId == null) return null;
-            // Группа — из своего поля (её может исправить администратор); строка ФИО — запасной путь для старых записей.
-            return userRepository.findById(telegramId)
-                    .map(u -> {
-                        if (u.getGroupNumber() != null && !u.getGroupNumber().isBlank()) return u.getGroupNumber();
-                        if (u.getFullName() == null) return null;
-                        Matcher m = GROUP_PATTERN.matcher(u.getFullName());
-                        return m.find() ? m.group(1) : null;
-                    })
-                    .orElse(null);
+            // Группа — из своего поля: его заполняют регистрация, правка администратора и миграция V2.
+            return userRepository.findById(telegramId).map(User::getGroupNumber).orElse(null);
         } catch (Exception e) {
             return null;
         }

@@ -6,9 +6,9 @@ export const fetchTeacherSubmissions = () => fetchList('/teacher/submissions');
 export const fetchTeacherHistory = () => fetchList('/teacher/history');
 
 // review_file_id передаётся, только если преподаватель приложил размеченный файл (api-v1.md, раздел 9).
-export const sendVerdict = (id, verdict, comment, reviewFileId) => postJson(
+export const sendVerdict = (id, verdict, reviewFileId) => postJson(
   `/teacher/submissions/${id}/verdict`,
-  reviewFileId ? { verdict, comment, review_file_id: reviewFileId } : { verdict, comment },
+  reviewFileId ? { verdict, review_file_id: reviewFileId } : { verdict },
 );
 
 export const downloadSubmissionPdf = (id) => downloadFile(`/teacher/submissions/${id}/pdf`, `submission_${id}.pdf`);

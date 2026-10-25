@@ -1,16 +1,3 @@
-/* Порядок подключения важен: общие стили идут первыми, размер шрифта и темы — последними. */
+/* Общие стили; стили отдельных экранов и компонентов подключают они сами. */
 @import './base.css';
-@import './common.css';
-@import '../navigation/nav.css';
-@import '../components/ConfirmDialog.css';
 @import '../components/Icon.css';
-@import '../features/registration/registration.css';
-@import '../features/student/upload.css';
-@import '../features/student/works.css';
-@import '../features/teacher/queue.css';
-@import '../features/teacher/history.css';
-@import '../features/teacher/notes.css';
-@import '../features/settings/settings.css';
-@import '../features/tutorial/tutorial.css';
-@import './font-size.css';
-@import './themes.css';

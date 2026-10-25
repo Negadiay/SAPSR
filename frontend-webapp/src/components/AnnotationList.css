@@ -2,37 +2,37 @@
 .annotation-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  text-align: left;
+  gap: 0.6em;
 }
 
 .annotation-page-title {
-  font-size: 12px;
+  margin-bottom: 0.2em;
+  color: var(--hint);
+  font-size: 0.85em;
   font-weight: 700;
-  color: var(--tg-theme-hint-color, #6a8a88);
-  margin-bottom: 2px;
 }
 
 .annotation-item {
-  border-left: 3px solid var(--tg-theme-button-color, #2e8d8a);
-  padding: 4px 8px;
-  margin-bottom: 4px;
-  font-size: 13px;
+  margin-bottom: 0.3em;
+  padding: 0.4em 0.7em;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 0.5em 0.5em 0;
 }
 
 .annotation-reply {
-  margin-left: 14px;
+  margin-left: 1em;
   border-left-style: dashed;
 }
 
 .annotation-kind {
-  font-size: 11px;
+  color: var(--hint);
+  font-size: 0.8em;
   font-weight: 600;
-  color: var(--tg-theme-hint-color, #6a8a88);
 }
 
 .annotation-quote {
-  margin: 2px 0;
+  margin: 0.15em 0;
   font-style: italic;
   overflow-wrap: anywhere;
 }
@@ -42,6 +42,4 @@
   white-space: pre-line;
 }
 
-.annotation-muted {
-  color: var(--tg-theme-hint-color, #6a8a88);
-}
+.annotation-muted { color: var(--hint); }

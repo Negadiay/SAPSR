@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterator, Optional
 
@@ -56,6 +56,14 @@ log = logging.getLogger("sapsr.pipeline")
 
 STAGES = ("extract", "structure", "format", "claims", "reasoning", "report")
 
+# Даты — по Минску, а не по часовому поясу машины: VPN для ngrok переводит её в пояс другой страны.
+# В Беларуси круглый год UTC+3 (переходов нет с 2011 года), поэтому базу часовых поясов не подключаем.
+MINSK = timezone(timedelta(hours=3), "Europe/Minsk")
+
+
+def minsk_now() -> datetime:
+    return datetime.now(MINSK)
+
 ProgressCallback = Callable[[str, int], None]
 
 
@@ -86,7 +94,7 @@ class _Run:
 class CheckService:
     def __init__(self, kb: KnowledgeBase, llm: Optional[LlmClient], directory: Directory, *,
                  mode: str = "hybrid", max_pages: int = 300, task_timeout_s: Optional[float] = 540,
-                 labeler: Optional[Labeler] = None, clock: Callable[[], datetime] = datetime.now):
+                 labeler: Optional[Labeler] = None, clock: Callable[[], datetime] = minsk_now):
         self.kb = kb
         self.llm = llm
         self.directory = directory
