@@ -76,6 +76,8 @@ class TitlePageInfo(_Model):
     student_name: Optional[str] = Field(None, description="ФИО студента с титульного листа, как написано")
     matches_registration: Optional[bool] = Field(
         None, description="Совпадает ли фамилия с зарегистрированной; null — сравнить не с чем")
+    work_type: Optional[str] = Field(
+        None, description="Вид работы по титульному листу: course_work, course_project, diploma; null — не распознан")
 
 
 class DocumentInfo(_Model):

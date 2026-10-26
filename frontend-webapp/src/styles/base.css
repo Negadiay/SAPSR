@@ -383,6 +383,17 @@ input[type="search"].input { -webkit-appearance: none; }
 .term-info span:first-child { color: var(--text); font-weight: 600; }
 .term-info-warning { color: var(--warning); font-weight: 600; }
 
+/* Работы проверяет облачная модель (решение 13) — студенту говорится об этом при сдаче */
+.cloud-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  color: var(--hint);
+  font-size: 0.87em;
+}
+
+.cloud-note .icon { flex-shrink: 0; width: 1.3em; height: 1.3em; margin-top: 0.05em; color: var(--warning); }
+
 /* Ход проверки по шагам */
 .steps {
   list-style: none;

@@ -57,7 +57,7 @@ export default function WorkScreen({ id, works, header, onSelectVersion, onUploa
 
       {canResubmit && (
         <PrimaryAction text="Загрузить новую версию"
-          onClick={() => onUploadNew({ teacherId: s.teacher_id, workType: s.work_type })} />
+          onClick={() => onUploadNew({ teacherId: s.teacher_id })} />
       )}
 
       {s.teacher_comment && <blockquote className="teacher-note">{s.teacher_comment}</blockquote>}

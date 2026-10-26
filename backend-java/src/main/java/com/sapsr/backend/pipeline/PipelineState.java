@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sapsr.backend.academic.AcademicCalendar;
+import com.sapsr.backend.academic.WorkTypes;
 import com.sapsr.backend.bot.AppLink;
 import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.entity.Submission;
@@ -275,6 +276,10 @@ public class PipelineState {
         JsonNode body = report != null && report.isObject() ? report : JSON.createObjectNode();
         s.setReport(body.toString());
         s.setFormatErrors(LegacyFindings.of(body));
+        // Вид работы студент не выбирает — его распознаёт обработчик по титульному листу.
+        JsonNode detected = body.path("document").path("title_page").path("work_type");
+        String workType = WorkTypes.fromTitle(detected.isTextual() ? detected.asText() : null, s.getSemester());
+        if (workType != null) s.setWorkType(workType);
     }
 
     /** Пометка в отчёте: почему нет содержательной части. Её видно в pipeline.warnings. */

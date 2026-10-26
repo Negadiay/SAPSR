@@ -93,12 +93,23 @@ python main.py                    # обработчик очереди (нуж�
 
 ### Языковая модель
 
-Решение 1: `qwen3.5:4b` в Ollama.
+Решение 1: `qwen3.5:4b` в Ollama. С 26.10.2026 (решение 13) моделей несколько — каталог `llm-models.yaml`:
+
+| id | Модель | Когда |
+|---|---|---|
+| `light` | `qwen3.5:2b` | быстрее: `content-formats.pdf` на ThinkPad — 74 с против ~220 с у основной, но противоречие в нём не нашла |
+| `main` | `qwen3.5:4b` | по умолчанию, выбрана по бенчмарку |
+| `heavy` | `qwen3.5:9b` | точнее, медленнее: в 4 ГБ видеопамяти ThinkPad входит частично; `content-formats.pdf` — 383 с, дольше 5-минутного тайм-аута содержания (итог дописывается позже) |
+| `cloud` | из `.env` | только при `SAPSR_LLM_ALLOW_CLOUD=1`, HTTPS и ключе |
+
+Какая модель проверяет, выбирает администратор в приложении («Красная зона»): бэкенд кладёт id в задание (`llm.model`), обработчик ищет его только в своём каталоге. Адрес из задания не принимается. Модель недоступна — проверяет модель по умолчанию с предупреждением `LLM_FALLBACK`; к облачной обработчик сам не переходит. О себе и моделях обработчик раз в минуту пишет в `worker_status_queue` (`queue-v2.md`, раздел 10).
 
 ```bash
-ollama pull qwen3.5:4b
+ollama pull qwen3.5:4b             # и по желанию qwen3.5:2b, qwen3.5:9b
 ollama ps                          # после первого запроса: 100% GPU
 ```
+
+**Облачная модель и персональные данные** (`sapsr/llm/privacy.py`): в модель идут только фрагменты разделов, титульный лист — никогда; ФИО студента в любом падеже, любые «Фамилия И. О.», почта, телефоны и номера групп заменяются метками («[ФИО-1]»), в ответе метки возвращаются на место до проверки цитат. Запрос — только по HTTPS, без перенаправлений; в журнал пишется объём, а не текст.
 
 Обработчик в Docker обращается к Ollama на ноутбуке по `http://host.docker.internal:11434`
 (`docker-compose.yml`); локальный запуск — `http://localhost:11434`. Без Ollama проверка идёт,
@@ -129,8 +140,14 @@ SAPSR_LLM_MODE=replay SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay python an
 | `SAPSR_LLM_MODEL` | `qwen3.5:4b` | модель |
 | `SAPSR_LLM_TEMPERATURE`, `SAPSR_LLM_SEED` | `0`, `42` | воспроизводимость |
 | `SAPSR_LLM_TIMEOUT_S`, `SAPSR_LLM_NUM_CTX` | `120`, `8192` | тайм-аут вызова, окно контекста |
-| `SAPSR_LLM_ALLOW_CLOUD` | выключено | нелокальный адрес модели разрешается только так (решение 2) |
-| `SAPSR_LLM_API_KEY` | — | ключ OpenAI-совместимого сервиса |
+| `SAPSR_LLM_ALLOW_CLOUD` | выключено | нелокальный адрес модели разрешается только так (решения 2 и 13) |
+| `SAPSR_LLM_API_KEY` | — | ключ OpenAI-совместимого сервиса для основной модели |
+| `SAPSR_LLM_MODELS_FILE` | `worker-python/llm-models.yaml` | каталог моделей; нет файла — одна модель из `SAPSR_LLM_*` |
+| `SAPSR_LLM_DEFAULT` | `main` | модель по умолчанию из каталога |
+| `SAPSR_LLM_LIGHT_MODEL`, `SAPSR_LLM_HEAVY_MODEL` | `qwen3.5:2b`, `qwen3.5:9b` | лёгкая и тяжёлая в Ollama |
+| `SAPSR_LLM_CLOUD_BASE_URL`, `SAPSR_LLM_CLOUD_MODEL`, `SAPSR_LLM_CLOUD_API_KEY` | — | облачная модель: адрес (только HTTPS), имя, ключ |
+| `SAPSR_LLM_CLOUD_HEADERS`, `SAPSR_LLM_CLOUD_EXTRA_BODY` | — | JSON: заголовки и поля запроса сервиса — каталог Yandex Cloud, запрет хранить запросы у посредника |
+| `SAPSR_STATUS_QUEUE` | `worker_status_queue` | куда обработчик пишет о себе |
 | `SAPSR_LLM_CACHE_DIR` | `worker-python/.cache/llm` | кэш ответов модели |
 | `SAPSR_LLM_REPLAY_DIR` | — | каталог записанных ответов для `record` и `replay` |
 | `SAPSR_LLM_STUB_FILE` | — | JSON с ответами для режима `stub` |

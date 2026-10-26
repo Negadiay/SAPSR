@@ -77,7 +77,7 @@ describe('вход', () => {
   it('зарегистрированного студента сразу ведёт к его работам', async () => {
     start(studentRoutes);
     expect(await heading('Мои работы')).toBeInTheDocument();
-    expect(screen.getByTitle('Справка')).toBeInTheDocument();
+    expect(screen.getByTitle('Обучение')).toBeInTheDocument();
     expect(screen.getByTitle('Настройки')).toBeInTheDocument();
   });
 
@@ -103,10 +103,11 @@ describe('вход', () => {
     await waitFor(() => expect(api.find('POST', '/register')).toHaveLength(1));
     expect(api.find('POST', '/register')[0].body).toEqual({ role: 'STUDENT', full_name: 'Иванов И.И. (гр. 321702)' });
     expect(await heading('Мои работы')).toBeInTheDocument();
-    // Первый вход — справка открывается сама.
-    expect(screen.getByRole('dialog', { name: 'Как сдать работу' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Понятно' }));
+    // Первый вход — обучение начинается само.
+    expect(await screen.findByRole('dialog', { name: 'Это SAPSR' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Пропустить' }));
     expect(localStorage.getItem('sapsr_onboarded_student')).toBe('1');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('ошибку сервера при регистрации показывает его словами', async () => {
@@ -236,8 +237,13 @@ describe('студент: сдача работы', () => {
     await waitFor(() => expect(screen.getAllByRole('option', { name: /Петров/ })).toHaveLength(1));
     expect(screen.getByLabelText('Преподаватель')).toHaveValue('');
 
+    expect(screen.getByRole('option', { name: 'Выберите преподавателя' })).toBeInTheDocument();
+    // Вид работы не спрашивается: сервер определяет его по семестру и титульному листу.
+    expect(screen.queryByLabelText('Вид работы')).toBeNull();
+
     await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
-    await user.selectOptions(screen.getByLabelText('Вид работы'), 'course_project');
+    // Выбрав преподавателя, к «никому» не вернуться: подсказки в списке больше нет.
+    expect(screen.queryByRole('option', { name: 'Выберите преподавателя' })).toBeNull();
     await user.upload(screen.getByLabelText(/Выберите PDF/), new File(['x'], 'work.docx', { type: 'application/msword' }));
     expect(screen.getByText('Нужен файл PDF.')).toBeInTheDocument();
     expect(submit).toBeDisabled();
@@ -249,7 +255,7 @@ describe('студент: сдача работы', () => {
     await waitFor(() => expect(api.find('POST', '/upload')).toHaveLength(1));
     const form = api.find('POST', '/upload')[0].body;
     expect(form.get('teacher_id')).toBe('7');
-    expect(form.get('work_type')).toBe('course_project');
+    expect(form.has('work_type')).toBe(false);
     expect(await heading('Работа')).toBeInTheDocument();
     expect(screen.getByText('В очереди')).toBeInTheDocument();
     expect(localStorage.getItem('sapsr_last_teacher_id')).toBe('7');
@@ -261,10 +267,9 @@ describe('студент: сдача работы', () => {
       'GET /teachers': [TEACHERS[0]],
       'POST /upload': jsonResponse({ error: 'Файл пустой.' }, 400),
     });
-    localStorage.setItem('sapsr_last_profile', JSON.stringify({ work_type: 'diploma' }));
     await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
     await waitFor(() => expect(screen.getByLabelText('Преподаватель')).toHaveValue('7'));
-    expect(screen.getByLabelText('Вид работы')).toHaveValue('diploma');
+    expect(screen.queryByRole('option', { name: 'Выберите преподавателя' })).toBeNull();
     await user.upload(screen.getByLabelText(/Выберите PDF/), pdf());
     await user.click(screen.getByRole('button', { name: 'Отправить на проверку' }));
     expect(await screen.findByText('Файл пустой.')).toBeInTheDocument();
@@ -276,13 +281,12 @@ describe('студент: сдача работы', () => {
     expect(await screen.findByText(/Для группы 321702 нет преподавателей/)).toBeInTheDocument();
   });
 
-  it('новая версия — с тем же преподавателем и видом работы', async () => {
+  it('новая версия — с тем же преподавателем', async () => {
     const { user } = start({ ...studentRoutes, 'GET /submissions': [SUBMISSIONS[1]] });
     await user.click(await screen.findByRole('button', { name: /Курсовая\.pdf/ }));
     await user.click(screen.getByRole('button', { name: 'Загрузить новую версию' }));
     expect(await heading('Новая версия')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Преподаватель')).toHaveValue('7'));
-    expect(screen.getByLabelText('Вид работы')).toHaveValue('course_project');
   });
 
   it('у старой версии загрузить новую нельзя — только у последней', async () => {

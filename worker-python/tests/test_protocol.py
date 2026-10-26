@@ -23,10 +23,16 @@ TRACE = "4b1e0c7a-2f3d-4a5b-8c6d-7e8f9a0b1c2d"
 class FakeChannel:
     def __init__(self):
         self.published: list[tuple[str, dict, object]] = []
+        # Состояние обработчика — отдельно: оно уходит после каждого сообщения и не относится к заданию.
+        self.statuses: list[tuple[dict, object]] = []
         self.acked, self.rejected = [], []
 
     def basic_publish(self, exchange, routing_key, body, properties):
-        self.published.append((routing_key, json.loads(body.decode("utf-8")), properties))
+        payload = json.loads(body.decode("utf-8"))
+        if routing_key == "worker_status_queue":
+            self.statuses.append((payload, properties))
+        else:
+            self.published.append((routing_key, payload, properties))
 
     def basic_ack(self, delivery_tag):
         self.acked.append(delivery_tag)
@@ -234,6 +240,19 @@ def test_invalid_task_message_has_no_personal_data():
         parse_task(json.dumps({"schema": 2, "task_id": "x", "student": {"last_name": "Иванов"},
                                "file": {"storage_key": "a.pdf"}}).encode())
     assert "Иванов" not in str(exc.value)
+
+
+@pytest.mark.typical
+def test_status_after_each_message_lists_models_without_addresses(kb, directory, model, tmp_path):
+    channel = deliver(worker(kb, directory, model, tmp_path, 2), b"not json")
+    assert len(channel.statuses) == 1
+    status, props = channel.statuses[0]
+    assert status["type"] == "status" and status["default_model"] == "main"
+    assert [m["id"] for m in status["models"]] == ["main"] and status["models"][0]["available"]
+    # Устаревшее состояние не копится в очереди, пока бэкенд выключен.
+    assert props.expiration == "120000"
+    text = json.dumps(status, ensure_ascii=False)
+    assert "base_url" not in text and "api_key" not in text
 
 
 def test_publisher_failed_message_shape():

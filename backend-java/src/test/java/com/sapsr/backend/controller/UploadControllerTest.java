@@ -5,6 +5,7 @@ import com.sapsr.backend.academic.AcademicCalendar;
 import com.sapsr.backend.entity.ProcentovkaDate;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.llm.LlmModels;
 import com.sapsr.backend.messaging.TaskMessage;
 import com.sapsr.backend.repository.AcademicSettingRepository;
 import com.sapsr.backend.repository.GroupCourseOverrideRepository;
@@ -64,6 +65,7 @@ class UploadControllerTest {
     private final UserRepository users = mock(UserRepository.class);
     private final ReviewFileService reviewFiles = mock(ReviewFileService.class);
     private final ProcentovkaDateRepository procentovki = mock(ProcentovkaDateRepository.class);
+    private final LlmModels llmModels = mock(LlmModels.class);
     private UploadController controller;
 
     @BeforeEach
@@ -71,18 +73,12 @@ class UploadControllerTest {
         // Корень хранилища — вложенная папка, чтобы проверить, что за его пределы ничего не пишется.
         storageRoot = Files.createDirectory(root.resolve("storage"));
         // 23 октября 2026 года, вторая опроцентовка 29-го: студент 321702 — 4 курс, 7 семестр, этап 2.
-        Clock october = Clock.fixed(LocalDateTime.of(2026, 10, 23, 12, 0).atZone(AcademicCalendar.ZONE).toInstant(),
-                AcademicCalendar.ZONE);
+        createController(LocalDateTime.of(2026, 10, 23, 12, 0));
+        ReflectionTestUtils.setField(controller, "tasksQueue", "pdf_tasks_queue");
         when(procentovki.findByAcademicYearAndHalf(2026, "AUTUMN")).thenReturn(List.of(
                 new ProcentovkaDate(2026, "AUTUMN", 4, 2, LocalDate.of(2026, 10, 29), LocalDateTime.now(), 1L),
                 new ProcentovkaDate(2026, "AUTUMN", 4, ProcentovkaDate.DEADLINE, LocalDate.of(2026, 12, 26),
                         LocalDateTime.now(), 1L)));
-        AcademicCalendar calendar = new AcademicCalendar(mock(AcademicSettingRepository.class),
-                mock(GroupCourseOverrideRepository.class), procentovki, october);
-        controller = new UploadController(rabbit, submissions, users,
-                mock(EmailVerificationService.class), mock(BsuirApiService.class), mock(SapsrTelegramBot.class),
-                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles, calendar);
-        ReflectionTestUtils.setField(controller, "tasksQueue", "pdf_tasks_queue");
 
         User student = new User();
         student.setTelegramId(STUDENT_ID);
@@ -143,15 +139,40 @@ class UploadControllerTest {
     @Test
     void passesCheckProfileToTask() {
         // Семестр и этап студент не выбирает: сервер определяет их по группе и календарю (решение 11).
-        controller.uploadFile(pdf("Курсовая.pdf"), null, "course_work", request());
+        // Курсовая работа или проект — станет известно из титульного листа (PipelineState).
+        controller.uploadFile(pdf("Курсовая.pdf"), null, request());
 
         Submission saved = savedSubmission();
-        assertThat(saved.getWorkType()).isEqualTo("course_work");
+        assertThat(saved.getWorkType()).isNull();
         assertThat(saved.getSemester()).isEqualTo(7);
         assertThat(saved.getStage()).isEqualTo(2);
         ArgumentCaptor<TaskMessage> task = ArgumentCaptor.forClass(TaskMessage.class);
         verify(rabbit).convertAndSend(anyString(), task.capture());
-        assertThat(task.getValue().profile()).isEqualTo(new TaskMessage.CheckProfile("course_work", 7, 2));
+        assertThat(task.getValue().profile()).isEqualTo(new TaskMessage.CheckProfile(null, 7, 2));
+        assertThat(task.getValue().llm()).as("модель не выбрана — по умолчанию у обработчика").isNull();
+    }
+
+    @Test
+    void eighthSemesterWorkIsDiploma() throws IOException {
+        // Февраль 2027 года: 321702 — 4 курс, весна, 8 семестр. Дипломная бывает только в нём.
+        createController(LocalDateTime.of(2027, 2, 15, 12, 0));
+        ReflectionTestUtils.setField(controller, "tasksQueue", "pdf_tasks_queue");
+
+        controller.uploadFile(pdf("Диплом.pdf"), null, request());
+
+        assertThat(savedSubmission().getSemester()).isEqualTo(8);
+        assertThat(savedSubmission().getWorkType()).isEqualTo("diploma");
+    }
+
+    @Test
+    void taskCarriesModelChosenByAdmin() {
+        when(llmModels.forTask()).thenReturn("heavy");
+
+        controller.uploadFile(pdf("Курсовая.pdf"), null, request());
+
+        ArgumentCaptor<TaskMessage> task = ArgumentCaptor.forClass(TaskMessage.class);
+        verify(rabbit).convertAndSend(anyString(), task.capture());
+        assertThat(task.getValue().llm()).isEqualTo(new TaskMessage.LlmChoice("heavy"));
     }
 
     @Test
@@ -192,7 +213,7 @@ class UploadControllerTest {
         User graduate = users.findById(STUDENT_ID).orElseThrow();
         graduate.setGroupNumber("921701");  // 2019 год поступления — курс больше четвёртого
 
-        controller.uploadFile(pdf("Курсовая.pdf"), null, "course_work", request());
+        controller.uploadFile(pdf("Курсовая.pdf"), null, request());
 
         assertThat(savedSubmission().getSemester()).isNull();
         assertThat(savedSubmission().getStage()).as("сроки — по курсу, а курс не определился").isNull();
@@ -204,7 +225,8 @@ class UploadControllerTest {
         Map<String, Object> me = (Map<String, Object>) controller.getMe(request()).getBody();
 
         assertThat(me).containsEntry("group", "321702").containsEntry("course", 4).containsEntry("semester", 7)
-                .containsEntry("stage", 2).containsEntry("deadline", "2026-12-26").containsEntry("course_overridden", false);
+                .containsEntry("stage", 2).containsEntry("deadline", "2026-12-26").containsEntry("course_overridden", false)
+                .containsEntry("cloud_check", false);
     }
 
     @Test
@@ -229,17 +251,6 @@ class UploadControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
         verify(users, never()).save(any());
-    }
-
-    @Test
-    void rejectsInvalidProfileWithoutStoringAnything() throws IOException {
-        ResponseEntity<?> badType = controller.uploadFile(pdf("a.pdf"), null, "Курсовая", request());
-
-        assertThat(List.of(badType))
-                .allSatisfy(r -> assertThat(r.getStatusCode().value()).isEqualTo(400));
-        assertThat(storedFiles()).isEmpty();
-        verifyNoInteractions(rabbit);
-        verify(submissions, never()).save(any());
     }
 
     @Test
@@ -299,7 +310,7 @@ class UploadControllerTest {
         when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
                 .thenReturn(Optional.of(previous));
 
-        controller.uploadFile(pdf("Курсовая v2.pdf"), TEACHER_ID, null, request());
+        controller.uploadFile(pdf("Курсовая v2.pdf"), TEACHER_ID, request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getParentId()).isEqualTo(150);
@@ -317,7 +328,7 @@ class UploadControllerTest {
         when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
                 .thenReturn(Optional.of(approved));
 
-        controller.uploadFile(pdf("Новая работа.pdf"), TEACHER_ID, null, request());
+        controller.uploadFile(pdf("Новая работа.pdf"), TEACHER_ID, request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getParentId()).isNull();
@@ -423,8 +434,17 @@ class UploadControllerTest {
         }
     }
 
+    private void createController(LocalDateTime now) {
+        Clock clock = Clock.fixed(now.atZone(AcademicCalendar.ZONE).toInstant(), AcademicCalendar.ZONE);
+        AcademicCalendar calendar = new AcademicCalendar(mock(AcademicSettingRepository.class),
+                mock(GroupCourseOverrideRepository.class), procentovki, clock);
+        controller = new UploadController(rabbit, submissions, users,
+                mock(EmailVerificationService.class), mock(BsuirApiService.class), mock(SapsrTelegramBot.class),
+                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles, calendar, llmModels);
+    }
+
     private ResponseEntity<?> upload(String fileName) {
-        return controller.uploadFile(pdf(fileName), null, null, request());
+        return controller.uploadFile(pdf(fileName), null, request());
     }
 
     private static MockMultipartFile pdf(String fileName) {

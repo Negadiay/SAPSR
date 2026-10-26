@@ -11,8 +11,10 @@
   stub    — заготовленные ответы из функции или JSON-файла (модульные тесты);
   off     — модель выключена: содержательные этапы пропускаются с записью в pipeline.skipped.
 
-Облачная модель (решение 2) включается только явно: SAPSR_LLM_ALLOW_CLOUD=1. Без этого
-обращение к нелокальному адресу отклоняется ещё до отправки текста работы.
+Облачная модель (решения 2 и 13) включается только явно: SAPSR_LLM_ALLOW_CLOUD=1. Без этого,
+а также без HTTPS или без ключа доступа обращение к нелокальному адресу отклоняется ещё до отправки
+текста работы. Перенаправления облачный запрос не выполняет: текст не уйдёт по чужому адресу.
+Персональные данные из текста убирает sapsr/llm/privacy.py до вызова клиента.
 """
 
 from __future__ import annotations
@@ -71,6 +73,10 @@ class LlmConfig:
     replay_dir: Optional[Path] = None
     stub_file: Optional[Path] = None
     ping_ttl_s: float = 30.0
+    # Заголовки и поля запроса, которых требует облачный сервис (каталог моделей, llm-models.yaml):
+    # например, каталог Yandex Cloud или запрет хранить запросы у посредника.
+    headers: dict = field(default_factory=dict)
+    extra_body: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.mode not in MODES:
@@ -188,6 +194,18 @@ class LlmClient:
     def is_cloud(self) -> bool:
         return self.config.mode in ("live", "record") and not is_local_url(self.config.base_url)
 
+    def cloud_problem(self) -> Optional[str]:
+        """Почему текст работы нельзя отправить облачной модели; None — можно."""
+        if not self.config.allow_cloud:
+            return "Адрес модели не локальный, а облачная модель не разрешена (SAPSR_LLM_ALLOW_CLOUD)."
+        if urlparse(self.config.base_url).scheme != "https":
+            return "Облачная модель — только по HTTPS: иначе текст работы и ключ уйдут открытым текстом."
+        if not self.config.api_key:
+            return "Для облачной модели не задан ключ доступа."
+        if not self.config.model:
+            return "Облачная модель не настроена: не указано имя модели."
+        return None
+
     @property
     def model_name(self) -> str:
         if self.config.mode == "stub":
@@ -224,7 +242,7 @@ class LlmClient:
             return False
         if mode in ("stub", "replay"):
             return True
-        if self.is_cloud and not self.config.allow_cloud:
+        if self.is_cloud and self.cloud_problem():
             return False
         now = time.monotonic()
         if now - self._ping_at < self.config.ping_ttl_s:
@@ -239,8 +257,10 @@ class LlmClient:
                 if not self._ping_ok:
                     log.warning("модель не загружена в Ollama", extra={"fields": {"model": self.config.model}})
             else:
-                resp = self._session.get(f"{self._openai_base()}/models", headers=self._headers(), timeout=5)
-                self._ping_ok = resp.status_code < 500
+                resp = self._session.get(f"{self._openai_base()}/models", headers=self._headers(), timeout=5,
+                                         allow_redirects=False)
+                # 401/403 — ключ не подошёл: модель недоступна, а не «вероятно, работает».
+                self._ping_ok = resp.status_code < 400 or resp.status_code == 404
         except Exception as exc:
             log.warning("языковая модель недоступна", extra={"fields": {"error": type(exc).__name__}})
             self._ping_ok = False
@@ -249,8 +269,8 @@ class LlmClient:
     def unavailable_reason(self) -> str:
         if self.config.mode == "off":
             return "Языковая модель выключена настройкой."
-        if self.is_cloud and not self.config.allow_cloud:
-            return "Адрес модели не локальный, а облачная модель не разрешена (SAPSR_LLM_ALLOW_CLOUD)."
+        if self.is_cloud and self.cloud_problem():
+            return self.cloud_problem()
         return "Языковая модель недоступна."
 
     # ── вызов ───────────────────────────────────────────────────────────────
@@ -260,8 +280,8 @@ class LlmClient:
         """Ответ модели строго по JSON-схеме. Не прошёл схему — один повтор с текстом ошибки."""
         if self.config.mode == "off":
             raise LlmUnavailable(self.unavailable_reason())
-        if self.is_cloud and not self.config.allow_cloud:
-            raise LlmUnavailable(self.unavailable_reason())
+        if self.is_cloud and self.cloud_problem():
+            raise LlmUnavailable(self.cloud_problem())
         json_schema = schema.model_json_schema()
         key = request_key(self.model_name, prompt_ref, system, user, json_schema)
         started = time.perf_counter()
@@ -332,6 +352,10 @@ class LlmClient:
         timeout = min(timeout_s or self.config.timeout_s, self.config.timeout_s)
         if timeout <= 0:
             raise LlmTimeout("не осталось времени на вызов модели")
+        if self.is_cloud:
+            # Объём — да, содержание — никогда: текст работы в журнал не пишется.
+            log.info("запрос к облачной модели", extra={"fields": {
+                "model": self.config.model, "chars": sum(len(m["content"]) for m in messages)}})
         try:
             if self.config.provider == "ollama":
                 return self._call_ollama(messages, json_schema, timeout)
@@ -364,7 +388,10 @@ class LlmClient:
         return base if base.endswith("/v1") else f"{base}/v1"
 
     def _headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.config.api_key}"} if self.config.api_key else {}
+        headers = {str(k): str(v) for k, v in self.config.headers.items()}
+        if self.config.api_key:
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
+        return headers
 
     def _call_openai(self, messages: list[dict], json_schema: dict, timeout: float) -> str:
         body = {
@@ -375,8 +402,12 @@ class LlmClient:
             "response_format": {"type": "json_schema",
                                 "json_schema": {"name": "answer", "schema": json_schema, "strict": False}},
         }
+        # Поля сервиса не перекрывают модель, сообщения и схему ответа.
+        body.update({k: v for k, v in self.config.extra_body.items() if k not in body})
         resp = self._session.post(f"{self._openai_base()}/chat/completions", json=body,
-                                  headers=self._headers(), timeout=(5, timeout))
+                                  headers=self._headers(), timeout=(5, timeout), allow_redirects=False)
+        if resp.is_redirect:
+            raise LlmUnavailable("облачный сервис ответил перенаправлением — запрос не повторяется по чужому адресу")
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
 

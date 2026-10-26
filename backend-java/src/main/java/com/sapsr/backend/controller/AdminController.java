@@ -312,6 +312,11 @@ public class AdminController {
     // ── доступ ────────────────────────────────────────────────────────────────────────────────
 
     private Optional<ResponseEntity<?>> deny(HttpServletRequest request) {
+        return deny(request, users);
+    }
+
+    /** Пусто — запрос от администратора; иначе ответ 401 или 403. Общая проверка разделов администратора. */
+    static Optional<ResponseEntity<?>> deny(HttpServletRequest request, UserRepository users) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId == null) {
             return Optional.of(ResponseEntity.status(401).body(Map.of("code", "UNAUTHORIZED", "error", "Откройте приложение из Telegram.")));

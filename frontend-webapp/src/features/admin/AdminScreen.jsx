@@ -4,6 +4,8 @@ import Icon from '../../components/Icon';
 import StatusLine from '../../components/StatusLine';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { formatDay } from '../../lib/format';
+import RedZone from './RedZone';
+import { useAdminSystem } from './useAdminSystem';
 import './admin.css';
 
 // Экран администратора (решение 11): семестр, сроки по курсам, группы с людьми — всё, что сервер определяет сам,
@@ -13,6 +15,8 @@ const HALF_TITLES = { AUTUMN: 'осенний', SPRING: 'весенний' };
 const DATE_FIELDS = [['1', '1-я опроцентовка'], ['2', '2-я опроцентовка'], ['3', '3-я опроцентовка'], ['deadline', 'Сдача']];
 const STAGE_TITLES = { 1: '1-я опроцентовка', 2: '2-я опроцентовка', 3: '3-я опроцентовка' };
 const SECTIONS_KEY = 'sapsr_admin_sections';
+const TAB_KEY = 'sapsr_admin_tab';
+const TABS = [['study', 'Учёба'], ['system', 'Красная зона']];
 
 const semesterOf = (course, half) => (half === 'AUTUMN' ? 2 * course - 1 : 2 * course);
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
@@ -24,6 +28,22 @@ const readSections = () => {
     return JSON.parse(localStorage.getItem(SECTIONS_KEY)) || {};
   } catch {
     return {};
+  }
+};
+
+const readTab = () => {
+  try {
+    return localStorage.getItem(TAB_KEY) === 'system' ? 'system' : 'study';
+  } catch {
+    return 'study';
+  }
+};
+
+const saveTab = (tab) => {
+  try {
+    localStorage.setItem(TAB_KEY, tab);
+  } catch {
+    // не запомнится — не страшно
   }
 };
 
@@ -40,7 +60,7 @@ function AdminSection({ id, title, summary, defaultOpen = true, children }) {
   const [open, setOpen] = useState(() => readSections()[id] ?? defaultOpen);
   const bodyId = `admin-section-${id}`;
   return (
-    <section className="card admin-section">
+    <section className="card admin-section" data-tour={`admin-${id}`}>
       <button type="button" className="admin-section-head" aria-expanded={open} aria-controls={open ? bodyId : undefined}
         onClick={() => { saveSection(id, !open); setOpen(!open); }}>
         <span className="settings-label">{title}</span>
@@ -324,19 +344,37 @@ function AddGroupSection({ calendar, saving, onSave }) {
   );
 }
 
+// Две вкладки: «Учёба» — календарь и группы; «Красная зона» — то, что меняет работу всей системы (решение 13).
 export default function AdminScreen({ admin, header }) {
   const { calendar, error, saving, changeHalf, changeSchedule, changeCourse } = admin;
+  const [tab, setTab] = useState(readTab);
+  const redZone = useAdminSystem({ active: tab === 'system' });
+  const open = (id) => { saveTab(id); setTab(id); };
   return (
     <div className="screen-body">
       <AppHeader title="Управление" {...header} />
-      {error && <StatusLine tone="error" className="form-status" role="alert">{error}</StatusLine>}
-      {!calendar && !error && <p className="empty">Загрузка…</p>}
-      {calendar && (
+      <div className="segmented admin-tabs" role="tablist" aria-label="Разделы управления">
+        {TABS.map(([id, title]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} data-tour={`admin-tab-${id}`}
+            className={`segment ${tab === id ? 'segment-active' : ''} ${id === 'system' ? 'segment-danger' : ''}`}
+            onClick={() => open(id)}>
+            {id === 'system' && <Icon name="warning" />}{title}
+          </button>
+        ))}
+      </div>
+      {tab === 'system' && <RedZone redZone={redZone} />}
+      {tab === 'study' && (
         <>
-          <HalfSection calendar={calendar} saving={saving} onChange={changeHalf} />
-          <ScheduleSection calendar={calendar} saving={saving} onChange={changeSchedule} />
-          <GroupsSection calendar={calendar} admin={admin} />
-          <AddGroupSection calendar={calendar} saving={saving} onSave={changeCourse} />
+          {error && <StatusLine tone="error" className="form-status" role="alert">{error}</StatusLine>}
+          {!calendar && !error && <p className="empty">Загрузка…</p>}
+          {calendar && (
+            <>
+              <HalfSection calendar={calendar} saving={saving} onChange={changeHalf} />
+              <ScheduleSection calendar={calendar} saving={saving} onChange={changeSchedule} />
+              <GroupsSection calendar={calendar} admin={admin} />
+              <AddGroupSection calendar={calendar} saving={saving} onSave={changeCourse} />
+            </>
+          )}
         </>
       )}
     </div>

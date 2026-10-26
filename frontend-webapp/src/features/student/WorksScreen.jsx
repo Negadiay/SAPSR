@@ -19,14 +19,14 @@ export default function WorksScreen({ works, me, header, onOpen, onUpload }) {
       <PrimaryAction text="Сдать работу" onClick={onUpload} />
 
       {loaded && groups.length === 0 && (
-        <div className="empty">
+        <div className="empty" data-tour="works-list">
           <Icon name="file" className="empty-icon" />
           <p>Работ пока нет.</p>
           <p className="hint">Сдайте первую — итог проверки придёт в чат через несколько минут.</p>
         </div>
       )}
 
-      <ul className="card-list">
+      <ul className="card-list" data-tour="works-list">
         {groups.map(({ key, latest, items }) => {
           const status = workStatus(latest);
           return (

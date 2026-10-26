@@ -48,6 +48,8 @@ const adminRoutes = {
 
 const start = (routes) => {
   stubTelegram();
+  // Обучение администратора при первом входе проверяет features/tour/Tour.test.jsx.
+  localStorage.setItem('sapsr_onboarded_admin', '1');
   const api = mockApi(routes);
   const user = userEvent.setup();
   render(<App />);
@@ -66,7 +68,8 @@ describe('администратор', () => {
     await ready();
     expect(screen.getByLabelText('Семестр')).toHaveValue('AUTO');
     expect(screen.getByRole('option', { name: 'По дате (осенний)' })).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['1 курс', '2 курс', '3 курс', '4 курс']);
+    expect(within(screen.getByRole('tablist', { name: 'Сроки курса' })).getAllByRole('tab').map((t) => t.textContent))
+      .toEqual(['1 курс', '2 курс', '3 курс', '4 курс']);
     expect(screen.getByText(/^Сейчас: 2-я опроцентовка, 29\.10/)).toBeInTheDocument();
 
     const groups = section('Группы');
@@ -76,8 +79,8 @@ describe('администратор', () => {
     expect(within(second).getByRole('img', { name: 'курс задан вручную' })).toBeInTheDocument();
     const unknown = within(groups).getByText('Курс не определён').closest('.admin-course');
     expect(within(unknown).getByRole('button', { name: '921701' })).toBeInTheDocument();
-    // Работ у администратора нет: в заголовке только справка и настройки.
-    expect(screen.getByTitle('Справка')).toBeInTheDocument();
+    // Работ у администратора нет: в заголовке только обучение и настройки.
+    expect(screen.getByTitle('Обучение')).toBeInTheDocument();
     expect(screen.queryByTitle('Заметки')).toBeNull();
   });
 
@@ -317,5 +320,84 @@ describe('администратор', () => {
     await openSettings(user);
     expect(screen.getByText('Администратор')).toBeInTheDocument();
     expect(screen.queryByText(/баз[еы] данных/)).toBeNull();
+  });
+});
+
+// «Красная зона» (решение 13): модель проверки выбирается из моделей обработчика, облачная — с подтверждением.
+const MODELS = [
+  { id: 'light', title: 'Лёгкая', tier: 'light', model: 'qwen3.5:2b', cloud: false, available: true },
+  { id: 'main', title: 'Основная', tier: 'main', model: 'qwen3.5:4b', cloud: false, available: true },
+  { id: 'heavy', title: 'Тяжёлая', tier: 'heavy', model: 'qwen3.5:9b', cloud: false, available: false,
+    reason: 'Модель qwen3.5:9b не загружена в Ollama или Ollama не запущена.' },
+  { id: 'cloud', title: 'Облачная', tier: 'cloud', model: 'yandexgpt', cloud: true, available: true },
+];
+
+const system = (selected = null) => ({
+  worker: { known: true, online: true, seconds_ago: 12, mode: 'hybrid', llm_mode: 'live', cloud_allowed: true },
+  models: MODELS, default_model: 'main', selected, active: selected || 'main',
+  changed_at: selected ? '2026-10-26T12:40:00' : null, changed_by: selected ? 'Халилов Р.' : null,
+});
+
+describe('администратор: красная зона', () => {
+  const openRedZone = async (user) => {
+    await ready();
+    await user.click(screen.getByRole('tab', { name: /Красная зона/ }));
+    return screen.findByText('Обработчик на связи');
+  };
+
+  it('видит обработчик и модели; недоступную не выбрать; выбор действует сразу', async () => {
+    const { api, user } = start({
+      ...adminRoutes,
+      'GET /admin/system': system(),
+      'PUT /admin/system/model': ({ body }) => system(body.model),
+    });
+    await openRedZone(user);
+    expect(screen.getByText(/Изменения действуют сразу/)).toBeInTheDocument();
+    expect(screen.getByText('разрешено на сервере')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Основная/ })).toHaveAttribute('aria-checked', 'true');
+    const heavy = screen.getByRole('radio', { name: /Тяжёлая/ });
+    expect(heavy).toBeDisabled();
+    expect(within(heavy).getByText(/не загружена в Ollama/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Лёгкая/ }));
+    await waitFor(() => expect(api.find('PUT', '/admin/system/model')).toHaveLength(1));
+    expect(api.find('PUT', '/admin/system/model')[0].body).toEqual({ model: 'light', confirm_cloud: false });
+    expect(await screen.findByText(/Изменено 26\.10, 12:40 · Халилов Р\./)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Лёгкая/ })).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Вернуть модель по умолчанию' }));
+    await waitFor(() => expect(api.find('PUT', '/admin/system/model')).toHaveLength(2));
+    expect(api.find('PUT', '/admin/system/model')[1].body).toEqual({ model: null, confirm_cloud: false });
+  });
+
+  it('облачная модель — только после предупреждения о сторонем сервисе', async () => {
+    const { api, user } = start({
+      ...adminRoutes,
+      'GET /admin/system': system(),
+      'PUT /admin/system/model': ({ body }) => system(body.model),
+    });
+    await openRedZone(user);
+
+    await user.click(screen.getByRole('radio', { name: /Облачная/ }));
+    expect(screen.getByText('Включить облачную модель?')).toBeInTheDocument();
+    expect(within(dialog()).getByText(/стороннему сервису \(yandexgpt\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(api.find('PUT', '/admin/system/model')).toHaveLength(0);
+
+    await user.click(screen.getByRole('radio', { name: /Облачная/ }));
+    await user.click(screen.getByRole('button', { name: 'Включить облако' }));
+    await waitFor(() => expect(api.find('PUT', '/admin/system/model')).toHaveLength(1));
+    expect(api.find('PUT', '/admin/system/model')[0].body).toEqual({ model: 'cloud', confirm_cloud: true });
+  });
+
+  it('пока обработчик молчит — сказано, почему моделей нет', async () => {
+    const { user } = start({
+      ...adminRoutes,
+      'GET /admin/system': { worker: { known: false }, models: [], default_model: null, selected: null, active: null },
+    });
+    await ready();
+    await user.click(screen.getByRole('tab', { name: /Красная зона/ }));
+    expect(await screen.findByText(/Обработчик ещё не сообщил о себе/)).toBeInTheDocument();
+    expect(screen.getByText(/Список моделей появится/)).toBeInTheDocument();
   });
 });

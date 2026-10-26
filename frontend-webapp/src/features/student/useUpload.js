@@ -4,7 +4,6 @@ import { readError } from '../../api/client';
 import { notifyHaptic, setClosingConfirmation } from '../../telegram/webApp';
 
 const LAST_TEACHER_KEY = 'sapsr_last_teacher_id';
-const LAST_PROFILE_KEY = 'sapsr_last_profile';
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 const readStorage = (key) => {
@@ -13,11 +12,6 @@ const readStorage = (key) => {
 
 const writeStorage = (key, value) => {
   try { localStorage.setItem(key, value); } catch { /* без памяти — не страшно */ }
-};
-
-// Вид работы запоминается; семестр и этап определяет сервер (решение 11).
-const savedWorkType = () => {
-  try { return JSON.parse(readStorage(LAST_PROFILE_KEY) || '{}').work_type || ''; } catch { return ''; }
 };
 
 // Проверка до отправки: сервер примет только PDF до 50 МБ.
@@ -37,14 +31,14 @@ const uploadError = async (res) => {
 };
 
 /**
- * Форма загрузки работы. preset — преподаватель и вид работы прошлой версии («Загрузить новую версию»).
+ * Форма загрузки работы. preset — преподаватель прошлой версии («Загрузить новую версию»).
  * Преподаватель выбирается сам, только если он один или его выбирали раньше: отправить не тому — хуже, чем выбрать.
+ * Вид работы не спрашиваем: сервер определяет его по семестру и титульному листу (решение 11).
  */
 export function useUpload({ active, preset, onUploaded }) {
   const [teachers, setTeachers]     = useState([]);
   const [teachersLoaded, setLoaded] = useState(false);
   const [teacherId, setTeacherId]   = useState(preset?.teacherId ? String(preset.teacherId) : '');
-  const [workType, setWorkTypeState] = useState(preset?.workType || savedWorkType);
   const [file, setFile]             = useState(null);
   const [uploading, setUploading]   = useState(false);
   const [error, setError]           = useState('');
@@ -76,15 +70,10 @@ export function useUpload({ active, preset, onUploaded }) {
     if (id) writeStorage(LAST_TEACHER_KEY, id);
   };
 
-  const setWorkType = (value) => {
-    setWorkTypeState(value);
-    writeStorage(LAST_PROFILE_KEY, JSON.stringify({ work_type: value }));
-  };
-
   const selectFile = (next) => { setFile(next || null); setError(''); };
 
   const problem = fileProblem(file);
-  const ready = Boolean(file && !problem && teacherId && workType);
+  const ready = Boolean(file && !problem && teacherId);
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -93,7 +82,7 @@ export function useUpload({ active, preset, onUploaded }) {
     setError('');
     setClosingConfirmation(true);
     try {
-      const res = await uploadSubmission(file, teacherId, { work_type: workType });
+      const res = await uploadSubmission(file, teacherId);
       if (res.ok) {
         const body = await res.json().catch(() => ({}));
         notifyHaptic('success');
@@ -112,7 +101,7 @@ export function useUpload({ active, preset, onUploaded }) {
   };
 
   return {
-    teachers, teachersLoaded, teacherId, workType, file, problem, ready, uploading, error,
-    selectTeacher, setWorkType, selectFile, submit,
+    teachers, teachersLoaded, teacherId, file, problem, ready, uploading, error,
+    selectTeacher, selectFile, submit,
   };
 }

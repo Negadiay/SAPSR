@@ -863,6 +863,19 @@
           "default": null,
           "description": "Совпадает ли фамилия с зарегистрированной; null — сравнить не с чем",
           "title": "Matches Registration"
+        },
+        "work_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Вид работы по титульному листу: course_work, course_project, diploma; null — не распознан",
+          "title": "Work Type"
         }
       },
       "title": "TitlePageInfo",

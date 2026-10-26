@@ -16,7 +16,8 @@ export default function AppHeader({ title, onBack, actions = [] }) {
       {actions.length > 0 && (
         <div className="header-actions">
           {actions.map(({ icon, label, onClick }) => (
-            <button key={icon} type="button" className="icon-btn" title={label} onClick={onClick}>
+            <button key={icon} type="button" className="icon-btn" title={label} onClick={onClick}
+              data-tour={`header-${icon}`}>
               <Icon name={icon} label={label} />
             </button>
           ))}

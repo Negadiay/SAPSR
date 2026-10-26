@@ -54,6 +54,16 @@ services:
       # Ollama на ноутбуке (решение 8); без неё проверяется только оформление.
       SAPSR_LLM_BASE_URL: ${SAPSR_LLM_BASE_URL:-http://host.docker.internal:11434}
       SAPSR_LLM_MODEL: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
+      # Каталог моделей (worker-python/llm-models.yaml, решение 13): какую из них применять, выбирает администратор.
+      SAPSR_LLM_LIGHT_MODEL: ${SAPSR_LLM_LIGHT_MODEL:-qwen3.5:2b}
+      SAPSR_LLM_HEAVY_MODEL: ${SAPSR_LLM_HEAVY_MODEL:-qwen3.5:9b}
+      # Облачная — только если всё это задано в .env; по умолчанию запрещена.
+      SAPSR_LLM_ALLOW_CLOUD: ${SAPSR_LLM_ALLOW_CLOUD:-0}
+      SAPSR_LLM_CLOUD_BASE_URL: ${SAPSR_LLM_CLOUD_BASE_URL:-}
+      SAPSR_LLM_CLOUD_MODEL: ${SAPSR_LLM_CLOUD_MODEL:-}
+      SAPSR_LLM_CLOUD_API_KEY: ${SAPSR_LLM_CLOUD_API_KEY:-}
+      SAPSR_LLM_CLOUD_HEADERS: ${SAPSR_LLM_CLOUD_HEADERS:-}
+      SAPSR_LLM_CLOUD_EXTRA_BODY: ${SAPSR_LLM_CLOUD_EXTRA_BODY:-}
       # live — настоящая модель; replay — записанные ответы модели из test-fixtures/llm-replay, без Ollama:
       # запасной показ, если модель на машине не поднимется (README, «Показ без модели»).
       SAPSR_LLM_MODE: ${SAPSR_LLM_MODE:-live}
@@ -85,6 +95,8 @@ services:
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-YOUR_GMAIL@gmail.com}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-YOUR_APP_PASSWORD}
       BOT_WEBAPP_URL: https://${NGROK_DOMAIN:?Укажи NGROK_DOMAIN в .env}
+      # «SAPSR снова работает» всем пользователям при запуске; SAPSR_STARTUP_NOTICE=false в .env — не рассылать.
+      SAPSR_BOT_STARTUPNOTICE: ${SAPSR_STARTUP_NOTICE:-true}
     ports:
       - "8080:8080"
     volumes:

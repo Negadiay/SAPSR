@@ -19,6 +19,9 @@ public class RabbitMQConfig {
     @Value("${sapsr.rabbitmq.progress-queue:pdf_progress_queue}")
     private String progressQueue;
 
+    @Value("${sapsr.rabbitmq.status-queue:worker_status_queue}")
+    private String statusQueue;
+
     @Bean
     public Queue pdfTasksQueue() {
         return new Queue(tasksQueue, true);
@@ -33,6 +36,12 @@ public class RabbitMQConfig {
     @Bean
     public Queue pdfProgressQueue() {
         return new Queue(progressQueue, true);
+    }
+
+    /** Состояние обработчика и его моделей для «Красной зоны» (queue-v2.md, раздел 10). */
+    @Bean
+    public Queue workerStatusQueue() {
+        return new Queue(statusQueue, true);
     }
 
     /**

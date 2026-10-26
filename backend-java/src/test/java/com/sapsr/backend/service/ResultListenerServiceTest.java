@@ -118,6 +118,38 @@ class ResultListenerServiceTest {
 
     @Test
     @Tag("typical")
+    void workTypeComesFromTitlePageAndDiplomaOnlyInEighthSemester() {
+        work.setSemester(7);
+        listener.handleResult(formatWithTitle("course_work"));
+        assertThat(work.getWorkType()).isEqualTo("course_work");
+
+        // Дипломная на титуле в 7 семестре — ошибка титула: вид работы прежний.
+        listener.handleResult(contentWithTitle("diploma"));
+        assertThat(work.getWorkType()).isEqualTo("course_work");
+    }
+
+    @Test
+    @Tag("boundary")
+    void eighthSemesterWorkStaysDiploma() {
+        work.setSemester(8);
+        work.setWorkType("diploma");
+        listener.handleResult(formatWithTitle("course_project"));
+        assertThat(work.getWorkType()).isEqualTo("diploma");
+    }
+
+    private static String formatWithTitle(String workType) {
+        return """
+                {"schema": 2, "task_id": 153, "phase": "format", "passed": true, "final": false,
+                 "report": {"schema": 2, "findings": [], "document": {"title_page": {"work_type": "%s"}}}}"""
+                .formatted(workType);
+    }
+
+    private static String contentWithTitle(String workType) {
+        return formatWithTitle(workType).replace("\"format\"", "\"content\"").replace("\"final\": false", "\"final\": true");
+    }
+
+    @Test
+    @Tag("typical")
     void newVersionMentionsFirstArrival() {
         work.setParentId(150);
         work.setFirstSubmittedAt(LocalDateTime.of(2026, 10, 20, 9, 15));

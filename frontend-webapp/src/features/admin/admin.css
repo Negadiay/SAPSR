@@ -107,3 +107,116 @@
   grid-template-columns: 1.4fr 1fr;
   gap: 0.5em;
 }
+
+/* --- КРАСНАЯ ЗОНА (решение 13) --- */
+.segment-danger { color: var(--error); }
+.segment-danger.segment-active { color: var(--error); }
+.segment-danger .icon { width: 1em; height: 1em; }
+
+.redzone-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  padding: 0.75em 0.9em;
+  border: var(--border) solid var(--error);
+  border-radius: var(--radius);
+  background: var(--error-tint);
+  color: var(--error);
+  font-weight: 600;
+}
+
+.redzone-banner .icon { flex-shrink: 0; margin-top: 0.15em; }
+
+.redzone-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25em 0.8em;
+  margin: 0.6em 0 0;
+  font-size: 0.93em;
+}
+
+.redzone-facts dt { color: var(--hint); }
+.redzone-facts dd { margin: 0; overflow-wrap: anywhere; }
+
+.admin-section-plain { display: flex; flex-direction: column; gap: 0.5em; }
+.admin-section-plain .settings-label { margin: 0.3em 0 0; }
+
+.redzone-models {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.redzone-model {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7em;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.redzone-model:disabled { cursor: default; opacity: 0.7; }
+.redzone-model-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.redzone-model-cloud.redzone-model-active { border-color: var(--error); box-shadow: inset 0 0 0 1px var(--error); }
+
+.redzone-model-icon { flex-shrink: 0; width: 1.5em; height: 1.5em; margin-top: 0.1em; color: var(--accent); }
+.redzone-model-cloud .redzone-model-icon { color: var(--error); }
+
+.redzone-model-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+.redzone-model-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em;
+  font-weight: 700;
+}
+
+.redzone-model-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.87em;
+  color: var(--hint);
+  overflow-wrap: anywhere;
+}
+
+.redzone-tag {
+  padding: 0 0.5em;
+  border-radius: 1em;
+  background: var(--field);
+  color: var(--hint);
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.redzone-model-check { flex-shrink: 0; width: 1.4em; height: 1.4em; color: var(--accent); }
+.redzone-model-cloud .redzone-model-check { color: var(--error); }
+
+.redzone-privacy-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-weight: 700;
+}
+
+.redzone-privacy ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  margin: 0.5em 0 0;
+  padding-left: 1.2em;
+  color: var(--hint);
+  font-size: 0.93em;
+}

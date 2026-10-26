@@ -2,17 +2,17 @@ import AppHeader from '../../components/AppHeader';
 import Icon from '../../components/Icon';
 import StatusLine from '../../components/StatusLine';
 import PrimaryAction from '../../components/PrimaryAction';
-import { WORK_TYPES } from '../../lib/workTypes';
 import { formatSize } from '../../lib/format';
 import TermInfo from './TermInfo';
 import { useUpload } from './useUpload';
 
-// Сдача работы: преподаватель, вид работы, файл. Курс и семестр сервер определяет сам — здесь они только видны.
+// Сдача работы: преподаватель и файл. Курс и семестр сервер определяет сам — здесь они только видны;
+// вид работы — по семестру и титульному листу, поэтому его не спрашиваем.
 export default function UploadScreen({ me, preset, header, onUploaded }) {
   const upload = useUpload({ active: true, preset, onUploaded });
   const {
-    teachers, teachersLoaded, teacherId, workType, file, problem, ready, uploading, error,
-    selectTeacher, setWorkType, selectFile, submit,
+    teachers, teachersLoaded, teacherId, file, problem, ready, uploading, error,
+    selectTeacher, selectFile, submit,
   } = upload;
   const noTeachers = teachersLoaded && teachers.length === 0;
 
@@ -20,8 +20,17 @@ export default function UploadScreen({ me, preset, header, onUploaded }) {
     <form className="screen-body" onSubmit={submit}>
       <AppHeader title={preset ? 'Новая версия' : 'Сдать работу'} {...header} />
       <TermInfo me={me} />
+      {me?.cloud_check && (
+        <p className="cloud-note">
+          <Icon name="cloud" />
+          <span>
+            Сейчас работы проверяет облачная модель. Титульный лист ей не отправляется, а ФИО, почта, телефоны
+            и номера групп в тексте заменяются метками.
+          </span>
+        </p>
+      )}
 
-      <div className="field">
+      <div className="field" data-tour="upload-teacher">
         <label className="field-label" htmlFor="teacher-select">Преподаватель</label>
         {noTeachers ? (
           <p className="field-error">
@@ -30,21 +39,14 @@ export default function UploadScreen({ me, preset, header, onUploaded }) {
         ) : (
           <select id="teacher-select" className="input" value={teacherId} disabled={!teachersLoaded}
             onChange={(e) => selectTeacher(e.target.value)}>
-            <option value="">{teachersLoaded ? 'Выберите преподавателя' : 'Загрузка…'}</option>
+            {/* Подсказка — только пока преподаватель не выбран: вернуться к «никому» нельзя */}
+            {!teacherId && <option value="" disabled>{teachersLoaded ? 'Выберите преподавателя' : 'Загрузка…'}</option>}
             {teachers.map((t) => <option key={t.telegram_id} value={t.telegram_id}>{t.full_name}</option>)}
           </select>
         )}
       </div>
 
-      <div className="field">
-        <label className="field-label" htmlFor="work-type-select">Вид работы</label>
-        <select id="work-type-select" className="input" value={workType} onChange={(e) => setWorkType(e.target.value)}>
-          <option value="">Выберите вид работы</option>
-          {WORK_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </div>
-
-      <div className="field">
+      <div className="field" data-tour="upload-file">
         <span className="field-label">Файл</span>
         <label htmlFor="file-upload" className={`file-drop ${file ? 'file-drop-chosen' : ''}`}>
           <Icon name={file ? 'file' : 'upload'} className="file-drop-icon" />

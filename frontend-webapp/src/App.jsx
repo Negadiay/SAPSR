@@ -22,8 +22,8 @@ import AdminScreen from './features/admin/AdminScreen';
 import { useSettings } from './features/settings/useSettings';
 import { themeVariables } from './features/settings/customTheme';
 import SettingsScreen from './features/settings/SettingsScreen';
-import { useHelp } from './features/help/useHelp';
-import HelpSheet from './features/help/HelpSheet';
+import { useTour } from './features/tour/useTour';
+import TourOverlay from './features/tour/TourOverlay';
 import { paintChrome } from './telegram/webApp';
 import { setMainButtonColors } from './telegram/useTelegramButtons';
 
@@ -35,8 +35,9 @@ function App() {
   const main = step === 'main';
 
   const nav = useNavigator({ role: userRole, active: main });
-  const help = useHelp({ role: userRole });
-  const registration = useRegistration({ session, onRegistered: help.maybeOpen });
+  // Обучение: после регистрации — само; администратора — при первом входе (его не регистрируют).
+  const tour = useTour({ role: userRole, nav, ready: main && Boolean(nav.current), autoStart: userRole === 'admin' });
+  const registration = useRegistration({ session, onRegistered: tour.maybeStart });
   const student = useStudentWorkspace({ active: main && userRole === 'student' });
   const teacher = useTeacherWorkspace({
     active: main && userRole === 'teacher',
@@ -65,14 +66,14 @@ function App() {
     settings.contrast && !settings.custom.enabled ? 'app-contrast' : '',
   ].filter(Boolean).join(' ');
 
-  // Заголовок экрана: «Назад» своей стрелкой, только если нет родной кнопки Telegram; справа — справка и настройки.
+  // Заголовок экрана: «Назад» своей стрелкой, только если нет родной кнопки Telegram; справа — обучение и настройки.
   const header = (actions = []) => ({
     onBack: nav.canGoBack && !nav.nativeBack ? nav.back : undefined,
     actions,
   });
   const rootActions = [
     ...(userRole === 'teacher' ? [{ icon: 'notes', label: 'Заметки', onClick: () => nav.push('notes') }] : []),
-    { icon: 'help', label: 'Справка', onClick: help.show },
+    { icon: 'help', label: 'Обучение', onClick: tour.start },
     { icon: 'settings', label: 'Настройки', onClick: () => nav.push('settings') },
   ];
 
@@ -121,7 +122,7 @@ function App() {
         {step === 'confirm_code' && <ConfirmCodeScreen registration={registration} />}
         {main && renderMain()}
       </main>
-      {help.open && main && <HelpSheet role={userRole} onClose={help.close} />}
+      {tour.active && main && <TourOverlay tour={tour} />}
     </div>
   );
 }

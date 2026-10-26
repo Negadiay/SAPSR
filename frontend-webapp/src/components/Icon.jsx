@@ -48,6 +48,12 @@ const PATHS = {
   back: (<><path d="m15 18-6-6 6-6" /></>),
   plus: (<><path d="M5 12h14" /><path d="M12 5v14" /></>),
   close: (<><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>),
+  // красная зона: модели и защита данных
+  chip: (<><rect width="16" height="16" x="4" y="4" rx="2" /><rect width="6" height="6" x="9" y="9" rx="1" />
+    <path d="M15 2v2" /><path d="M15 20v2" /><path d="M2 15h2" /><path d="M2 9h2" /><path d="M20 15h2" />
+    <path d="M20 9h2" /><path d="M9 2v2" /><path d="M9 20v2" /></>),
+  cloud: (<><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></>),
+  lock: (<><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>),
   // нейтральное состояние: шаг ещё не начат или не нужен
   muted: (<><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /></>),
 };

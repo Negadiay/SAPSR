@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * При запуске: кнопка «Открыть» у поля ввода с текущим адресом мини-приложения. Сообщение «SAPSR снова
- * работает» всем пользователям — только если включено {@code sapsr.bot.startup-notice=true}: при каждом
- * перезапуске оно лишнее, а в тестах и при отладке уходило бы настоящим людям.
+ * При запуске: кнопка «Открыть» у поля ввода с текущим адресом мини-приложения и сообщение «SAPSR снова
+ * работает» всем пользователям — тестеры узнают, что можно продолжать (решение 12, правка 26.10.2026).
+ * Выключается {@code sapsr.bot.startup-notice=false}: так делают изолированные прогоны и отладка.
  */
 @Service
 public class StartupNotificationService {
@@ -30,7 +30,7 @@ public class StartupNotificationService {
     private final boolean notifyUsers;
 
     public StartupNotificationService(UserRepository userRepository, SapsrTelegramBot bot,
-                                      @Value("${sapsr.bot.startup-notice:false}") boolean notifyUsers) {
+                                      @Value("${sapsr.bot.startup-notice:true}") boolean notifyUsers) {
         this.userRepository = userRepository;
         this.bot = bot;
         this.notifyUsers = notifyUsers;

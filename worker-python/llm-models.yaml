@@ -1,0 +1,49 @@
+# Каталог языковых моделей обработчика (решение 13).
+#
+# Какая модель проверяет работы, выбирает администратор в приложении — «Управление» → «Красная зона»,
+# без перезапуска. А какие модели есть и куда они обращаются — только здесь и в .env: из приложения
+# адрес модели не задать, поэтому даже администратор не направит тексты работ на чужой сервер.
+#
+# ${ИМЯ:-значение} — переменная окружения (в Docker — из .env) или значение по умолчанию.
+# Ключи доступа сюда не пишутся: только имя переменной, в которой лежит ключ (api_key_env).
+# Ollama-моделям адрес не нужен — берётся SAPSR_LLM_BASE_URL. Скачать модель: ollama pull <имя>.
+
+default: main
+
+models:
+  - id: light
+    title: Лёгкая
+    tier: light
+    model: ${SAPSR_LLM_LIGHT_MODEL:-qwen3.5:2b}
+    note: быстрее основной, но пропускает больше утверждений
+
+  - id: main
+    title: Основная
+    tier: main
+    provider: ${SAPSR_LLM_PROVIDER:-ollama}
+    model: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
+    api_key_env: SAPSR_LLM_API_KEY
+    note: выбрана по бенчмарку (решение 1)
+
+  - id: heavy
+    title: Тяжёлая
+    tier: heavy
+    model: ${SAPSR_LLM_HEAVY_MODEL:-qwen3.5:9b}
+    # Не помещается в 4 ГБ видеопамяти ThinkPad и наполовину считается процессором — ответ дольше.
+    timeout_s: 240
+    note: точнее, но почти вдвое медленнее основной — итог содержания может прийти после 5-минутного тайм-аута
+
+  # Облачная — только если на машине разрешено SAPSR_LLM_ALLOW_CLOUD=1, адрес — HTTPS и есть ключ.
+  # Любой сервис с OpenAI-совместимым API; примеры настроек — в .env.example.
+  - id: cloud
+    title: Облачная
+    tier: cloud
+    provider: openai
+    base_url: ${SAPSR_LLM_CLOUD_BASE_URL:-}
+    model: ${SAPSR_LLM_CLOUD_MODEL:-}
+    api_key_env: SAPSR_LLM_CLOUD_API_KEY
+    # JSON: заголовки и поля запроса, которых требует сервис (каталог Yandex Cloud, запрет хранить запросы).
+    headers: ${SAPSR_LLM_CLOUD_HEADERS:-}
+    extra_body: ${SAPSR_LLM_CLOUD_EXTRA_BODY:-}
+    timeout_s: 60
+    note: вычисления не на этом компьютере; персональные данные из текста убираются до отправки

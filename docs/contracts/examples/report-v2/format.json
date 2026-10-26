@@ -77,7 +77,8 @@
     "main_size": 14.0,
     "title_page": {
       "student_name": "И.И. Иванов",
-      "matches_registration": true
+      "matches_registration": true,
+      "work_type": "course_project"
     }
   },
   "pipeline": {

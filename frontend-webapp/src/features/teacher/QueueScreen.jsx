@@ -41,7 +41,7 @@ export default function QueueScreen({ teacher, header, onOpen }) {
     <div className="screen-body">
       <AppHeader title="Работы" {...header} />
 
-      <div className="segmented" role="tablist" aria-label="Работы">
+      <div className="segmented" role="tablist" aria-label="Работы" data-tour="queue-tabs">
         {[['pending', 'На проверке', submissions.pending.length], ['history', 'Проверено', null]].map(([id, label, n]) => (
           <button key={id} type="button" role="tab" aria-selected={segment === id}
             className={`segment ${segment === id ? 'segment-active' : ''}`} onClick={() => setSegment(id)}>
@@ -50,7 +50,7 @@ export default function QueueScreen({ teacher, header, onOpen }) {
         ))}
       </div>
 
-      <input className="input" type="search" placeholder="Фамилия или группа" aria-label="Поиск"
+      <input className="input" type="search" placeholder="Фамилия или группа" aria-label="Поиск" data-tour="queue-search"
         value={search} onChange={(e) => setSearch(e.target.value)} />
 
       {groups.length > 1 && (
@@ -65,7 +65,7 @@ export default function QueueScreen({ teacher, header, onOpen }) {
       )}
 
       {submissions.loaded && list.length === 0 && (
-        <div className="empty">
+        <div className="empty" data-tour="queue-list">
           <Icon name={segment === 'pending' ? 'queue' : 'history'} className="empty-icon" />
           <p>{segment === 'pending' ? 'Новых работ нет.' : 'Проверенных работ нет.'}</p>
           {segment === 'pending' && <p className="hint">О новой работе сообщим в чат.</p>}
@@ -73,7 +73,7 @@ export default function QueueScreen({ teacher, header, onOpen }) {
       )}
       {list.length > 0 && filtered.length === 0 && <p className="empty">Ничего не найдено.</p>}
 
-      <ul className="card-list">
+      <ul className="card-list" data-tour="queue-list">
         {filtered.map((s) => <li key={s.id}><WorkCard s={s} onOpen={onOpen} /></li>)}
       </ul>
     </div>

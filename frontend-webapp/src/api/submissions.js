@@ -5,12 +5,11 @@ export const fetchTeachers = () => apiFetch('/teachers');
 
 export const fetchSubmissions = () => fetchList('/submissions');
 
-// profile — вид работы (api-v1.md, раздел 7); семестр и этап сервер определяет сам. Пустое поле не передаётся.
-export const uploadSubmission = (file, teacherId, profile = {}) => {
+// Только файл и преподаватель (api-v1.md, раздел 7): вид работы, семестр и этап сервер определяет сам.
+export const uploadSubmission = (file, teacherId) => {
   const formData = new FormData();
   formData.append('file', file);
   if (teacherId) formData.append('teacher_id', teacherId);
-  if (profile.work_type) formData.append('work_type', profile.work_type);
   return apiFetch('/upload', { method: 'POST', body: formData });
 };
 

@@ -36,8 +36,8 @@ sapsr.cors.allowed-origins=
 
 # Telegram Bot
 telegram.bot.token=ВАШ_ТОКЕН
-# Сообщение «SAPSR снова работает» всем пользователям при каждом запуске — по умолчанию выключено.
-sapsr.bot.startup-notice=false
+# Сообщение «SAPSR снова работает» всем пользователям при каждом запуске; false — не рассылать (отладка).
+sapsr.bot.startup-notice=true
 bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 
 # RabbitMQ
@@ -48,6 +48,7 @@ spring.rabbitmq.password=ПАРОЛЬ_ИЗ_ENV
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
 sapsr.rabbitmq.progress-queue=pdf_progress_queue
+sapsr.rabbitmq.status-queue=worker_status_queue
 
 # Email (Gmail SMTP для верификации преподавателей)
 # Используй App Password: Google Account -> Security -> 2FA -> App passwords

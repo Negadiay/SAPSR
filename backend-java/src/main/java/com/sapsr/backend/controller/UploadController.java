@@ -2,8 +2,10 @@ package com.sapsr.backend.controller;
 
 import com.sapsr.backend.SapsrTelegramBot;
 import com.sapsr.backend.academic.AcademicCalendar;
+import com.sapsr.backend.academic.WorkTypes;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.llm.LlmModels;
 import com.sapsr.backend.messaging.TaskMessage;
 import com.sapsr.backend.pipeline.PipelineState;
 import com.sapsr.backend.report.CheckReportPdf;
@@ -33,7 +35,6 @@ public class UploadController {
 
     static final String NOT_IN_TELEGRAM = "Откройте приложение из Telegram.";
 
-    private static final Pattern WORK_TYPE_PATTERN = Pattern.compile("[a-z_]{1,32}");
     /** Студент старой формы: «Иванов И.И. (гр. 321702)». */
     private static final Pattern STUDENT_NAME = Pattern.compile("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ]\\.[А-ЯЁ]\\. \\(гр\\. (\\d{6})\\)$");
 
@@ -46,6 +47,7 @@ public class UploadController {
     private final FileStorage fileStorage;
     private final ReviewFileService reviewFiles;
     private final AcademicCalendar calendar;
+    private final LlmModels llmModels;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
@@ -58,7 +60,8 @@ public class UploadController {
                             SapsrTelegramBot bot,
                             FileStorage fileStorage,
                             ReviewFileService reviewFiles,
-                            AcademicCalendar calendar) {
+                            AcademicCalendar calendar,
+                            LlmModels llmModels) {
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
@@ -68,6 +71,7 @@ public class UploadController {
         this.fileStorage = fileStorage;
         this.reviewFiles = reviewFiles;
         this.calendar = calendar;
+        this.llmModels = llmModels;
     }
 
     @GetMapping("/me")
@@ -97,6 +101,8 @@ public class UploadController {
                 // Срок сдачи работы — у каждого курса свой (у 3 курса весной год короче из-за практики).
                 me.put("deadline", term.deadline() == null ? null : term.deadline().toString());
                 me.put("course_overridden", term.courseOverridden());
+                // Проверяет облачная модель (её выбрал администратор) — студенту говорится об этом при сдаче.
+                me.put("cloud_check", llmModels.cloudActive());
             }
             return ResponseEntity.ok(me);
         }
@@ -346,20 +352,15 @@ public class UploadController {
     }
 
     /**
-     * Загрузка работы. Вид работы выбирает студент; семестр и этап опроцентовки определяет сервер по группе
-     * студента и учебному календарю (решение 11) — поля semester и stage от клиента не принимаются.
+     * Загрузка работы. Семестр и этап опроцентовки определяет сервер по группе студента и учебному календарю,
+     * вид работы — по семестру и титульному листу (решение 11); от клиента нужны только файл и преподаватель.
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
                                         @RequestParam(value = "teacher_id", required = false) Long teacherId,
-                                        @RequestParam(value = "work_type", required = false) String workType,
                                         HttpServletRequest request) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой."));
-        }
-        // Вид работы необязателен: без профиля обработчик применяет базовый.
-        if (workType != null && !WORK_TYPE_PATTERN.matcher(workType).matches()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Неизвестный вид работы."));
         }
 
         // На диск файл попадает под сгенерированным ключом; имя от пользователя — только в базу.
@@ -375,7 +376,6 @@ public class UploadController {
         submission.setStorageKey(stored.key());
         submission.setFileSha256(stored.sha256());
         submission.setOriginalFileName(Submission.cleanFileName(file.getOriginalFilename()));
-        submission.setWorkType(workType);
         submission.setTraceId(UUID.randomUUID());
         // В очереди, пока обработчик не начал: первое сообщение о ходе проверки переведёт в PROCESSING.
         submission.setStatus(PipelineState.QUEUED);
@@ -389,6 +389,8 @@ public class UploadController {
                 submission.getStudent() != null ? submission.getStudent().getGroupNumber() : null);
         submission.setSemester(term.semester());
         submission.setStage(term.stage());
+        // Курсовая работа или проект станет известна из титульного листа (PipelineState); дипломная — сразу.
+        submission.setWorkType(WorkTypes.atUpload(term.semester()));
 
         if (teacherId != null) {
             Optional<User> teacher = userRepository.findById(teacherId);
@@ -398,7 +400,8 @@ public class UploadController {
 
         Submission savedSubmission = submissionRepository.save(submission);
 
-        TaskMessage task = TaskMessage.check(savedSubmission, fileStorage.resolve(savedSubmission.getStorageKey()));
+        TaskMessage task = TaskMessage.check(savedSubmission, fileStorage.resolve(savedSubmission.getStorageKey()),
+                llmModels.forTask());
         rabbitTemplate.convertAndSend(tasksQueue, task);
         // ФИО студента в лог не пишем — только идентификаторы.
         System.out.println("Отправлено задание обработчику: task_id=" + task.taskId()

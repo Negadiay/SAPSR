@@ -3,7 +3,7 @@ import { getLaunchScreen } from '../telegram/webApp';
 import { useBackButton, useSettingsButton } from '../telegram/useTelegramButtons';
 
 // Главный экран роли. Остальные экраны открываются поверх него и закрываются кнопкой «Назад».
-const ROOTS = { student: 'works', teacher: 'queue', admin: 'admin' };
+export const ROOTS = { student: 'works', teacher: 'queue', admin: 'admin' };
 
 // Экраны, которые можно открыть ссылкой из бота (?open=…): у каждой роли свои.
 const LAUNCH = {

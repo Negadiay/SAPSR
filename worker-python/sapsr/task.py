@@ -31,6 +31,11 @@ class CheckProfile(_Lenient):
     stage: Optional[int] = None
 
 
+class LlmChoice(_Lenient):
+    # id модели из каталога обработчика (llm-models.yaml), которую выбрал администратор; адреса здесь нет.
+    model: Optional[str] = None
+
+
 class StudentInfo(_Lenient):
     # Персональные данные: в логи не пишутся.
     last_name: Optional[str] = None
@@ -45,6 +50,7 @@ class Task(_Lenient):
     file: FileRef = FileRef()
     profile: CheckProfile = CheckProfile()
     student: StudentInfo = StudentInfo()
+    llm: LlmChoice = LlmChoice()
     previous: Optional[dict] = None
     trace_id: Optional[str] = None
     # Переходное поле: абсолютный путь. Используется, только если нет storage_key.
@@ -52,7 +58,7 @@ class Task(_Lenient):
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    @field_validator("file", "profile", "student", mode="before")
+    @field_validator("file", "profile", "student", "llm", mode="before")
     @classmethod
     def _null_is_empty(cls, value):
         # Пустые объекты профиля и студента в v2 приходят как null.

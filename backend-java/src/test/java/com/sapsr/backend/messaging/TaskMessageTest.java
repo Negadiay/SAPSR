@@ -30,7 +30,7 @@ class TaskMessageTest {
 
     @Test
     void hasExactlyTheFieldsOfContractExample() throws IOException {
-        JsonNode actual = send(TaskMessage.check(submission(student("Иванов", "Иван", "321702")), storagePath()));
+        JsonNode actual = send(TaskMessage.check(submission(student("Иванов", "Иван", "321702")), storagePath(), "main"));
         JsonNode example = json.readTree(CONTRACT_EXAMPLE.toFile());
 
         assertThat(fieldPaths(actual)).isEqualTo(fieldPaths(example));
@@ -54,6 +54,17 @@ class TaskMessageTest {
         assertThat(task.at("/student/group").asText()).isEqualTo("321702");
         assertThat(task.get("previous").isNull()).isTrue();
         assertThat(task.get("trace_id").asText()).isEqualTo(TRACE_ID.toString());
+        // Модель не выбрана администратором — обработчик берёт свою по умолчанию.
+        assertThat(task.get("llm").isNull()).isTrue();
+    }
+
+    @Test
+    void carriesOnlyModelIdChosenByAdmin() throws IOException {
+        JsonNode task = send(TaskMessage.check(submission(null), storagePath(), "heavy"));
+
+        assertThat(task.at("/llm/model").asText()).isEqualTo("heavy");
+        assertThat(fieldPaths(task.get("llm"))).as("ни адреса, ни ключа — только id из каталога обработчика")
+                .containsExactly("model");
     }
 
     @Test

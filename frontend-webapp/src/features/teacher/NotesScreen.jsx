@@ -32,7 +32,7 @@ export default function NotesScreen({ notes: notesState, header, onFind }) {
         <NoteEditor value={noteInput} onChange={setNoteInput} onSave={saveNew} onCancel={cancelEdit}
           placeholder="Например: Терешкова 321702 — проверить раздел 3" />
       ) : (
-        <button type="button" className="btn btn-secondary btn-block" onClick={startNew}>
+        <button type="button" className="btn btn-secondary btn-block" onClick={startNew} data-tour="notes-add">
           <Icon name="plus" /><span>Новая заметка</span>
         </button>
       )}

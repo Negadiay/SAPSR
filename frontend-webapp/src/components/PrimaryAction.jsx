@@ -9,7 +9,7 @@ export default function PrimaryAction({ text, onClick, disabled = false, progres
   const native = useMainButton({ text, onClick, disabled, progress });
   if (native) return null;
   return (
-    <button type={submit ? 'submit' : 'button'} className="btn btn-primary btn-block"
+    <button type={submit ? 'submit' : 'button'} className="btn btn-primary btn-block" data-tour="primary"
       disabled={disabled || progress} onClick={submit ? undefined : onClick}>
       {progress ? <><Icon name="loading" /><span>{progressText || text}</span></> : text}
     </button>

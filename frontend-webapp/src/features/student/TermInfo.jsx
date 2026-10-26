@@ -8,13 +8,13 @@ export default function TermInfo({ me }) {
   if (!me || me.role !== 'STUDENT') return null;
   if (!me.semester) {
     return (
-      <p className="term-info term-info-warning">
+      <p className="term-info term-info-warning" data-tour="term">
         Семестр группы {me.group || '—'} не определён: требования семестра не проверятся. Сообщите администратору.
       </p>
     );
   }
   return (
-    <p className="term-info">
+    <p className="term-info" data-tour="term">
       <span>{me.course} курс · {me.semester} семестр</span>
       <span>
         {me.stage ? `к ${STAGE_DATIVE[me.stage]} опроцентовке` : 'итоговая сдача'}
