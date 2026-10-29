@@ -20,7 +20,10 @@ const remarks = (n) => count(n, 'замечание', 'замечания', 'з�
 const formatChecked = (s) => s.status === 'SUCCESS' || s.status === 'REJECTED'
   || (s.status === 'PROCESSING' && s.content_status === 'PENDING');
 
-export const isInProgress = (s) => s.status === 'QUEUED' || s.status === 'PROCESSING' || s.content_status === 'PENDING';
+// LATE — содержание проверяется дольше 5 минут: работа уже у преподавателя, итог придёт следом (queue-v2.md, раздел 6).
+const contentRunning = (s) => s.content_status === 'PENDING' || s.content_status === 'LATE';
+
+export const isInProgress = (s) => s.status === 'QUEUED' || s.status === 'PROCESSING' || contentRunning(s);
 
 /** Состояние работы студента одной строкой — для списка. */
 export function workStatus(s) {
@@ -55,6 +58,7 @@ export function contentStep(s) {
   if (s.status === 'FAILED' || s.content_status === 'NONE') return { tone: 'muted', text: 'Не проверялось' };
   if (!formatChecked(s)) return { tone: 'muted', text: 'После оформления' };
   if (s.content_status === 'PENDING') return { tone: 'pending', text: 'Проверяется' };
+  if (s.content_status === 'LATE') return { tone: 'pending', text: 'Проверяется дольше обычного' };
   if (s.content_status === 'TIMEOUT') return { tone: 'warning', text: 'Не проверено: не хватило времени' };
   if (s.content_status === 'FAILED') return { tone: 'warning', text: 'Не проверено: сбой проверки' };
   const { content, needsReview } = summarizeFindings(s.format_errors);
@@ -80,6 +84,9 @@ export function autoCheckForTeacher(s) {
     : { tone: 'ok', text: 'Оформление без ошибок' };
   let contentLine;
   if (s.content_status === 'PENDING') contentLine = { tone: 'pending', text: 'Содержание проверяется' };
+  else if (s.content_status === 'LATE') {
+    contentLine = { tone: 'pending', text: 'Содержание ещё проверяется — итог придёт отдельным сообщением' };
+  }
   else if (s.content_status === 'TIMEOUT') contentLine = { tone: 'warning', text: 'Содержание не проверено: не хватило времени' };
   else if (s.content_status === 'FAILED') contentLine = { tone: 'warning', text: 'Содержание не проверено: сбой' };
   else if (content.length) {

@@ -17,7 +17,18 @@
   outline-offset: 2px;
   pointer-events: none;
   transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
-  animation: tour-pulse 1.8s ease-in-out infinite;
+}
+
+/* Пульсация — мягкое свечение вокруг рамки, а не расширение самой рамки: меняется только прозрачность
+   (плавно на любом телефоне, без рывков по пикселям), свет выходит за рамку всего на пару пикселей. */
+.tour-spot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 0 6px 1px var(--accent);
+  opacity: 0;
+  animation: tour-glow 2.6s ease-in-out infinite;
 }
 
 .tour-card {
@@ -76,13 +87,13 @@
 
 @keyframes tour-fade { from { opacity: 0; } }
 @keyframes tour-card-in { from { opacity: 0; transform: translateY(0.4em); } }
-@keyframes tour-pulse { 50% { outline-offset: 5px; } }
+@keyframes tour-glow { 50% { opacity: 0.55; } }
 @keyframes tour-bounce { 50% { transform: translateY(0.3em); } }
 
 /* Центрированная карточка сдвинута transform — у неё своё появление, без сдвига. */
 .tour-card[style*="translateY(-50%)"] { animation-name: tour-fade; }
 
 @media (prefers-reduced-motion: reduce) {
-  .tour-dim, .tour-card, .tour-spot, .tour-arrow { animation: none; }
+  .tour-dim, .tour-card, .tour-spot::after, .tour-arrow { animation: none; }
   .tour-spot { transition: none; }
 }

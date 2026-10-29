@@ -44,7 +44,7 @@ class BotMessagesTest {
     @Tag("typical")
     void teacherSeesStudentGroupVersionAndWhatNeedsDecision() {
         String text = BotMessages.resultForTeacher("Терешкова А.В.", "321702", "Курсовая.pdf", false, true,
-                LocalDateTime.of(2026, 10, 20, 9, 15), FINDINGS, null);
+                LocalDateTime.of(2026, 10, 20, 9, 15), FINDINGS, null, false);
 
         assertThat(text).startsWith("📥 <b>Новая версия работы</b>\nТерешкова А.В. · 321702\nКурсовая.pdf")
                 .contains("Первая версия — 20.10.2026, 09:15")
@@ -150,10 +150,30 @@ class BotMessagesTest {
     @Tag("boundary")
     void teacherAndStudentSeeWhyContentIsMissing() {
         assertThat(BotMessages.resultForTeacher("Терешкова А.В.", null, "КР7.pdf", true, false, null, FINDINGS,
-                "не хватило времени"))
+                "не хватило времени", false))
                 .contains("Содержание: не проверено (не хватило времени)").doesNotContain("на ваше решение");
         assertThat(BotMessages.resultForStudent("КР7.pdf", true, "[]", true, "не хватило времени"))
                 .contains("Содержание: не проверено (не хватило времени).");
+    }
+
+    @Test
+    @Tag("typical")
+    void lateContentIsAwaitedNotMissing() {
+        // Содержание не уложилось в 5 минут, но ещё проверяется: работа уходит с обещанием итога, а не с «не проверено».
+        assertThat(BotMessages.resultForTeacher("Терешкова А.В.", "321702", "КР7.pdf", true, false, null, FINDINGS,
+                null, true))
+                .contains("Содержание ещё проверяется — итог пришлю следом.").doesNotContain("не проверено");
+        assertThat(BotMessages.checkingForStudent("КР7.pdf", true, "[]", true))
+                .contains("итог появится в этом сообщении").endsWith("Работа уже у преподавателя.");
+
+        assertThat(BotMessages.contentForTeacher("Терешкова А.В.", "321702", "КР7.pdf", FINDINGS, null))
+                .startsWith("🔎 <b>Содержание проверено</b>\nТерешкова А.В. · 321702\nКР7.pdf")
+                .endsWith("Содержание: 1 замечание, 1 — на ваше решение");
+        assertThat(BotMessages.contentForTeacher("Терешкова А.В.", null, "КР7.pdf", "[]", null))
+                .endsWith("Содержание: без замечаний.");
+        assertThat(BotMessages.contentForTeacher("Терешкова А.В.", null, "КР7.pdf", FINDINGS, "сбой проверки"))
+                .startsWith("⚠️ <b>Содержание проверить не удалось</b>")
+                .endsWith("Причина: сбой проверки. В отчёте — только оформление.");
     }
 
     @Test

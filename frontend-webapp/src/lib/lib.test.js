@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { matchesSearch } from './fuzzySearch';
 import { count, formatCountdown, formatDate, formatDay } from './format';
 import { chainOf, groupVersions } from './submissions';
-import { contentStep, formatStep, teacherStep, workStatus } from './status';
+import { autoCheckForTeacher, contentStep, formatStep, isInProgress, teacherStep, workStatus } from './status';
 import { splitFindings, summarizeFindings } from './findings';
 
 describe('matchesSearch', () => {
@@ -136,6 +136,15 @@ describe('состояние работы', () => {
 
   it('содержание не проверено — объясняет почему', () => {
     expect(contentStep({ status: 'SUCCESS', content_status: 'TIMEOUT' }).text).toBe('Не проверено: не хватило времени');
+  });
+
+  it('долгое содержание — ещё идёт, а не «не успело»', () => {
+    const late = { status: 'SUCCESS', content_status: 'LATE', format_errors: '[]' };
+    expect(contentStep(late)).toEqual({ tone: 'pending', text: 'Проверяется дольше обычного' });
+    expect(autoCheckForTeacher(late).content).toEqual(
+      { tone: 'pending', text: 'Содержание ещё проверяется — итог придёт отдельным сообщением' });
+    expect(isInProgress(late)).toBe(true);
+    expect(isInProgress({ status: 'SUCCESS', content_status: 'DONE' })).toBe(false);
   });
 
   it('замечания делятся на оформление (сначала ошибки) и содержание', () => {

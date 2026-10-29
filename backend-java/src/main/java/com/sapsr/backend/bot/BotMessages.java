@@ -29,6 +29,8 @@ public final class BotMessages {
     /** Запас до предела Telegram в 4096 символов. */
     private static final int MESSAGE_BUDGET = 3800;
     private static final String CONTENT_PENDING = "Содержание проверяется — итог появится в этом сообщении.";
+    /** Дописывается к сообщению, если к нему приложен файл с комментариями автопроверки. */
+    public static final String COMMENTS_IN_FILE = "\n\nЗамечания — комментариями в приложенном файле.";
 
     private BotMessages() {}
 
@@ -58,7 +60,7 @@ public final class BotMessages {
             case "TEACHER" -> """
                     <b>Как проверять</b>
                     1. Нажмите «Работы на проверку».
-                    2. Откройте работу: итог автоматической проверки, замечания, файл.
+                    2. Откройте работу: итог автоматической проверки, замечания, файл и он же с комментариями.
                     3. Примите её или верните на доработку с файлом с пометками.""";
             case "ADMIN" -> """
                     <b>Администратору</b>
@@ -114,6 +116,11 @@ public final class BotMessages {
 
     /** Оформление проверено, содержание ещё проверяется. Это сообщение бот потом заменит итогом. */
     public static String checkingForStudent(String fileName, boolean passed, String errorsJson) {
+        return checkingForStudent(fileName, passed, errorsJson, false);
+    }
+
+    /** {@code atTeacher} — содержание проверяется долго, и работа уже ушла преподавателю, не дожидаясь его. */
+    public static String checkingForStudent(String fileName, boolean passed, String errorsJson, boolean atTeacher) {
         Findings f = findings(errorsJson);
         StringBuilder text = header(passed, f, fileName);
         if (passed) {
@@ -123,6 +130,7 @@ public final class BotMessages {
         }
         text.append(CONTENT_PENDING);
         if (!passed) text.append("\nРабота уже у преподавателя, срок засчитан. Исправьте ошибки и загрузите новую версию.");
+        else if (atTeacher) text.append("\nРабота уже у преподавателя.");
         return text.toString();
     }
 
@@ -180,27 +188,62 @@ public final class BotMessages {
 
     /**
      * Работа на проверку преподавателю. {@code firstSubmittedAt} — когда пришла первая версия (у новой версии),
-     * {@code contentNote} — почему содержание не проверено; null — отчёт полный.
+     * {@code contentNote} — почему содержание не проверено; null — отчёт полный. {@code contentLate} — содержание
+     * ещё проверяется: итог придёт следующим сообщением ({@link #contentForTeacher}).
      */
     public static String resultForTeacher(String studentName, String group, String fileName, boolean passed,
                                           boolean newVersion, LocalDateTime firstSubmittedAt, String errorsJson,
-                                          String contentNote) {
+                                          String contentNote, boolean contentLate) {
         Findings f = findings(errorsJson);
         StringBuilder text = new StringBuilder(newVersion ? "📥 <b>Новая версия работы</b>\n" : "📥 <b>Новая работа</b>\n");
-        text.append(escape(studentName));
-        if (group != null && !group.isBlank()) text.append(" · ").append(escape(group));
-        text.append('\n').append(escape(fileName)).append('\n');
+        appendWork(text, studentName, group, fileName);
         if (newVersion && firstSubmittedAt != null) {
             text.append("Первая версия — ").append(DATE_TIME.format(firstSubmittedAt)).append('\n');
         }
         text.append('\n').append(passed ? "Оформление: без ошибок" : "Оформление: ошибок — " + f.formatErrors());
-        if (contentNote != null) {
+        if (contentLate) {
+            text.append("\nСодержание ещё проверяется — итог пришлю следом.");
+        } else if (contentNote != null) {
             text.append("\nСодержание: не проверено (").append(escape(contentNote)).append(')');
         } else if (f.content() > 0) {
-            text.append("\nСодержание: ").append(count(f.content(), "замечание", "замечания", "замечаний"));
-            if (f.needsReview() > 0) text.append(", ").append(f.needsReview()).append(" — на ваше решение");
+            text.append('\n');
+            appendContent(text, f);
         }
         return text.toString();
+    }
+
+    /**
+     * Итог содержания, который догнал работу: преподаватель получил её раньше с пометкой «итог пришлю следом».
+     * {@code contentNote} — почему итога не будет (сбой, не хватило времени); null — содержание проверено.
+     */
+    public static String contentForTeacher(String studentName, String group, String fileName, String errorsJson,
+                                           String contentNote) {
+        StringBuilder text = new StringBuilder(contentNote == null
+                ? "🔎 <b>Содержание проверено</b>\n"
+                : "⚠️ <b>Содержание проверить не удалось</b>\n");
+        appendWork(text, studentName, group, fileName);
+        text.append('\n');
+        Findings f = findings(errorsJson);
+        if (contentNote != null) {
+            text.append("Причина: ").append(escape(contentNote)).append(". В отчёте — только оформление.");
+        } else if (f.content() > 0) {
+            appendContent(text, f);
+        } else {
+            text.append("Содержание: без замечаний.");
+        }
+        return text.toString();
+    }
+
+    private static void appendWork(StringBuilder text, String studentName, String group, String fileName) {
+        text.append(escape(studentName));
+        if (group != null && !group.isBlank()) text.append(" · ").append(escape(group));
+        text.append('\n').append(escape(fileName)).append('\n');
+    }
+
+    /** «Содержание: 3 замечания, 1 — на ваше решение». */
+    private static void appendContent(StringBuilder text, Findings f) {
+        text.append("Содержание: ").append(count(f.content(), "замечание", "замечания", "замечаний"));
+        if (f.needsReview() > 0) text.append(", ").append(f.needsReview()).append(" — на ваше решение");
     }
 
     // ── решение преподавателя ─────────────────────────────────────────────

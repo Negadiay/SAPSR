@@ -196,7 +196,7 @@ public final class CheckReportPdf {
     }
 
     /** Содержательные — от языковой модели и правил над её фактами; сдачу не блокируют (решение 5). */
-    private static boolean isContent(JsonNode f) {
+    static boolean isContent(JsonNode f) {
         String category = text(f, "category", "");
         return "content".equals(category) || "requirements".equals(category) || !"symbolic".equals(text(f, "origin", "symbolic"));
     }

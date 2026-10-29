@@ -9,6 +9,7 @@ import com.sapsr.backend.pipeline.NoticeSender;
 import com.sapsr.backend.pipeline.PipelineState;
 import com.sapsr.backend.pipeline.PipelineTimeouts;
 import com.sapsr.backend.pipeline.PipelineWatchdog;
+import com.sapsr.backend.report.CommentedWork;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.testsupport.MutableClock;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,7 +71,8 @@ class ResultListenerServiceTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-23T09:00:00Z"), ZoneId.of("Europe/Minsk"));
     private final PipelineTimeouts timeouts = new PipelineTimeouts(Duration.ofMinutes(5), Duration.ofMinutes(15));
     private final PipelineState state = new PipelineState(submissions, timeouts, clock);
-    private final NoticeSender sender = new NoticeSender(bot, submissions);
+    private final CommentedWork commented = mock(CommentedWork.class);
+    private final NoticeSender sender = new NoticeSender(bot, submissions, commented);
     private final ResultListenerService listener = new ResultListenerService(state, sender, submissions, clock);
     private final PipelineWatchdog watchdog = new PipelineWatchdog(submissions, state, sender, timeouts, clock);
     private Submission work;
@@ -285,31 +287,100 @@ class ResultListenerServiceTest {
 
     @Test
     @Tag("boundary")
-    void contentTimeoutSendsWorkAndLateContentReplacesReportSilently() throws IOException {
+    void slowContentSendsWorkAsStillCheckingAndResultFollows() throws IOException {
         listener.handleResult(example("result-format.json"));
         clearInvocations(bot);
         when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
-        when(submissions.findContentOverdue(any())).thenAnswer(call ->
-                work.getFormatReceivedAt().isBefore(call.getArgument(0)) ? List.of(153) : List.of());
-        when(submissions.findStuck(any())).thenReturn(List.of());
+        watchWithClock();
 
         clock.advance(Duration.ofMinutes(4));
         watchdog.tick();
         verifyNoInteractions(bot);
 
+        // 5 минут прошло: работа уходит преподавателю, но содержание — «ещё проверяется», а не «не проверено».
         clock.advance(Duration.ofMinutes(2));
         watchdog.tick();
         assertThat(work.getStatus()).isEqualTo("SUCCESS");
-        assertThat(work.getContentStatus()).isEqualTo("TIMEOUT");
-        assertThat(work.getReport()).contains("CONTENT_TIMEOUT").contains("не уложилась в 5 мин");
-        assertThat(sent(TEACHER_ID)).contains("не проверено (не хватило времени)");
-        assertThat(edited(STUDENT_ID)).contains("не проверено (не хватило времени)");
+        assertThat(work.getContentStatus()).isEqualTo("LATE");
+        assertThat(work.getReport()).contains("CONTENT_LATE").doesNotContain("CONTENT_TIMEOUT");
+        assertThat(sent(TEACHER_ID)).contains("Содержание ещё проверяется — итог пришлю следом.")
+                .doesNotContain("не проверено");
+        assertThat(edited(STUDENT_ID)).contains("итог появится в этом сообщении").contains("Работа уже у преподавателя.");
+        work.setTeacherMessageId(777);
 
+        // Итог догнал: студенту — в то же сообщение, преподавателю — ответом на первое, с файлом.
         clearInvocations(bot);
         listener.handleResult(example("result-content.json"));
         assertThat(work.getContentStatus()).isEqualTo("DONE");
-        assertThat(work.getReport()).doesNotContain("CONTENT_TIMEOUT");
+        assertThat(work.getReport()).doesNotContain("CONTENT_LATE");
+        assertThat(edited(STUDENT_ID)).contains("Содержание:").endsWith("Работа у преподавателя.");
+        ArgumentCaptor<String> followUp = ArgumentCaptor.forClass(String.class);
+        verify(bot).send(eq(TEACHER_ID), followUp.capture(), any(), eq(777));
+        assertThat(followUp.getValue()).startsWith("🔎 <b>Содержание проверено</b>");
+        verify(submissions, times(1)).setTeacherMessageId(eq(153), anyInt());
+
+        // Повтор доставки — без новых сообщений.
+        clearInvocations(bot);
+        listener.handleResult(example("result-content.json"));
         verifyNoInteractions(bot);
+    }
+
+    @Test
+    @Tag("negative")
+    void contentThatNeverArrivesIsClosedAfterStuckTimeout() throws IOException {
+        listener.handleResult(example("result-format.json"));
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
+        watchWithClock();
+        clock.advance(Duration.ofMinutes(6));
+        watchdog.tick();
+        work.setTeacherMessageId(777);
+        clearInvocations(bot);
+
+        clock.advance(Duration.ofMinutes(10));
+        watchdog.tick();
+        assertThat(work.getContentStatus()).isEqualTo("TIMEOUT");
+        assertThat(work.getReport()).contains("CONTENT_TIMEOUT").doesNotContain("CONTENT_LATE");
+        assertThat(edited(STUDENT_ID)).contains("не проверено (не хватило времени)");
+        ArgumentCaptor<String> followUp = ArgumentCaptor.forClass(String.class);
+        verify(bot).send(eq(TEACHER_ID), followUp.capture(), any(), eq(777));
+        assertThat(followUp.getValue()).startsWith("⚠️ <b>Содержание проверить не удалось</b>")
+                .contains("не хватило времени");
+
+        // Опоздавший итог после этого заменяет отчёт молча.
+        clearInvocations(bot);
+        listener.handleResult(example("result-content.json"));
+        assertThat(work.getContentStatus()).isEqualTo("DONE");
+        verifyNoInteractions(bot);
+    }
+
+    @Test
+    @Tag("typical")
+    void teacherGetsWorkWithCommentedFile() throws IOException {
+        work.setStorageKey("2026/10/x.pdf");
+        when(submissions.findById(153)).thenReturn(Optional.of(work));
+        when(commented.build(work)).thenReturn(Optional.of(new CommentedWork.File(new byte[]{1, 2}, "КР7 — комментарии.pdf")));
+        when(bot.sendDocument(anyLong(), any(), anyString(), anyString(), any(), any())).thenReturn(888);
+        when(bot.edit(anyLong(), anyInt(), anyString(), any())).thenReturn(true);
+        listener.handleResult(example("result-format.json"));
+        listener.handleResult(example("result-content.json"));
+
+        ArgumentCaptor<String> caption = ArgumentCaptor.forClass(String.class);
+        verify(bot).sendDocument(eq(TEACHER_ID), eq(new byte[]{1, 2}), eq("КР7 — комментарии.pdf"), caption.capture(),
+                any(), eq(null));
+        assertThat(caption.getValue()).startsWith("📥 <b>Новая работа</b>").endsWith("комментариями в приложенном файле.");
+        verify(bot, never()).send(eq(TEACHER_ID), anyString(), any());
+        verify(submissions).setTeacherMessageId(153, 888);
+    }
+
+    /** Сторож видит работу по времени прихода фазы format — как запросы базы. */
+    private void watchWithClock() {
+        when(submissions.findContentOverdue(any())).thenAnswer(call ->
+                "PENDING".equals(work.getContentStatus()) && work.getFormatReceivedAt().isBefore(call.getArgument(0))
+                        ? List.of(153) : List.of());
+        when(submissions.findContentGaveUp(any())).thenAnswer(call ->
+                "LATE".equals(work.getContentStatus()) && work.getFormatReceivedAt().isBefore(call.getArgument(0))
+                        ? List.of(153) : List.of());
+        when(submissions.findStuck(any())).thenReturn(List.of());
     }
 
     @Test

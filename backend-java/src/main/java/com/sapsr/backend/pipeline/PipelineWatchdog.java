@@ -13,8 +13,9 @@ import java.time.LocalDateTime;
 
 /**
  * Сторож проверки (решение 5; queue-v2.md, раздел 6): раз в 30 секунд отправляет преподавателю работы, чья
- * содержательная проверка не уложилась в тайм-аут, и закрывает FAILED работы, по которым обработчик так и не
- * прислал фазу format. Раньше такие работы оставались в PROCESSING навсегда.
+ * содержательная проверка не уложилась в content-timeout (содержание при этом продолжает проверяться), закрывает
+ * проверку содержания, итог которой не пришёл и за stuck-timeout, и закрывает FAILED работы, по которым обработчик
+ * так и не прислал фазу format. Раньше такие работы оставались в PROCESSING навсегда.
  */
 @Component
 public class PipelineWatchdog {
@@ -46,9 +47,12 @@ public class PipelineWatchdog {
     public void tick() {
         LocalDateTime now = LocalDateTime.now(clock);
         for (Integer id : submissions.findContentOverdue(now.minus(timeouts.content()))) {
-            log.info("Работа #{}: содержательная проверка не уложилась в {} — работа уходит преподавателю",
+            log.info("Работа #{}: содержательная проверка идёт дольше {} — работа уходит преподавателю, итог — следом",
                     id, timeouts.content());
             handle(id, () -> sender.send(state.onContentTimeout(id)));
+        }
+        for (Integer id : submissions.findContentGaveUp(now.minus(timeouts.stuck()))) {
+            handle(id, () -> sender.send(state.onContentGaveUp(id)));
         }
         for (Integer id : submissions.findStuck(now.minus(timeouts.stuck()))) {
             handle(id, () -> sender.send(state.onStuck(id)));

@@ -11,11 +11,12 @@
 default: main
 
 models:
+  # note — подпись в «Красной зоне»: одна короткая фраза, без подробностей (подробности — в решении 13).
   - id: light
     title: Лёгкая
     tier: light
     model: ${SAPSR_LLM_LIGHT_MODEL:-qwen3.5:2b}
-    note: быстрее основной, но пропускает больше утверждений
+    note: Быстрее всех, но замечает меньше. Около минуты.
 
   - id: main
     title: Основная
@@ -23,7 +24,7 @@ models:
     provider: ${SAPSR_LLM_PROVIDER:-ollama}
     model: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
     api_key_env: SAPSR_LLM_API_KEY
-    note: выбрана по бенчмарку (решение 1)
+    note: Для большинства работ. Проверка — в пределах пяти минут.
 
   - id: heavy
     title: Тяжёлая
@@ -31,19 +32,21 @@ models:
     model: ${SAPSR_LLM_HEAVY_MODEL:-qwen3.5:9b}
     # Не помещается в 4 ГБ видеопамяти ThinkPad и наполовину считается процессором — ответ дольше.
     timeout_s: 240
-    note: точнее, но почти вдвое медленнее основной — итог содержания может прийти после 5-минутного тайм-аута
+    note: Для сложных работ. Может занять до семи минут.
 
-  # Облачная — только если на машине разрешено SAPSR_LLM_ALLOW_CLOUD=1, адрес — HTTPS и есть ключ.
-  # Любой сервис с OpenAI-совместимым API; примеры настроек — в .env.example.
+  # Облачная — только если на машине разрешено SAPSR_LLM_ALLOW_CLOUD=1 и задан ключ.
+  # По умолчанию — Groq, gpt-oss-120b (решение 2): бесплатный тариф без карты, запросы не хранятся и не идут
+  # на обучение. Другой сервис с OpenAI-совместимым API — адрес и модель в .env (примеры — в .env.example).
   - id: cloud
     title: Облачная
     tier: cloud
     provider: openai
-    base_url: ${SAPSR_LLM_CLOUD_BASE_URL:-}
-    model: ${SAPSR_LLM_CLOUD_MODEL:-}
+    base_url: ${SAPSR_LLM_CLOUD_BASE_URL:-https://api.groq.com/openai/v1}
+    model: ${SAPSR_LLM_CLOUD_MODEL:-openai/gpt-oss-120b}
     api_key_env: SAPSR_LLM_CLOUD_API_KEY
-    # JSON: заголовки и поля запроса, которых требует сервис (каталог Yandex Cloud, запрет хранить запросы).
+    # JSON: заголовки и поля запроса, которых требует сервис (глубина рассуждений, каталог Yandex Cloud).
     headers: ${SAPSR_LLM_CLOUD_HEADERS:-}
     extra_body: ${SAPSR_LLM_CLOUD_EXTRA_BODY:-}
-    timeout_s: 60
-    note: вычисления не на этом компьютере; персональные данные из текста убираются до отправки
+    # Один ответ — секунды; запас — на ожидание, когда бесплатный тариф просит подождать (429).
+    timeout_s: 90
+    note: Точнее локальных, считает в облаке. От минуты до пяти.

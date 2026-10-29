@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { mockApi, jsonResponse, stubTelegram } from './test/mockApi';
@@ -74,6 +74,31 @@ describe('очередь', () => {
     expect(screen.queryByText('Терешкова А.В.')).toBeNull();
   });
 
+  it('на телефоне вкладки листаются свайпом, вертикальная прокрутка их не трогает', async () => {
+    start();
+    await screen.findByText('Терешкова А.В.');
+    const list = screen.getByText('Терешкова А.В.').closest('.screen-body');
+    const swipe = (from, to) => {
+      fireEvent.touchStart(list, { touches: [{ clientX: from[0], clientY: from[1] }] });
+      fireEvent.touchEnd(list, { changedTouches: [{ clientX: to[0], clientY: to[1] }] });
+    };
+    swipe([300, 400], [280, 150]);  // прокрутка вниз
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveAttribute('aria-selected', 'true');
+
+    swipe([300, 400], [120, 410]);  // влево — следующая вкладка
+    expect(screen.getByRole('tab', { name: 'Проверено' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Сидоров П.П.')).toBeInTheDocument();
+    swipe([300, 400], [120, 400]);  // дальше вкладок нет — остаёмся
+    expect(screen.getByRole('tab', { name: 'Проверено' })).toHaveAttribute('aria-selected', 'true');
+
+    swipe([100, 400], [300, 390]);  // вправо — обратно
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveAttribute('aria-selected', 'true');
+    // Свайп по полю поиска — это выделение текста, а не переход.
+    fireEvent.touchStart(screen.getByRole('searchbox', { name: 'Поиск' }), { touches: [{ clientX: 300, clientY: 100 }] });
+    fireEvent.touchEnd(list, { changedTouches: [{ clientX: 100, clientY: 100 }] });
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('без работ — что будет дальше', async () => {
     start({ ...teacherRoutes, 'GET /teacher/submissions': [] });
     expect(await screen.findByText('Новых работ нет.')).toBeInTheDocument();
@@ -130,6 +155,15 @@ describe('работа и решение', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Принять' }));
     await waitFor(() => expect(api.find('POST', '/teacher/submissions/22/verdict')).toHaveLength(1));
     expect(api.find('POST', '/teacher/submissions/22/verdict')[0].body).toEqual({ verdict: 'APPROVED' });
+  });
+
+  it('работа с комментариями автопроверки скачивается отдельной кнопкой', async () => {
+    const { api, user } = start({ ...teacherRoutes, 'GET /submissions/22/commented': new Response('pdf') });
+    await openWork(user, 'Иванов');
+    await user.click(await screen.findByRole('button', { name: 'С комментариями' }));
+    await waitFor(() => expect(api.find('GET', '/submissions/22/commented')).toHaveLength(1));
+    // Содержание ещё проверяется — так и сказано, без «не успело».
+    expect(screen.getByText('Содержание проверяется')).toBeInTheDocument();
   });
 
   it('ошибка решения видна на экране, без системного окна', async () => {

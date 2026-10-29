@@ -15,6 +15,9 @@
 а также без HTTPS или без ключа доступа обращение к нелокальному адресу отклоняется ещё до отправки
 текста работы. Перенаправления облачный запрос не выполняет: текст не уйдёт по чужому адресу.
 Персональные данные из текста убирает sapsr/llm/privacy.py до вызова клиента.
+
+Бесплатный тариф облака (решение 2: Groq) ограничивает запросы и токены в минуту. Ответ 429 — не сбой:
+клиент ждёт, сколько просит сервис, если до конца срока проверки хватает времени.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -102,6 +106,8 @@ class LlmStats:
     schema_failures: int = 0
     errors: int = 0
     ms: int = 0
+    # Сколько раз облачный сервис попросил подождать (лимит бесплатного тарифа).
+    rate_waits: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def add(self, **values):
@@ -119,7 +125,7 @@ class LlmStats:
     def as_dict(self) -> dict:
         return {"llm_calls": self.calls, "llm_cache_hits": self.cache_hits,
                 "llm_schema_retries": self.schema_retries, "llm_schema_failures": self.schema_failures,
-                "llm_errors": self.errors, "llm_ms": self.ms}
+                "llm_errors": self.errors, "llm_ms": self.ms, "llm_rate_waits": self.rate_waits}
 
 
 def is_local_url(url: str) -> bool:
@@ -404,12 +410,101 @@ class LlmClient:
         }
         # Поля сервиса не перекрывают модель, сообщения и схему ответа.
         body.update({k: v for k, v in self.config.extra_body.items() if k not in body})
-        resp = self._session.post(f"{self._openai_base()}/chat/completions", json=body,
-                                  headers=self._headers(), timeout=(5, timeout), allow_redirects=False)
-        if resp.is_redirect:
-            raise LlmUnavailable("облачный сервис ответил перенаправлением — запрос не повторяется по чужому адресу")
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        give_up = time.monotonic() + timeout
+        while True:
+            left = give_up - time.monotonic()
+            if left <= 0:
+                raise LlmTimeout(f"модель не ответила за {timeout:.0f} с")
+            resp = self._session.post(f"{self._openai_base()}/chat/completions", json=body,
+                                      headers=self._headers(), timeout=(5, left), allow_redirects=False)
+            if resp.is_redirect:
+                raise LlmUnavailable("облачный сервис ответил перенаправлением — запрос не повторяется по чужому адресу")
+            if resp.status_code in RETRY_STATUSES:
+                # Бесплатный тариф ограничивает запросы и токены в минуту: ждём, сколько просит сервис, —
+                # проверка идёт дольше, но не теряет разделы. Не дождаться до конца срока — раздел пропускается.
+                wait = retry_after(resp)
+                if wait > give_up - time.monotonic():
+                    self.stats.add(errors=1)
+                    raise LlmUnavailable(f"облачный сервис ограничил число запросов (HTTP {resp.status_code}), "
+                                         f"ждать {wait:.0f} с — дольше, чем осталось времени")
+                self.stats.add(rate_waits=1)
+                log.info("облачный сервис просит подождать", extra={"fields": {
+                    "status": resp.status_code, "wait_s": round(wait, 1)}})
+                self._sleep(wait)
+                continue
+            failed = failed_generation(resp)
+            if failed is not None:
+                # Сервис сам сверил ответ со схемой и отклонил его (у Groq — json_validate_failed): отдаём ответ
+                # нашей проверке схемы — она попросит модель исправиться, как и после любого ответа не по схеме.
+                return failed
+            if resp.status_code >= 400:
+                self.stats.add(errors=1)
+                if resp.status_code in (401, 403):
+                    self._ping_ok, self._ping_at = False, time.monotonic()
+                # Тело ошибки в журнал не пишется: в нём может оказаться текст запроса.
+                raise LlmUnavailable(f"облачный сервис отклонил запрос: HTTP {resp.status_code}"
+                                     + (f" ({error_code(resp)})" if error_code(resp) else ""))
+            return resp.json()["choices"][0]["message"]["content"]
+
+    @staticmethod
+    def _sleep(seconds: float) -> None:
+        time.sleep(seconds)
+
+
+# 429 — превышен лимит тарифа, 498 — у Groq нет свободных мощностей, 503 — сервис перегружен.
+RETRY_STATUSES = (429, 498, 503)
+_DEFAULT_WAIT_S = 5.0
+_DURATION = re.compile(r"(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+(?:\.\d+)?)ms)?$")
+
+
+def _seconds(text: Optional[str]) -> Optional[float]:
+    """«2», «7.66s», «2m59.56s», «850ms» → секунды; не разобрали — None."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return max(0.0, float(text))
+    except ValueError:
+        pass
+    m = _DURATION.match(text)
+    if not m or not any(m.groups()):
+        return None
+    h, mins, s, ms = (float(g) if g else 0.0 for g in m.groups())
+    return h * 3600 + mins * 60 + s + ms / 1000
+
+
+def retry_after(resp) -> float:
+    """Сколько ждать перед повтором: Retry-After, затем сброс лимита токенов или запросов (заголовки Groq и OpenAI)."""
+    headers = getattr(resp, "headers", None) or {}
+    for name in ("retry-after", "x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+        wait = _seconds(headers.get(name))
+        if wait is not None:
+            return wait
+    return _DEFAULT_WAIT_S
+
+
+def _error(resp) -> dict:
+    try:
+        body = resp.json()
+    except ValueError:  # тело — не JSON
+        return {}
+    error = body.get("error") if isinstance(body, dict) else None
+    return error if isinstance(error, dict) else {}
+
+
+def error_code(resp) -> Optional[str]:
+    code = _error(resp).get("code") or _error(resp).get("type")
+    return str(code) if code else None
+
+
+def failed_generation(resp) -> Optional[str]:
+    """Ответ модели, который сервис отклонил как не соответствующий схеме; None — это другая ошибка."""
+    if resp.status_code != 400:
+        return None
+    error = _error(resp)
+    if error.get("code") != "json_validate_failed":
+        return None
+    return str(error.get("failed_generation") or "")
 
 
 def _strip_fences(raw: str) -> str:

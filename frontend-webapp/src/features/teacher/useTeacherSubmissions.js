@@ -23,7 +23,7 @@ export function useTeacherSubmissions({ active }) {
 
   const refreshAll = () => Promise.all([refreshPending(), refreshHistory()]);
 
-  const busy = pending.some((s) => s.content_status === 'PENDING');
+  const busy = pending.some((s) => s.content_status === 'PENDING' || s.content_status === 'LATE');
 
   useEffect(() => {
     if (!active) return undefined;

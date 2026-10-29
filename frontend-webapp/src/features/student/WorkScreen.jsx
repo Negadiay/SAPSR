@@ -6,7 +6,7 @@ import FindingList from '../../components/FindingList';
 import Icon from '../../components/Icon';
 import PrimaryAction from '../../components/PrimaryAction';
 import StatusLine from '../../components/StatusLine';
-import { downloadReport } from '../../api/submissions';
+import { downloadCommented, downloadReport } from '../../api/submissions';
 import { formatDate } from '../../lib/format';
 import { chainOf } from '../../lib/submissions';
 import { contentStep, formatStep, teacherStep, workStatus } from '../../lib/status';
@@ -75,9 +75,14 @@ export default function WorkScreen({ id, works, header, onSelectVersion, onUploa
       {(hasReport || canWithdraw) && (
         <div className="actions">
           {hasReport && (
-            <button type="button" className="btn btn-secondary" onClick={() => downloadReport(s.id)}>
-              <Icon name="report" /><span>Отчёт PDF</span>
-            </button>
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => downloadCommented(s.id)}>
+                <Icon name="comment" /><span>С комментариями</span>
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => downloadReport(s.id)}>
+                <Icon name="report" /><span>Отчёт PDF</span>
+              </button>
+            </>
           )}
           {canWithdraw && (
             <button type="button" className="btn btn-ghost-danger" disabled={withdrawing === s.id}

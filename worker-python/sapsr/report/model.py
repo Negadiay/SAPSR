@@ -23,13 +23,23 @@ class _Model(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class Area(_Model):
+    page: int = Field(description="Страница PDF-версии работы, с 1")
+    bbox: tuple[float, float, float, float] = Field(
+        description="Прямоугольник на странице, пт: x0, top, x1, bottom; начало — левый верхний угол")
+
+
 class Evidence(_Model):
     page: Optional[int] = Field(None, description="Страница PDF-версии работы, с 1")
     quote: Optional[str] = Field(None, description="Дословный фрагмент документа")
     block_id: Optional[str] = Field(None, description="Блок модели документа, b-NNNN")
+    block_end: Optional[str] = Field(
+        None, description="Последний блок, если место — несколько блоков подряд (весь список)")
     section: Optional[str] = Field(None, description="Номер или заголовок раздела")
     bbox: Optional[tuple[float, float, float, float]] = Field(
         None, description="Прямоугольник на странице, пт: x0, top, x1, bottom; начало — левый верхний угол")
+    areas: Optional[list[Area]] = Field(
+        None, description="Где выделить место в файле работы: по прямоугольнику на блок и страницу")
 
 
 class SourceRef(_Model):

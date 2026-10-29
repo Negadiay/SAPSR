@@ -6,6 +6,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { formatDay } from '../../lib/format';
 import RedZone from './RedZone';
 import { useAdminSystem } from './useAdminSystem';
+import { panelMotion, tabDirection, useSwipeTabs } from '../../navigation/useSwipeTabs';
 import './admin.css';
 
 // Экран администратора (решение 11): семестр, сроки по курсам, группы с людьми — всё, что сервер определяет сам,
@@ -17,6 +18,7 @@ const STAGE_TITLES = { 1: '1-я опроцентовка', 2: '2-я опроце
 const SECTIONS_KEY = 'sapsr_admin_sections';
 const TAB_KEY = 'sapsr_admin_tab';
 const TABS = [['study', 'Учёба'], ['system', 'Красная зона']];
+const TAB_IDS = TABS.map(([id]) => id);
 
 const semesterOf = (course, half) => (half === 'AUTUMN' ? 2 * course - 1 : 2 * course);
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
@@ -345,13 +347,21 @@ function AddGroupSection({ calendar, saving, onSave }) {
 }
 
 // Две вкладки: «Учёба» — календарь и группы; «Красная зона» — то, что меняет работу всей системы (решение 13).
+// Между вкладками на телефоне можно листать свайпом.
 export default function AdminScreen({ admin, header }) {
   const { calendar, error, saving, changeHalf, changeSchedule, changeCourse } = admin;
   const [tab, setTab] = useState(readTab);
+  const [direction, setDirection] = useState(0);
   const redZone = useAdminSystem({ active: tab === 'system' });
-  const open = (id) => { saveTab(id); setTab(id); };
+  const open = (id) => {
+    if (id === tab) return;
+    setDirection(tabDirection(TAB_IDS, tab, id));
+    saveTab(id);
+    setTab(id);
+  };
+  const swipe = useSwipeTabs({ ids: TAB_IDS, current: tab, onChange: open });
   return (
-    <div className="screen-body">
+    <div className="screen-body" ref={swipe}>
       <AppHeader title="Управление" {...header} />
       <div className="segmented admin-tabs" role="tablist" aria-label="Разделы управления">
         {TABS.map(([id, title]) => (
@@ -362,21 +372,23 @@ export default function AdminScreen({ admin, header }) {
           </button>
         ))}
       </div>
-      {tab === 'system' && <RedZone redZone={redZone} />}
-      {tab === 'study' && (
-        <>
-          {error && <StatusLine tone="error" className="form-status" role="alert">{error}</StatusLine>}
-          {!calendar && !error && <p className="empty">Загрузка…</p>}
-          {calendar && (
-            <>
-              <HalfSection calendar={calendar} saving={saving} onChange={changeHalf} />
-              <ScheduleSection calendar={calendar} saving={saving} onChange={changeSchedule} />
-              <GroupsSection calendar={calendar} admin={admin} />
-              <AddGroupSection calendar={calendar} saving={saving} onSave={changeCourse} />
-            </>
-          )}
-        </>
-      )}
+      <div key={tab} className={`tab-panel ${panelMotion(direction)}`}>
+        {tab === 'system' && <RedZone redZone={redZone} />}
+        {tab === 'study' && (
+          <>
+            {error && <StatusLine tone="error" className="form-status" role="alert">{error}</StatusLine>}
+            {!calendar && !error && <p className="empty">Загрузка…</p>}
+            {calendar && (
+              <>
+                <HalfSection calendar={calendar} saving={saving} onChange={changeHalf} />
+                <ScheduleSection calendar={calendar} saving={saving} onChange={changeSchedule} />
+                <GroupsSection calendar={calendar} admin={admin} />
+                <AddGroupSection calendar={calendar} saving={saving} onSave={changeCourse} />
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

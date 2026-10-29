@@ -561,6 +561,23 @@ input[type="search"].input { -webkit-appearance: none; }
   line-height: 1.5em;
 }
 
+/* Содержимое вкладки: при переключении — нажатием или свайпом — въезжает со стороны новой вкладки. */
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85em;
+}
+
+.tab-from-right { animation: tab-in-right 0.22s ease-out; }
+.tab-from-left { animation: tab-in-left 0.22s ease-out; }
+
+@keyframes tab-in-right { from { opacity: 0; transform: translateX(1.5em); } }
+@keyframes tab-in-left { from { opacity: 0; transform: translateX(-1.5em); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-from-right, .tab-from-left { animation: none; }
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

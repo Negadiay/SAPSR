@@ -17,6 +17,9 @@ export const withdrawSubmission = (id) => apiFetch(`/submissions/${id}`, { metho
 
 export const downloadReport = (id) => downloadFile(`/submissions/${id}/report`, `report_${id}.pdf`);
 
+// Та же работа, но замечания стоят комментариями на своих местах (api-v1.md, раздел 17).
+export const downloadCommented = (id) => downloadFile(`/submissions/${id}/commented`, `commented_${id}.pdf`);
+
 // Комментарии преподавателя из размеченного файла и сам файл (api-v1.md, разделы 10–11).
 export const fetchAnnotations = async (id) => {
   const res = await apiFetch(`/submissions/${id}/annotations`);

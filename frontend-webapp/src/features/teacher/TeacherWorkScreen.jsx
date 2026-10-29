@@ -4,7 +4,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import FindingList from '../../components/FindingList';
 import Icon from '../../components/Icon';
 import StatusLine from '../../components/StatusLine';
-import { downloadReport } from '../../api/submissions';
+import { downloadCommented, downloadReport } from '../../api/submissions';
 import { downloadSubmissionPdf } from '../../api/teacher';
 import { formatDate } from '../../lib/format';
 import { autoCheckForTeacher } from '../../lib/status';
@@ -73,9 +73,14 @@ export default function TeacherWorkScreen({ id, teacher, header, onDecided }) {
           <Icon name="download" /><span>Скачать работу</span>
         </button>
         {!decided && (
-          <button type="button" className="btn btn-secondary" onClick={() => downloadReport(s.id)}>
-            <Icon name="report" /><span>Отчёт PDF</span>
-          </button>
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => downloadCommented(s.id)}>
+              <Icon name="comment" /><span>С комментариями</span>
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => downloadReport(s.id)}>
+              <Icon name="report" /><span>Отчёт PDF</span>
+            </button>
+          </>
         )}
       </div>
 

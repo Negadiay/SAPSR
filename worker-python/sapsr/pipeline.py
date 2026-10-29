@@ -47,6 +47,7 @@ from sapsr.kb.loader import ActiveRule, KnowledgeBase, ResolvedProfile
 from sapsr.llm.catalog import LlmRegistry
 from sapsr.llm.client import LlmClient
 from sapsr.llm.privacy import PrivateLlm, Redactor
+from sapsr.report.areas import locate
 from sapsr.report.build import build_report, title_page_info
 from sapsr.report.model import (
     DocumentInfo, Finding, ModelInfo, PipelineWarning, PromptInfo, Report, RequirementStatus,
@@ -158,6 +159,7 @@ class CheckService:
         unreadable = any(f.blocking and self._is_gate(run, f) for f in findings)
 
         content_planned = self._plan_content(run, passed, unreadable)
+        locate(findings, doc)
         format_report = self._report(run, "format", findings, document_info, [], content_checked=False)
         yield PhaseResult("format", format_report, passed, final=not content_planned)
         if not content_planned:
@@ -213,6 +215,7 @@ class CheckService:
 
         notify("report", 6)
         started = time.perf_counter()
+        locate(all_findings, doc)
         content_report = self._report(run, "content", all_findings, document_info, requirements,
                                       content_checked=True)
         # Время сборки отчёта дописывается в уже собранный отчёт.

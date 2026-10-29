@@ -44,13 +44,35 @@
           "page": 3,
           "quote": "База знаний системы представлена онтологией предметной области нормоконтроля",
           "block_id": "b-0029",
-          "section": "Введение"
+          "section": "Введение",
+          "areas": [
+            {
+              "page": 3,
+              "bbox": [
+                85.0,
+                259.2,
+                526.3,
+                294.2
+              ]
+            }
+          ]
         },
         {
           "page": 6,
           "quote": "Правила и параметры проверки хранятся в конфигурационном файле YAML",
           "block_id": "b-0048",
-          "section": "3"
+          "section": "3",
+          "areas": [
+            {
+              "page": 6,
+              "bbox": [
+                85.0,
+                112.2,
+                535.4,
+                147.2
+              ]
+            }
+          ]
         }
       ],
       "source": {
@@ -395,6 +417,7 @@
       "llm_cache_hits": 0,
       "llm_calls": 9,
       "llm_errors": 0,
+      "llm_rate_waits": 0,
       "llm_schema_failures": 0,
       "llm_schema_retries": 0,
       "pages": 8,

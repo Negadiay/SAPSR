@@ -12,10 +12,13 @@ import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.menubutton.SetChatMenuButton;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.LinkPreviewOptions;
+import org.telegram.telegrambots.meta.api.objects.ReplyParameters;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.menubutton.MenuButtonWebApp;
@@ -26,6 +29,7 @@ import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +43,7 @@ import java.util.Locale;
 public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdateConsumer {
 
     private static final int TELEGRAM_TEXT_LIMIT = 4096;
+    private static final int TELEGRAM_CAPTION_LIMIT = 1024;
     private static final int TELEGRAM_SAFE_TEXT_LIMIT = 3900;
 
     private final TelegramClient telegramClient;
@@ -118,6 +123,11 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
      * Возвращает номер первого сообщения или null, если отправить не удалось.
      */
     public Integer send(Long chatId, String html, List<AppLink> links) {
+        return send(chatId, html, links, null);
+    }
+
+    /** То же ответом на сообщение {@code replyTo}; если его уже удалили — просто новым сообщением. */
+    public Integer send(Long chatId, String html, List<AppLink> links, Integer replyTo) {
         if (chatId == null || html == null || html.isBlank()) return null;
 
         // Тексты из BotMessages укладываются в предел; если всё же нет — режем уже без разметки,
@@ -132,6 +142,7 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
                         .text(chunks.get(i))
                         .linkPreviewOptions(LinkPreviewOptions.builder().isDisabled(true).build());
                 if (fits) message.parseMode(ParseMode.HTML);
+                if (i == 0 && replyTo != null) message.replyParameters(reply(replyTo));
                 if (i == chunks.size() - 1 && links != null && !links.isEmpty()) message.replyMarkup(keyboard(links));
                 Integer messageId = telegramClient.execute(message.build()).getMessageId();
                 if (firstMessageId == null) firstMessageId = messageId;
@@ -140,6 +151,42 @@ public class SapsrTelegramBot implements SpringLongPollingBot, LongPollingUpdate
             System.err.println("[BOT] Не удалось отправить сообщение: " + e.getMessage());
         }
         return firstMessageId;
+    }
+
+    /**
+     * Файл с подписью — сообщение с HTML-разметкой и кнопками. Подпись в Telegram — до 1024 символов: длинный текст
+     * уходит сообщением, а файл — следом за ним. Возвращает номер сообщения с текстом или null, если файл не ушёл.
+     */
+    public Integer sendDocument(Long chatId, byte[] file, String fileName, String html, List<AppLink> links,
+                                Integer replyTo) {
+        if (chatId == null || file == null || file.length == 0) return null;
+        boolean caption = html != null && html.length() <= TELEGRAM_CAPTION_LIMIT;
+        Integer textId = null;
+        if (!caption && html != null && !html.isBlank()) {
+            textId = send(chatId, html, links, replyTo);
+            if (textId == null) return null;
+        }
+        try {
+            SendDocument.SendDocumentBuilder<?, ?> document = SendDocument.builder()
+                    .chatId(chatId)
+                    .document(new InputFile(new ByteArrayInputStream(file), fileName));
+            if (caption) {
+                document.caption(html).parseMode(ParseMode.HTML);
+                if (links != null && !links.isEmpty()) document.replyMarkup(keyboard(links));
+            }
+            Integer replyId = textId != null ? textId : replyTo;
+            if (replyId != null) document.replyParameters(reply(replyId));
+            Integer documentId = telegramClient.execute(document.build()).getMessageId();
+            return textId != null ? textId : documentId;
+        } catch (TelegramApiException | RuntimeException e) {
+            System.err.println("[BOT] Не удалось отправить файл: " + e.getMessage());
+            // Текст уже ушёл отдельным сообщением — считаем его отправленным, без файла.
+            return textId;
+        }
+    }
+
+    private static ReplyParameters reply(Integer messageId) {
+        return ReplyParameters.builder().messageId(messageId).allowSendingWithoutReply(true).build();
     }
 
     /**

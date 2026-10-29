@@ -4,6 +4,42 @@
   "title": "Отчёт v2 SAPSR",
   "description": "Отчёт о проверке пояснительной записки. Описание полей — docs/contracts/report-v2.md.",
   "$defs": {
+    "Area": {
+      "properties": {
+        "page": {
+          "description": "Страница PDF-версии работы, с 1",
+          "title": "Page",
+          "type": "integer"
+        },
+        "bbox": {
+          "description": "Прямоугольник на странице, пт: x0, top, x1, bottom; начало — левый верхний угол",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        }
+      },
+      "required": [
+        "page",
+        "bbox"
+      ],
+      "title": "Area",
+      "type": "object"
+    },
     "DocumentInfo": {
       "properties": {
         "pages": {
@@ -110,6 +146,19 @@
           "description": "Блок модели документа, b-NNNN",
           "title": "Block Id"
         },
+        "block_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Последний блок, если место — несколько блоков подряд (весь список)",
+          "title": "Block End"
+        },
         "section": {
           "anyOf": [
             {
@@ -151,6 +200,22 @@
           "default": null,
           "description": "Прямоугольник на странице, пт: x0, top, x1, bottom; начало — левый верхний угол",
           "title": "Bbox"
+        },
+        "areas": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Area"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Где выделить место в файле работы: по прямоугольнику на блок и страницу",
+          "title": "Areas"
         }
       },
       "title": "Evidence",

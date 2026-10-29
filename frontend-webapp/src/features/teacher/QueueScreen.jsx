@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import AppHeader from '../../components/AppHeader';
 import Icon from '../../components/Icon';
 import StatusLine from '../../components/StatusLine';
 import { formatDate } from '../../lib/format';
 import { autoCheckForTeacher } from '../../lib/status';
+import { panelMotion, tabDirection, useSwipeTabs } from '../../navigation/useSwipeTabs';
+
+const SEGMENTS = ['pending', 'history'];
 
 const VERDICT = {
   APPROVED: { tone: 'ok', label: 'Принята' },
@@ -32,50 +36,60 @@ function WorkCard({ s, onOpen }) {
 }
 
 // Главный экран преподавателя: работы на проверке и проверенные, поиск и фильтр по группе.
+// Между «На проверке» и «Проверено» на телефоне можно листать свайпом.
 export default function QueueScreen({ teacher, header, onOpen }) {
   const { submissions, queue } = teacher;
   const { segment, setSegment, search, setSearch, group, setGroup, groups, filtered } = queue;
   const list = segment === 'pending' ? submissions.pending : submissions.history;
+  const [direction, setDirection] = useState(0);
+  const open = (id) => {
+    if (id === segment) return;
+    setDirection(tabDirection(SEGMENTS, segment, id));
+    setSegment(id);
+  };
+  const swipe = useSwipeTabs({ ids: SEGMENTS, current: segment, onChange: open });
 
   return (
-    <div className="screen-body">
+    <div className="screen-body" ref={swipe}>
       <AppHeader title="Работы" {...header} />
 
       <div className="segmented" role="tablist" aria-label="Работы" data-tour="queue-tabs">
         {[['pending', 'На проверке', submissions.pending.length], ['history', 'Проверено', null]].map(([id, label, n]) => (
           <button key={id} type="button" role="tab" aria-selected={segment === id}
-            className={`segment ${segment === id ? 'segment-active' : ''}`} onClick={() => setSegment(id)}>
+            className={`segment ${segment === id ? 'segment-active' : ''}`} onClick={() => open(id)}>
             {label}{n ? <span className="segment-count">{n}</span> : null}
           </button>
         ))}
       </div>
 
-      <input className="input" type="search" placeholder="Фамилия или группа" aria-label="Поиск" data-tour="queue-search"
-        value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div key={segment} className={`tab-panel ${panelMotion(direction)}`}>
+        <input className="input" type="search" placeholder="Фамилия или группа" aria-label="Поиск" data-tour="queue-search"
+          value={search} onChange={(e) => setSearch(e.target.value)} />
 
-      {groups.length > 1 && (
-        <div className="chips" role="group" aria-label="Группа">
-          {['', ...groups].map((g) => (
-            <button key={g || 'all'} type="button" aria-pressed={group === g}
-              className={`chip ${group === g ? 'chip-active' : ''}`} onClick={() => setGroup(g)}>
-              {g || 'Все'}
-            </button>
-          ))}
-        </div>
-      )}
+        {groups.length > 1 && (
+          <div className="chips" role="group" aria-label="Группа">
+            {['', ...groups].map((g) => (
+              <button key={g || 'all'} type="button" aria-pressed={group === g}
+                className={`chip ${group === g ? 'chip-active' : ''}`} onClick={() => setGroup(g)}>
+                {g || 'Все'}
+              </button>
+            ))}
+          </div>
+        )}
 
-      {submissions.loaded && list.length === 0 && (
-        <div className="empty" data-tour="queue-list">
-          <Icon name={segment === 'pending' ? 'queue' : 'history'} className="empty-icon" />
-          <p>{segment === 'pending' ? 'Новых работ нет.' : 'Проверенных работ нет.'}</p>
-          {segment === 'pending' && <p className="hint">О новой работе сообщим в чат.</p>}
-        </div>
-      )}
-      {list.length > 0 && filtered.length === 0 && <p className="empty">Ничего не найдено.</p>}
+        {submissions.loaded && list.length === 0 && (
+          <div className="empty" data-tour="queue-list">
+            <Icon name={segment === 'pending' ? 'queue' : 'history'} className="empty-icon" />
+            <p>{segment === 'pending' ? 'Новых работ нет.' : 'Проверенных работ нет.'}</p>
+            {segment === 'pending' && <p className="hint">О новой работе сообщим в чат.</p>}
+          </div>
+        )}
+        {list.length > 0 && filtered.length === 0 && <p className="empty">Ничего не найдено.</p>}
 
-      <ul className="card-list" data-tour="queue-list">
-        {filtered.map((s) => <li key={s.id}><WorkCard s={s} onOpen={onOpen} /></li>)}
-      </ul>
+        <ul className="card-list" data-tour="queue-list">
+          {filtered.map((s) => <li key={s.id}><WorkCard s={s} onOpen={onOpen} /></li>)}
+        </ul>
+      </div>
     </div>
   );
 }
