@@ -41,6 +41,8 @@ class Settings:
     tasks_queue: str = "pdf_tasks_queue"
     results_queue: str = "pdf_results_queue"
     progress_queue: str = "pdf_progress_queue"
+    # Состояние обработчика и его моделей для экрана администратора (queue-v2.md, раздел 10).
+    status_queue: str = "worker_status_queue"
     # 1 — результат одним сообщением {task_id, status, errors}, как сейчас ждёт бэкенд;
     # 2 — прогресс и две фазы результата (queue-v2.md); в docker-compose.yml по умолчанию 2. Бэкенд принимает обе.
     queue_protocol: int = 1
@@ -54,6 +56,8 @@ class Settings:
     log_format: str = "json"
     log_level: str = "INFO"
     llm: LlmConfig = field(default_factory=LlmConfig)
+    # Каталог моделей (решение 13): лёгкая, основная, тяжёлая, облачная. Нет файла — одна модель из SAPSR_LLM_*.
+    llm_models_file: Optional[Path] = WORKER_ROOT / "llm-models.yaml"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> "Settings":
@@ -77,10 +81,11 @@ class Settings:
             rabbitmq_host=get("RABBITMQ_HOST", "localhost"),
             rabbitmq_port=int(get("RABBITMQ_PORT", "5672")),
             rabbitmq_user=get("RABBITMQ_USER", ""),
-            rabbitmq_password=get("RABBITMQ_PASSWORD", get("RABBITMQ_PASS", "")),
+            rabbitmq_password=get("RABBITMQ_PASSWORD", ""),
             tasks_queue=get("SAPSR_TASKS_QUEUE", "pdf_tasks_queue"),
             results_queue=get("SAPSR_RESULTS_QUEUE", "pdf_results_queue"),
             progress_queue=get("SAPSR_PROGRESS_QUEUE", "pdf_progress_queue"),
+            status_queue=get("SAPSR_STATUS_QUEUE", "worker_status_queue"),
             queue_protocol=int(get("SAPSR_QUEUE_PROTOCOL", "1")),
             storage_root=_path(get("SAPSR_STORAGE_ROOT")) or _default_storage_root(),
             kb_dir=_path(get("SAPSR_KB_DIR")) or DEFAULT_KB_DIR,
@@ -91,6 +96,7 @@ class Settings:
             log_format=get("SAPSR_LOG_FORMAT", "json"),
             log_level=get("SAPSR_LOG_LEVEL", "INFO"),
             llm=llm,
+            llm_models_file=_path(get("SAPSR_LLM_MODELS_FILE")) or WORKER_ROOT / "llm-models.yaml",
         )
         settings.validate()
         return settings

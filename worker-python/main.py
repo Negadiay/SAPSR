@@ -5,6 +5,9 @@ pdf_progress_queue и результат в две фазы (format, content) и
 SAPSR_QUEUE_PROTOCOL=1 (по умолчанию вне Docker) — результат одним сообщением
 {task_id, status, errors}. Бэкенд с 23.10.2026 принимает обе версии (задача 5.2).
 
+Сразу после запуска, раз в минуту и после каждого задания обработчик сообщает о себе в worker_status_queue:
+какие модели каталога есть и доступны — их показывает администратору «Красная зона» (решение 13).
+
 Любая ошибка при проверке превращается в результат со сбоем, а задание подтверждается:
 оно не возвращается в очередь и не роняет обработчик снова. Сообщение, которое нельзя
 разобрать, отклоняется без возврата в очередь (basic_reject, requeue=False).
@@ -24,15 +27,19 @@ from sapsr.checks.engine import validate_rules
 from sapsr.directories import make_directory
 from sapsr.errors import FAILURE_MESSAGES, CheckFailure
 from sapsr.kb.loader import load_kb
-from sapsr.llm.client import LlmClient
+from sapsr.llm.catalog import LlmRegistry, load_catalog
 from sapsr.log import setup_logging, task_context
-from sapsr.pipeline import STAGES, CheckService
+from sapsr.pipeline import STAGES, CheckService, minsk_now
 from sapsr.report.legacy import failure_v1, to_v1
 from sapsr.settings import Settings
 from sapsr.storage import locate_file
 from sapsr.task import InvalidTask, Task, parse_task
 
 log = logging.getLogger("sapsr.worker")
+
+STATUS_INTERVAL_S = 60
+# Состояние устаревает: если бэкенд не запущен, старые сообщения не копятся в очереди.
+STATUS_TTL_MS = "120000"
 
 
 class Publisher:
@@ -42,14 +49,17 @@ class Publisher:
         self.channel = channel
         self.settings = settings
 
-    def _send(self, queue: str, payload: dict) -> None:
+    def _send(self, queue: str, payload: dict, expiration: Optional[str] = None) -> None:
         self.channel.basic_publish(
             exchange="",
             routing_key=queue,
             body=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             properties=pika.BasicProperties(delivery_mode=2, content_type="application/json",
-                                            content_encoding="utf-8"),
+                                            content_encoding="utf-8", expiration=expiration),
         )
+
+    def status(self, payload: dict) -> None:
+        self._send(self.settings.status_queue, payload, expiration=STATUS_TTL_MS)
 
     def progress(self, task: Task, stage: str, index: int) -> None:
         self._send(self.settings.progress_queue, {
@@ -79,6 +89,24 @@ class Worker:
     def __init__(self, settings: Settings, service: CheckService):
         self.settings = settings
         self.service = service
+
+    def status_payload(self) -> dict:
+        """Что обработчик сообщает о себе: режим и модели каталога. Адресов и ключей здесь нет."""
+        models = self.service.models
+        return {
+            "schema": 2, "type": "status", "sent_at": minsk_now().isoformat(timespec="seconds"),
+            "mode": self.settings.mode, "llm_mode": self.settings.llm.mode,
+            "cloud_allowed": self.settings.llm.allow_cloud, "kb_version": self.service.kb.version,
+            "default_model": models.default_id if models else None,
+            "models": models.status() if models else [],
+        }
+
+    def send_status(self, publisher: Publisher) -> None:
+        try:
+            publisher.status(self.status_payload())
+        except Exception:
+            # Состояние — справочное: из-за него обработчик не должен падать.
+            log.warning("не удалось отправить состояние обработчика", exc_info=True)
 
     def handle(self, body: bytes, publisher: Publisher) -> str:
         """Обрабатывает одно сообщение. Возвращает «ack» или «reject»."""
@@ -133,28 +161,28 @@ class Worker:
             publisher.failed(task, "INTERNAL", FAILURE_MESSAGES["INTERNAL"])
 
     def on_message(self, channel, method, properties, body) -> None:
-        outcome = self.handle(body, Publisher(channel, self.settings))
+        publisher = Publisher(channel, self.settings)
+        outcome = self.handle(body, publisher)
         if outcome == "reject":
             channel.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
         else:
             channel.basic_ack(delivery_tag=method.delivery_tag)
+        self.send_status(publisher)
 
 
 def build_worker(settings: Settings) -> Worker:
     kb = load_kb(settings.kb_dir, validate_rules=validate_rules)
-    llm: Optional[LlmClient] = LlmClient(settings.llm) if settings.llm.mode != "off" else None
-    service = CheckService(kb, llm, make_directory(settings.iis_mode), mode=settings.mode,
+    models = LlmRegistry(load_catalog(settings.llm_models_file, settings.llm), settings.llm)
+    service = CheckService(kb, models, make_directory(settings.iis_mode), mode=settings.mode,
                            max_pages=settings.max_pages, task_timeout_s=settings.task_timeout_s)
     log.info("обработчик готов", extra={"fields": {
         "protocol": settings.queue_protocol, "mode": settings.mode, "kb_version": kb.version,
-        "llm_mode": settings.llm.mode, "llm_model": settings.llm.model, "llm_provider": settings.llm.provider,
-        "llm_cloud": bool(llm and llm.is_cloud), "llm_cloud_allowed": settings.llm.allow_cloud,
+        "llm_mode": settings.llm.mode, "llm_default": models.default_id,
+        "llm_models": ",".join(models.catalog.models), "llm_cloud_allowed": settings.llm.allow_cloud,
         "iis": settings.iis_mode}})
-    if llm is not None and llm.is_cloud:
-        if settings.llm.allow_cloud:
-            log.warning("включена облачная языковая модель: текст работ уходит стороннему сервису")
-        else:
-            log.warning("адрес модели не локальный, облачная модель не разрешена — содержательная проверка выключена")
+    if settings.llm.allow_cloud:
+        log.warning("облачная модель разрешена: если её выберет администратор, фрагменты работ без "
+                    "персональных данных уйдут стороннему сервису")
     return Worker(settings, service)
 
 
@@ -167,6 +195,17 @@ def connect(settings: Settings) -> pika.BlockingConnection:
         heartbeat=max(600, int(settings.task_timeout_s) + 60),
     )
     return pika.BlockingConnection(params)
+
+
+def report_status(connection, channel, worker: Worker) -> None:
+    """Состояние — сразу и раз в минуту, пока обработчик ждёт задания (во время проверки — после неё)."""
+    publisher = Publisher(channel, worker.settings)
+
+    def tick():
+        worker.send_status(publisher)
+        connection.call_later(STATUS_INTERVAL_S, tick)
+
+    tick()
 
 
 def main() -> None:
@@ -193,8 +232,10 @@ def main() -> None:
         channel.queue_declare(queue=settings.results_queue, durable=True)
         if settings.queue_protocol == 2:
             channel.queue_declare(queue=settings.progress_queue, durable=True)
+        channel.queue_declare(queue=settings.status_queue, durable=True)
         channel.basic_qos(prefetch_count=1)
         channel.basic_consume(queue=settings.tasks_queue, on_message_callback=worker.on_message)
+        report_status(connection, channel, worker)
         log.info("жду задания", extra={"fields": {"queue": settings.tasks_queue}})
         try:
             channel.start_consuming()

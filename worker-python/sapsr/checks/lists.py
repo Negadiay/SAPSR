@@ -98,7 +98,8 @@ def simple_punctuation(ctx: CheckContext, params: SimpleListParams) -> list[Hit]
         return []
     return [Hit(
         values={"lists": len(bad_lists), "violations": violations, "items": items},
-        evidence=[Evidence(page=lst[0].page, block_id=lst[0].id, quote=lst[0].text[:params.quote_chars])
+        evidence=[Evidence(page=lst[0].page, block_id=lst[0].id, block_end=lst[-1].id,
+                           quote=lst[0].text[:params.quote_chars])
                   for lst in bad_lists],
         pages=sorted({lst[0].page for lst in bad_lists}),
         context=" / ".join(b.text[:params.quote_chars] for b in bad_lists[0][:params.max_examples]),
@@ -139,7 +140,8 @@ def numbered_punctuation(ctx: CheckContext, params: NumberedListParams) -> list[
         return []
     return [Hit(
         values={"lists": len(bad_lists), "violations": violations, "items": items},
-        evidence=[Evidence(page=lst[0].page, block_id=lst[0].id, quote=lst[0].text[:params.quote_chars])
+        evidence=[Evidence(page=lst[0].page, block_id=lst[0].id, block_end=lst[-1].id,
+                           quote=lst[0].text[:params.quote_chars])
                   for lst in bad_lists],
         pages=sorted({lst[0].page for lst in bad_lists}),
         context=" / ".join(b.text[:params.quote_chars] for b in bad_lists[0][:params.max_examples]),

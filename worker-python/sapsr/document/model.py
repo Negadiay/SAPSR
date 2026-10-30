@@ -178,25 +178,8 @@ class Document(BaseModel):
         idx = self._section_index.get(section_id)
         return self.sections[idx] if idx is not None else None
 
-    def blocks_of(self, *types: str) -> list[Block]:
-        return [b for b in self.blocks if b.type in types]
-
     def sections_of_kind(self, kind: str) -> list[Section]:
         return [s for s in self.sections if s.kind == kind]
-
-    def section_blocks(self, section: Section, include_subsections: bool = True) -> list[Block]:
-        """Блоки раздела после заголовка; с подразделами — до следующего заголовка того же или старшего уровня."""
-        start = self.block_pos(section.heading_block) + 1
-        if include_subsections:
-            end = len(self.blocks)
-            for other in self.sections:
-                pos = self.block_pos(other.heading_block)
-                if pos >= start and other.level <= section.level:
-                    end = pos
-                    break
-        else:
-            end = self.block_pos(section.last_block) + 1
-        return self.blocks[start:end]
 
     def section_label(self, section_id: Optional[str]) -> str:
         """Короткая подпись раздела для отчёта: номер, если есть, иначе заголовок («Введение»)."""
@@ -204,6 +187,3 @@ class Document(BaseModel):
         if section is None:
             return ""
         return section.number or readable_title(section.title)
-
-    def body_text(self, types: tuple[str, ...] = ("paragraph", "list_item")) -> str:
-        return "\n".join(b.text for b in self.blocks if b.type in types)

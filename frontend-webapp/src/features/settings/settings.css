@@ -1,212 +1,159 @@
 /* --- НАСТРОЙКИ --- */
-.settings-section {
-  width: 100%;
-  max-width: 340px;
-  background: var(--tg-theme-secondary-bg-color, #dff0e9);
-  border: 2px solid transparent;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
 }
 
 .settings-label {
+  color: var(--hint);
+  font-size: 0.85em;
   font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 10px;
-  color: var(--tg-theme-hint-color, #6a8a88);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
 }
+
+.settings-name { font-size: 1.1em; font-weight: 700; }
 
 .settings-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 0.8em;
+  min-height: 2.6em;
 }
 
-.settings-row-spaced {
-  margin-top: 14px;
-}
+/* Режим не действует: своя тема заменяет тему и контраст */
+.settings-row-off { opacity: 0.5; }
 
-.settings-desc { font-size: 14px; }
+.radio-list { display: flex; flex-direction: column; }
 
-.settings-divider {
-  width: 100%;
-  max-width: 340px;
-  height: 1px;
-  background: var(--app-line, rgba(46, 141, 138, 0.15));
-  margin: 16px 0;
-}
-
-.settings-wide-btn {
-  width: 100%;
-  max-width: 340px;
-}
-
-.toggle-switch {
-  width: 48px;
-  height: 28px;
-  border-radius: 14px;
-  background: var(--app-muted, #ccc);
-  border: none;
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 2.5em;
   cursor: pointer;
-  position: relative;
-  transition: background 0.2s;
-  flex-shrink: 0;
 }
 
-.toggle-switch.on { background: var(--tg-theme-button-color, #2e8d8a); }
+.radio-row input { width: 1.2em; height: 1.2em; margin: 0; accent-color: var(--accent); }
+
+.toggle {
+  position: relative;
+  width: 3em;
+  height: 1.75em;
+  flex-shrink: 0;
+  padding: 0;
+  border: var(--border) solid var(--line);
+  border-radius: 1em;
+  background: var(--field);
+  cursor: pointer;
+  transition: background 0.2s;
+}
 
 .toggle-thumb {
   position: absolute;
-  top: 3px; left: 3px;
-  width: 22px; height: 22px;
+  top: 0.15em;
+  left: 0.15em;
+  width: 1.3em;
+  height: 1.3em;
   border-radius: 50%;
-  background: #fff;
-  transition: left 0.2s;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
 }
 
-.toggle-switch.on .toggle-thumb { left: 23px; }
+.toggle-on { background: var(--accent); border-color: var(--accent); }
+.toggle-on .toggle-thumb { transform: translateX(1.2em); }
+.toggle:disabled { cursor: default; }
 
-/* --- ПОЛЗУНОК РАЗМЕРА ШРИФТА --- */
-.fontsize-slider-row {
+.fontsize-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  gap: 0.8em;
 }
 
-.fontsize-slider {
-  flex: 1;
-  accent-color: var(--tg-theme-button-color, #2e8d8a);
-  cursor: pointer;
-  touch-action: none;
-}
-
-.fontsize-marker {
-  font-weight: 800;
-  color: var(--tg-theme-button-color, #2e8d8a);
-}
-
-.fontsize-marker-large {
-  font-size: calc(var(--app-font-size) * 1.2) !important;
-}
-
-/* --- КТО ВОШЁЛ --- */
-.settings-profile-name {
-  font-size: 18px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-/* Режим не действует: своя тема заменяет ночной и контрастный */
-.settings-row-off .settings-desc { opacity: 0.5; }
-
-.toggle-switch:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
+.fontsize-small { font-size: 0.85em; font-weight: 700; color: var(--accent); }
+.fontsize-large { font-size: 1.35em; font-weight: 700; color: var(--accent); }
+.fontsize-slider { flex: 1; accent-color: var(--accent); }
 
 /* --- СВОЯ ТЕМА --- */
-.theme-edit-btn {
-  margin-top: 14px;
-  padding: 10px;
-}
-
-.theme-editor { margin-top: 12px; }
+.theme-editor { display: flex; flex-direction: column; gap: 0.6em; }
 
 .theme-presets {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(9em, 1fr));
+  gap: 0.4em;
 }
 
 .theme-preset {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border: 1px solid var(--app-line, rgba(46, 141, 138, 0.25));
-  border-radius: 10px;
-  background: var(--tg-theme-bg-color, #f0f9f5);
-  color: var(--tg-theme-text-color, #1c3a38);
-  font-size: 12px;
+  gap: 0.5em;
+  padding: 0.5em 0.6em;
+  border: var(--border) solid var(--line);
+  border-radius: 0.6em;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.87em;
   text-align: left;
   cursor: pointer;
 }
 
 .theme-preset-swatch {
-  width: 18px;
-  height: 18px;
+  width: 1.3em;
+  height: 1.3em;
   flex-shrink: 0;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
 }
 
-.theme-fields {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
+.theme-fields { list-style: none; margin: 0; padding: 0; }
 
 .theme-field-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 0;
+  gap: 0.6em;
+  padding: 0.3em 0;
 }
 
 .theme-swatch {
-  width: 32px;
-  height: 32px;
+  width: 2.2em;
+  height: 2.2em;
   flex-shrink: 0;
-  border: 2px solid var(--tg-theme-bg-color, #f0f9f5);
+  border: 2px solid var(--bg);
   border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--tg-theme-hint-color, #6a8a88);
+  box-shadow: 0 0 0 1px var(--hint);
   cursor: pointer;
 }
 
-.theme-swatch[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--tg-theme-button-color, #2e8d8a); }
-
-.theme-field-label {
-  flex: 1;
-  font-size: 14px;
-  text-align: left;
-}
+.theme-swatch[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.theme-field-label { flex: 1; min-width: 0; }
 
 .theme-hex {
-  width: 96px;
+  width: 7em;
+  min-height: 2.4em;
   flex-shrink: 0;
-  padding: 6px 8px;
-  border-width: 1.5px;
-  background-image: none;
+  padding: 0.3em 0.5em;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 13px;
   text-transform: lowercase;
 }
 
-.theme-hex[aria-invalid="true"] { border-color: var(--app-error, #d32f2f); }
-
-.theme-issues { margin-top: 10px; }
+.theme-issues { display: flex; flex-direction: column; gap: 0.3em; }
 
 .theme-issue {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  margin: 4px 0 0;
-  font-size: 12px;
+  gap: 0.4em;
+  font-size: 0.87em;
 }
-
-.theme-issue .status-icon { margin-top: 1px; }
 
 /* Своя тема плохо читается: раздел темы — чёрным или белым по фону, чтобы её было чем исправить */
 .theme-safe,
 .theme-safe .settings-label,
-.theme-safe .theme-edit-btn { color: var(--app-safe-text) !important; }
-
-.theme-safe .settings-label { opacity: 0.75; }
+.theme-safe .btn-secondary,
+.theme-safe .radio-row,
+.theme-safe .settings-row { color: var(--safe-text) !important; }
 
 .theme-safe .theme-preset,
-.theme-safe .theme-hex { color: var(--app-safe-field-text) !important; }
+.theme-safe .theme-hex { color: var(--safe-field-text) !important; }

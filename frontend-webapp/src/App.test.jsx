@@ -1,65 +1,69 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
+import { resetLaunchScreen } from './navigation/useNavigator';
 import { mockApi, jsonResponse, stubTelegram } from './test/mockApi';
 
-// Анимации в jsdom не идут: экраны и вкладки сменяются сразу.
-vi.mock('framer-motion', () => ({
-  AnimatePresence: ({ children }) => children,
-  motion: { div: ({ className, children }) => <div className={className}>{children}</div> },
-}));
+const ME = {
+  role: 'STUDENT', telegram_id: 42, full_name: 'Иванов И.И. (гр. 321702)', last_name: 'Иванов',
+  group: '321702', course: 4, semester: 7, stage: 2, deadline: '2026-12-26',
+};
 
 const TEACHERS = [
-  { telegram_id: 7, full_name: 'Петров П.П.' },
-  { telegram_id: 8, full_name: 'Сидоров С.С.' },
+  { telegram_id: 7, full_name: 'Петров Пётр Петрович' },
+  { telegram_id: 8, full_name: 'Сидоров Семён Семёнович' },
 ];
 
-const STUDENT_SUBMISSIONS = [
-  { id: 5, file_name: 'Kursach.pdf', status: 'SUCCESS', created_at: '2026-10-02T10:00:00Z' },
-  { id: 4, file_name: 'kursach.pdf', status: 'SUCCESS', teacher_verdict: 'REVISION', teacher_comment: 'Поправить поля', created_at: '2026-10-01T10:00:00Z' },
-  { id: 3, file_name: 'other.pdf', status: 'REJECTED', created_at: '2026-09-01T10:00:00Z' },
-];
+const FINDINGS = JSON.stringify([
+  { severity: 'major', category: 'format', origin: 'symbolic', message: 'Левое поле 15 мм вместо 30.', page: '2–8',
+    found: 'Так на 7 стр.', fix: 'Установите левое поле 30 мм.' },
+  { severity: 'major', category: 'content', origin: 'hybrid', needs_teacher_review: true, page: 5,
+    message: '«Языковая модель»: в разных разделах описано по-разному.' },
+]);
 
-const TEACHER_QUEUE = [
-  { id: 1, student_name: 'Иванов И.И. (гр. 321702)', file_name: 'kursach.pdf', created_at: '2026-10-01T10:00:00Z' },
-  { id: 2, student_name: 'Кузнецова А.А. (гр. 321701)', file_name: 'zapiska.pdf', created_at: '2026-10-02T10:00:00Z' },
-];
-
-const TEACHER_HISTORY = [
-  { id: 11, student_name: 'Иванов И.И. (гр. 321702)', file_name: 'old.pdf', teacher_verdict: 'APPROVED', created_at: '2026-09-02T10:00:00Z' },
-  { id: 10, student_name: 'Иванов И.И. (гр. 321702)', file_name: 'old.pdf', teacher_verdict: 'REVISION', teacher_comment: 'Нет списка литературы', created_at: '2026-09-01T10:00:00Z' },
+// Цепочка версий: 5 — новая версия работы 4, которую вернули на доработку; 3 — другая работа.
+const SUBMISSIONS = [
+  { id: 5, parent_id: 4, version: 2, file_name: 'Курсовая v2.pdf', status: 'PROCESSING', content_status: 'PENDING',
+    teacher_id: 7, teacher_name: 'Петров Пётр Петрович', work_type: 'course_project', created_at: '2026-10-21T10:00:00' },
+  { id: 4, version: 1, file_name: 'Курсовая.pdf', status: 'REJECTED', content_status: 'DONE', format_errors: FINDINGS,
+    teacher_verdict: 'REVISION', has_review_file: true, review_annotations: 1, teacher_id: 7,
+    teacher_name: 'Петров Пётр Петрович', work_type: 'course_project', created_at: '2026-10-20T10:00:00' },
+  { id: 3, version: 1, file_name: 'Практика.pdf', status: 'SUCCESS', content_status: 'DONE', format_errors: '[]',
+    teacher_id: 8, created_at: '2026-10-01T10:00:00' },
 ];
 
 const studentRoutes = {
-  'GET /me': { role: 'STUDENT', telegram_id: 42 },
+  'GET /me': ME,
   'GET /teachers': TEACHERS,
-  'GET /submissions': STUDENT_SUBMISSIONS,
+  'GET /submissions': SUBMISSIONS,
+  'GET /submissions/4/annotations': { annotations: [
+    { id: 1, page: 3, kind: 'HIGHLIGHT', quoted_text: 'Система принимает DOCX', comment: 'Только PDF' },
+  ] },
 };
 
-const teacherRoutes = {
-  'GET /me': { role: 'TEACHER', telegram_id: 42 },
-  'GET /teacher/submissions': TEACHER_QUEUE,
-  'GET /teacher/history': TEACHER_HISTORY,
-};
-
-const start = (routes) => {
-  stubTelegram();
+const start = (routes, telegram, userOptions) => {
+  const tg = stubTelegram(telegram);
   const api = mockApi(routes);
-  const user = userEvent.setup();
+  const user = userEvent.setup(userOptions);
   render(<App />);
-  return { api, user };
+  return { api, user, tg };
 };
 
-// Вкладки — иконки без текста; у кнопки есть подпись для программ чтения с экрана.
-const tabButton = (label) => within(document.querySelector('.bottom-nav')).getByRole('button', { name: label });
+const heading = (name) => screen.findByRole('heading', { name });
+const pdf = (name = 'Курсовая.pdf', size = 1000) => new File(['%PDF-1.7'.padEnd(size, ' ')], name, { type: 'application/pdf' });
+
+afterEach(() => {
+  window.history.replaceState({}, '', '/');
+  resetLaunchScreen();
+});
 
 describe('вход', () => {
-  it('незарегистрированному пользователю предлагает выбрать роль', async () => {
+  it('незарегистрированному предлагает выбрать роль', async () => {
     start({ 'GET /me': { role: 'NONE' } });
-    expect(screen.getByText('Загрузка...')).toBeInTheDocument();
-    expect(await screen.findByText('Выберите вашу роль в системе')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Войти' })).not.toBeInTheDocument();
+    expect(screen.getByText('Загрузка…')).toBeInTheDocument();
+    expect(await heading('Выберите роль')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Войти' })).toBeNull();
   });
 
   it('при недоступном сервере тоже показывает выбор роли', async () => {
@@ -67,337 +71,273 @@ describe('вход', () => {
     stubTelegram();
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     render(<App />);
-    expect(await screen.findByText('Выберите вашу роль в системе')).toBeInTheDocument();
+    expect(await heading('Выберите роль')).toBeInTheDocument();
   });
 
-  it('зарегистрированного студента сразу ведёт на загрузку работы', async () => {
+  it('зарегистрированного студента сразу ведёт к его работам', async () => {
     start(studentRoutes);
-    expect(await screen.findByRole('heading', { name: 'Загрузка работы' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.bottom-nav button')).toHaveLength(3);
+    expect(await heading('Мои работы')).toBeInTheDocument();
+    expect(screen.getByTitle('Обучение')).toBeInTheDocument();
+    expect(screen.getByTitle('Настройки')).toBeInTheDocument();
   });
 
-  it('зарегистрированного преподавателя сразу ведёт в очередь работ', async () => {
-    start(teacherRoutes);
-    expect(await screen.findByRole('heading', { name: 'Работы студентов' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.bottom-nav button')).toHaveLength(4);
-  });
-});
-
-describe('регистрация студента', () => {
-  const routes = { 'GET /me': { role: 'NONE' }, 'POST /register': {}, 'GET /teachers': TEACHERS, 'GET /submissions': [] };
-
-  it('в поле проходят только кириллица, цифры, точки и запятая', async () => {
-    const { user } = start(routes);
-    await user.click(await screen.findByRole('button', { name: /Студент/ }));
-    const input = screen.getByPlaceholderText('Иванов И.О., 321702');
-    await user.type(input, 'Ivanov Иванов! И.И., 321702');
-    expect(input).toHaveValue(' Иванов И.И., 321702');
-  });
-
-  it('неверный формат не отправляется на сервер', async () => {
-    const { api, user } = start(routes);
-    await user.click(await screen.findByRole('button', { name: /Студент/ }));
-    await user.type(screen.getByPlaceholderText('Иванов И.О., 321702'), 'Иванов Иван 321702');
-    await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
-    expect(screen.getByText('Формат: Иванов И.И., 123456')).toBeInTheDocument();
-    expect(api.find('POST', '/register')).toHaveLength(0);
-  });
-
-  it('верные данные регистрируют, открывают кабинет и запускают обучение', async () => {
-    const { api, user } = start(routes);
-    await user.click(await screen.findByRole('button', { name: /Студент/ }));
-    await user.type(screen.getByPlaceholderText('Иванов И.О., 321702'), 'Иванов И.И., 321702');
-    await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
-    expect(await screen.findByRole('heading', { name: 'Загрузка работы' })).toBeInTheDocument();
-    expect(api.find('POST', '/register')[0].body).toEqual({ role: 'STUDENT', full_name: 'Иванов И.И. (гр. 321702)' });
-    expect(await screen.findByText(/Добро пожаловать в SAPSR/, {}, { timeout: 2000 })).toBeInTheDocument();
-  });
-
-  it('показывает ошибку сервера и остаётся на форме', async () => {
-    const { user } = start({ ...routes, 'POST /register': jsonResponse({ error: 'Группа не найдена' }, 400) });
-    await user.click(await screen.findByRole('button', { name: /Студент/ }));
-    await user.type(screen.getByPlaceholderText('Иванов И.О., 321702'), 'Иванов И.И., 321702');
-    await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
-    expect(await screen.findByText('Группа не найдена')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Зарегистрироваться' })).toBeEnabled();
-  });
-});
-
-describe('регистрация преподавателя', () => {
-  const routes = {
-    'GET /me': { role: 'NONE' },
-    'POST /register/send-code': { expires_in_seconds: 120 },
-    'POST /register': {},
-    'GET /teacher/submissions': [],
-    'GET /teacher/history': [],
-  };
-
-  const openForm = async (user) => {
-    await user.click(await screen.findByRole('button', { name: /Преподаватель/ }));
-    return screen.getByPlaceholderText('ivanov@bsuir.by');
-  };
-
-  it('без почты код не запрашивается', async () => {
-    const { api, user } = start(routes);
-    await openForm(user);
-    await user.click(screen.getByRole('button', { name: 'Отправить код' }));
-    expect(screen.getByText('Введите email')).toBeInTheDocument();
-    expect(api.find('POST', '/register/send-code')).toHaveLength(0);
-  });
-
-  it('почта приводится к нижнему регистру, после кода открывается кабинет', async () => {
-    const { api, user } = start(routes);
-    await user.type(await openForm(user), ' Ivanov@BSUIR.by ');
-    await user.click(screen.getByRole('button', { name: 'Отправить код' }));
-
-    expect(await screen.findByText('ivanov@bsuir.by')).toBeInTheDocument();
-    expect(api.find('POST', '/register/send-code')[0].body).toEqual({ email: 'ivanov@bsuir.by' });
-    expect(await screen.findByText(/Код действителен ещё [12]:\d\d/)).toBeInTheDocument();
-
-    await user.type(screen.getByPlaceholderText('6-значный код'), '123456');
-    await user.click(screen.getByRole('button', { name: 'Подтвердить' }));
-
-    expect(await screen.findByRole('heading', { name: 'Работы студентов' })).toBeInTheDocument();
-    expect(api.find('POST', '/register')[0].body).toEqual({
-      role: 'TEACHER', full_name: '', email: 'ivanov@bsuir.by', code: '123456',
+  it('регистрация студента: ошибка формата — после ухода из поля, а не после отправки', async () => {
+    const { api, user } = start({
+      'GET /me': { role: 'NONE' },
+      'POST /register': { status: 'OK' },
+      'GET /teachers': [], 'GET /submissions': [],
     });
-  });
-
-  it('ответ «не найден в IIS» показывается понятным текстом', async () => {
-    const { user } = start({
-      ...routes,
-      'POST /register/send-code': jsonResponse({ error: 'Преподаватель не найден в IIS' }, 404),
-    });
-    await user.type(await openForm(user), 'nobody@bsuir.by');
-    await user.click(screen.getByRole('button', { name: 'Отправить код' }));
-    expect(await screen.findByText('Почта не обнаружена в ИИС БГУИР')).toBeInTheDocument();
-  });
-
-  it('«Назад» с экрана кода возвращает к вводу почты', async () => {
-    const { user } = start(routes);
-    await user.type(await openForm(user), 'ivanov@bsuir.by');
-    await user.click(screen.getByRole('button', { name: 'Отправить код' }));
-    await screen.findByPlaceholderText('6-значный код');
-    await user.click(screen.getByRole('button', { name: 'Назад' }));
-    expect(screen.getByPlaceholderText('ivanov@bsuir.by')).toHaveValue('ivanov@bsuir.by');
-  });
-});
-
-describe('кабинет студента', () => {
-  it('отправляет выбранный файл выбранному преподавателю', async () => {
-    const { api, user } = start({ ...studentRoutes, 'POST /upload': {} });
-    const submit = await screen.findByRole('button', { name: 'Отправить' });
-    await screen.findByRole('option', { name: 'Сидоров С.С.' });
+    await user.click(await screen.findByRole('button', { name: /Студент/ }));
+    const field = screen.getByLabelText('ФИО и группа');
+    const submit = screen.getByRole('button', { name: 'Зарегистрироваться' });
     expect(submit).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText('Преподаватель'), '8');
-    const file = new File(['%PDF'], 'моя работа.pdf', { type: 'application/pdf' });
-    await user.upload(document.getElementById('file-upload'), file);
-    expect(submit).toBeEnabled();
+    await user.type(field, 'Иванов И, 321702');
+    await user.tab();
+    expect(screen.getByText('Пример: Иванов И.И., 321702')).toBeInTheDocument();
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+
+    await user.clear(field);
+    await user.type(field, 'Иванов И.И., 321702');
     await user.click(submit);
-
-    expect(await screen.findByText('Работа успешно отправлена!')).toBeInTheDocument();
-    const { body } = api.find('POST', '/upload')[0];
-    expect(body.get('file').name).toBe('моя работа.pdf');
-    expect(body.get('teacher_id')).toBe('8');
-    expect(localStorage.getItem('sapsr_last_teacher_id')).toBe('8');
-  });
-
-  it('слишком большой файл объясняется понятным текстом', async () => {
-    const { user } = start({ ...studentRoutes, 'POST /upload': jsonResponse({}, 413) });
-    const submit = await screen.findByRole('button', { name: 'Отправить' });
-    await screen.findByRole('option', { name: 'Петров П.П.' });
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'big.pdf', { type: 'application/pdf' }));
-    await user.click(submit);
-    expect(await screen.findByText('Файл слишком большой. Максимальный размер — 50 МБ.')).toBeInTheDocument();
-  });
-
-  it('без преподавателей отправка недоступна', async () => {
-    const { user } = start({ ...studentRoutes, 'GET /teachers': [] });
-    expect(await screen.findByText('Нет доступных преподавателей. Попробуйте позже.')).toBeInTheDocument();
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }));
-    expect(screen.getByRole('button', { name: 'Отправить' })).toBeDisabled();
-  });
-
-  it('выбранный файл не теряется при переходе между вкладками', async () => {
-    const { user } = start(studentRoutes);
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'черновик.pdf', { type: 'application/pdf' }));
-    await user.click(tabButton('Мои работы'));
-    await user.click(tabButton('Загрузка'));
-    expect(screen.getByText('черновик.pdf')).toBeInTheDocument();
-  });
-
-  it('показывает версии одной работы одной карточкой', async () => {
-    const { user } = start(studentRoutes);
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('Мои работы'));
-
-    const cards = await waitFor(() => {
-      const found = document.querySelectorAll('.notif-line');
-      expect(found).toHaveLength(2);
-      return found;
-    });
-    expect(cards[0]).toHaveTextContent('Kursach.pdf');
-    const steps = cards[0].querySelectorAll('.iteration-step');
-    expect(steps[0]).toHaveTextContent('v1');
-    expect(within(steps[0]).getByRole('img', { name: 'на доработке' })).toBeInTheDocument();
-    expect(within(steps[1]).getByRole('img', { name: 'оформление ОК' })).toBeInTheDocument();
-    expect(cards[0]).toHaveTextContent('Оформление ОК');
-    expect(cards[1]).toHaveTextContent('Ошибки оформления');
-    expect(cards[1].querySelector('.notif-status svg.status-error')).not.toBeNull();
-    expect(cards[1]).toHaveClass('notif-error');
-  });
-
-  it('отзывает работу только после подтверждения', async () => {
-    const { api, user } = start({ ...studentRoutes, 'DELETE /submissions/5': {} });
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('Мои работы'));
-    await user.click(await screen.findByRole('button', { name: 'Отозвать работу' }));
-
-    expect(screen.getByText('Отозвать работу?')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Отмена' }));
-    expect(screen.queryByText('Отозвать работу?')).not.toBeInTheDocument();
-    expect(api.find('DELETE', '/submissions/5')).toHaveLength(0);
-
-    await user.click(screen.getByRole('button', { name: 'Отозвать работу' }));
-    await user.click(screen.getByRole('button', { name: 'Отозвать' }));
-    await waitFor(() => expect(api.find('DELETE', '/submissions/5')).toHaveLength(1));
-  });
-});
-
-describe('кабинет преподавателя', () => {
-  it('показывает очередь и число работ на значке', async () => {
-    start(teacherRoutes);
-    expect(await screen.findByText('Иванов И.И. (гр. 321702)')).toBeInTheDocument();
-    expect(screen.getByText('Кузнецова А.А. (гр. 321701)')).toBeInTheDocument();
-    expect(document.querySelector('.nav-badge')).toHaveTextContent('2');
-  });
-
-  it('поиск находит студента с опечаткой и сообщает, если никого нет', async () => {
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Иванов И.И. (гр. 321702)');
-    const search = screen.getByPlaceholderText('Поиск по группе, студенту или файлу...');
-
-    await user.type(search, 'кузнецва');
-    expect(screen.queryByText('Иванов И.И. (гр. 321702)')).not.toBeInTheDocument();
-    expect(screen.getByText('Кузнецова А.А. (гр. 321701)')).toBeInTheDocument();
-
-    await user.clear(search);
-    await user.type(search, '999999');
-    expect(screen.getByText('По этому запросу работ не найдено')).toBeInTheDocument();
-  });
-
-  it('принимает работу', async () => {
-    const { api, user } = start({ ...teacherRoutes, 'POST /teacher/submissions/1/verdict': {} });
-    await user.click(await screen.findByText('kursach.pdf'));
-    await user.click(screen.getByRole('button', { name: 'Принять' }));
-    await waitFor(() => expect(api.find('POST', '/teacher/submissions/1/verdict')).toHaveLength(1));
-    expect(api.find('POST', '/teacher/submissions/1/verdict')[0].body).toEqual({ verdict: 'APPROVED', comment: '' });
-  });
-
-  it('без работы с пометками на доработку не отправить, и поля для текста больше нет', async () => {
-    const { api, user } = start(teacherRoutes);
-    await user.click(await screen.findByText('kursach.pdf'));
-
-    expect(screen.getByRole('button', { name: 'На доработку' })).toBeDisabled();
-    expect(screen.getByText('Чтобы отправить на доработку, загрузите работу с вашими пометками.')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).toBeNull();
-    expect(api.find('POST', '/teacher/submissions/1/verdict')).toHaveLength(0);
-  });
-
-  it('в истории сворачивает версии одной работы и раскрывает их по нажатию', async () => {
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('История'));
-
-    expect(await screen.findByText('Принято')).toBeInTheDocument();
-    expect(screen.getByText('2 версии')).toBeInTheDocument();
-    expect(screen.queryByText('Нет списка литературы')).not.toBeInTheDocument();
-
-    await user.click(screen.getByText('old.pdf'));
-    expect(screen.getByText('Нет списка литературы')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Скачать v1' })).toBeInTheDocument();
-  });
-
-  it('заметка сохраняется, а кнопка с лупой открывает очередь с поиском по студенту из неё', async () => {
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('Заметки'));
-    expect(screen.getByText('Нет заметок. Нажмите «+ Новая заметка»')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '+ Новая заметка' }));
-    await user.type(screen.getByPlaceholderText('Введите заметку...'), 'Спросить Кузнецова из 321701 про титульный лист');
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
-    expect(JSON.parse(localStorage.getItem('sapsr_notes_42'))[0].text).toBe('Спросить Кузнецова из 321701 про титульный лист');
-
-    await user.click(screen.getByTitle('Найти студента'));
-    expect(screen.getByPlaceholderText('Поиск по группе, студенту или файлу...')).toHaveValue('Кузнецова 321701');
-    expect(screen.queryByText('Иванов И.И. (гр. 321702)')).not.toBeInTheDocument();
-    expect(screen.getByText('Кузнецова А.А. (гр. 321701)')).toBeInTheDocument();
-  });
-
-  it('заметка удаляется после подтверждения', async () => {
-    localStorage.setItem('sapsr_notes_42', JSON.stringify([{ id: 1, text: 'Старая заметка' }]));
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('Заметки'));
-    await user.click(screen.getByRole('button', { name: 'Удалить заметку' }));
-    expect(screen.getByText('Удалить заметку?')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Удалить' }));
-    expect(screen.queryByText('Старая заметка')).not.toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem('sapsr_notes_42'))).toEqual([]);
-  });
-});
-
-describe('настройки и обучение', () => {
-  it('тема, контраст и размер шрифта применяются и запоминаются', async () => {
-    const { user } = start(studentRoutes);
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('Настройки'));
-    const app = document.querySelector('.App');
-    expect(app).toHaveClass('font-normal');
-    expect(app).not.toHaveClass('app-dark');
-
-    await user.click(screen.getByRole('button', { name: 'Переключить ночной режим' }));
-    await user.click(screen.getByRole('button', { name: 'Переключить контрастный режим' }));
-    expect(app).toHaveClass('app-dark', 'app-contrast');
-    expect(localStorage.getItem('sapsr_theme')).toBe('dark');
-    expect(localStorage.getItem('sapsr_contrast')).toBe('1');
-  });
-
-  it('сохранённые настройки применяются при запуске', async () => {
-    localStorage.setItem('sapsr_theme', 'dark');
-    localStorage.setItem('sapsr_fontsize', 'xlarge');
-    start(studentRoutes);
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    expect(document.querySelector('.App')).toHaveClass('app-dark', 'font-xlarge');
-  });
-
-  it('после выхода можно войти под сохранённой ролью', async () => {
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(tabButton('Настройки'));
-    await user.click(screen.getByRole('button', { name: 'Выйти из системы' }));
-    expect(screen.getByText('Выберите вашу роль в системе')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Войти' }));
-    expect(await screen.findByRole('heading', { name: 'Работы студентов' })).toBeInTheDocument();
-  });
-
-  it('обучение ведёт по вкладкам и запоминает, что пройдено', async () => {
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Иванов И.И. (гр. 321702)');
-    await user.click(screen.getByTitle('Справка'));
-    expect(screen.getByText('1 / 8')).toBeInTheDocument();
-
-    const next = () => user.click(document.querySelector('.tutorial-overlay'));
-    await next(); await next(); await next();
-    expect(screen.getByText('4 / 8')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'История проверок' })).toBeInTheDocument();
-
+    await waitFor(() => expect(api.find('POST', '/register')).toHaveLength(1));
+    expect(api.find('POST', '/register')[0].body).toEqual({ role: 'STUDENT', full_name: 'Иванов И.И. (гр. 321702)' });
+    expect(await heading('Мои работы')).toBeInTheDocument();
+    // Первый вход — обучение начинается само.
+    expect(await screen.findByRole('dialog', { name: 'Это SAPSR' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Пропустить' }));
-    expect(document.querySelector('.tutorial-overlay')).not.toBeInTheDocument();
-    expect(localStorage.getItem('sapsr_onboarded_teacher')).toBe('1');
+    expect(localStorage.getItem('sapsr_onboarded_student')).toBe('1');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('ошибку сервера при регистрации показывает его словами', async () => {
+    const { user } = start({
+      'GET /me': { role: 'NONE' },
+      'POST /register': jsonResponse({ error: 'Группы 321799 нет в ИИС БГУИР. Проверьте номер.' }, 400),
+    });
+    await user.click(await screen.findByRole('button', { name: /Студент/ }));
+    await user.type(screen.getByLabelText('ФИО и группа'), 'Иванов И.И., 321799');
+    await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Группы 321799 нет в ИИС БГУИР');
+  });
+
+  it('регистрация преподавателя: подсказка домена, код из письма', async () => {
+    const { api, user } = start({
+      'GET /me': { role: 'NONE' },
+      'POST /register/send-code': { status: 'OK', expires_in_seconds: 300 },
+      'POST /register': { status: 'OK' },
+      'GET /teacher/submissions': [], 'GET /teacher/history': [],
+    });
+    await user.click(await screen.findByRole('button', { name: /Преподаватель/ }));
+    await user.type(screen.getByLabelText('Рабочая почта'), 'petrov');
+    await user.click(screen.getByRole('button', { name: 'Дописать @bsuir.by' }));
+    expect(screen.getByLabelText('Рабочая почта')).toHaveValue('petrov@bsuir.by');
+    await user.click(screen.getByRole('button', { name: 'Получить код' }));
+
+    expect(await heading('Код из письма')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Подтвердить' });
+    expect(confirm).toBeDisabled();
+    await user.type(screen.getByLabelText('Код из письма'), '12a3456');
+    expect(screen.getByLabelText('Код из письма')).toHaveValue('123456');
+    await user.click(confirm);
+    await waitFor(() => expect(api.find('POST', '/register')).toHaveLength(1));
+    expect(api.find('POST', '/register')[0].body).toMatchObject({ role: 'TEACHER', email: 'petrov@bsuir.by', code: '123456' });
+    expect(await heading('Работы')).toBeInTheDocument();
+  });
+
+  it('ссылка из бота открывает нужную работу', async () => {
+    window.history.replaceState({}, '', '/?open=work-4');
+    start(studentRoutes);
+    expect(await screen.findByText('Курсовая.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Работа' })).toBeInTheDocument();
+  });
+});
+
+describe('студент: работы', () => {
+  it('версии одной работы — одной карточкой, состояние словами', async () => {
+    start(studentRoutes);
+    await heading('Мои работы');
+    expect(await screen.findByText('Курсовая v2.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('Курсовая.pdf')).toBeNull();
+    expect(screen.getByText('Проверяется содержание')).toBeInTheDocument();
+    expect(screen.getByText(/^Версия 2/)).toBeInTheDocument();
+    expect(screen.getByText('4 курс · 7 семестр')).toBeInTheDocument();
+    expect(screen.getByText(/к 2-й опроцентовке · сдача до/)).toBeInTheDocument();
+  });
+
+  it('без работ — подсказка, что делать', async () => {
+    start({ ...studentRoutes, 'GET /submissions': [] });
+    expect(await screen.findByText('Работ пока нет.')).toBeInTheDocument();
+  });
+
+  it('у новой версии видно, что комментарии преподавателя — в прошлой', async () => {
+    const { user } = start(studentRoutes);
+    await user.click(await screen.findByRole('button', { name: /Курсовая v2\.pdf/ }));
+    expect(await heading('Работа')).toBeInTheDocument();
+    expect(screen.getByText('Курсовой проект · версия 2 · 21.10.2026, 10:00')).toBeInTheDocument();
+    expect(screen.getByText('Преподаватель: Петров Пётр Петрович')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Комментарии преподавателя — в версии 1/ }));
+    expect(await screen.findByText('Только PDF')).toBeInTheDocument();
+    expect(screen.getByText('Вернул на доработку')).toBeInTheDocument();
+    expect(screen.getByText('Ошибок: 1')).toBeInTheDocument();
+    expect(screen.getByText('Левое поле 15 мм вместо 30.')).toBeInTheDocument();
+    expect(screen.getByText('ошибка · стр. 2–8')).toBeInTheDocument();
+    // Содержательное — без уровня «ошибка»: сдачу оно не блокирует.
+    expect(screen.getByText('стр. 5 · нейросеть и правила · решит преподаватель')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Подробнее' })[0]);
+    expect(screen.getByText('Установите левое поле 30 мм.')).toBeInTheDocument();
+  });
+
+  it('отчёт PDF скачивается с экрана работы', async () => {
+    const { api, user } = start({ ...studentRoutes, 'GET /submissions/3/report': new Response('pdf') });
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    await user.click(await screen.findByRole('button', { name: /Практика\.pdf/ }));
+    await user.click(screen.getByRole('button', { name: 'Отчёт PDF' }));
+    await waitFor(() => expect(api.find('GET', '/submissions/3/report')).toHaveLength(1));
+  });
+
+  it('работу отзывают после подтверждения', async () => {
+    let list = SUBMISSIONS;
+    const { api, user } = start({
+      ...studentRoutes,
+      'GET /submissions': () => list,
+      'DELETE /submissions/3': () => { list = SUBMISSIONS.slice(0, 2); return { status: 'OK' }; },
+    });
+    await user.click(await screen.findByRole('button', { name: /Практика\.pdf/ }));
+    await user.click(screen.getByRole('button', { name: 'Отозвать' }));
+    expect(screen.getByText('Преподаватель её больше не увидит.')).toBeInTheDocument();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Отмена' }));
+    expect(api.find('DELETE', '/submissions/3')).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Отозвать' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Отозвать' }));
+    expect(await heading('Мои работы')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Практика.pdf')).toBeNull());
+  });
+});
+
+describe('студент: сдача работы', () => {
+  it('преподавателя не выбирает за студента; проверяет файл до отправки; после — экран новой работы', async () => {
+    let list = [];
+    const { api, user } = start({
+      ...studentRoutes,
+      'GET /submissions': () => list,
+      'POST /upload': () => {
+        list = [{ id: 9, file_name: 'Курсовая.pdf', status: 'QUEUED', created_at: '2026-10-25T10:00:00', version: 1 }];
+        return { status: 'SUCCESS', db_id: 9 };
+      },
+    // Выбор файлов в Telegram не всегда учитывает accept — файл не PDF проверяется до отправки.
+    }, undefined, { applyAccept: false });
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    expect(await heading('Сдать работу')).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Отправить на проверку' });
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Петров/ })).toHaveLength(1));
+    expect(screen.getByLabelText('Преподаватель')).toHaveValue('');
+
+    expect(screen.getByRole('option', { name: 'Выберите преподавателя' })).toBeInTheDocument();
+    // Вид работы не спрашивается: сервер определяет его по семестру и титульному листу.
+    expect(screen.queryByLabelText('Вид работы')).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
+    // Выбрав преподавателя, к «никому» не вернуться: подсказки в списке больше нет.
+    expect(screen.queryByRole('option', { name: 'Выберите преподавателя' })).toBeNull();
+    await user.upload(screen.getByLabelText(/Выберите PDF/), new File(['x'], 'work.docx', { type: 'application/msword' }));
+    expect(screen.getByText('Нужен файл PDF.')).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+
+    await user.upload(screen.getByLabelText(/Выберите PDF|нажмите, чтобы заменить/), pdf());
+    expect(screen.getByText('Курсовая.pdf')).toBeInTheDocument();
+    await user.click(submit);
+
+    await waitFor(() => expect(api.find('POST', '/upload')).toHaveLength(1));
+    const form = api.find('POST', '/upload')[0].body;
+    expect(form.get('teacher_id')).toBe('7');
+    expect(form.has('work_type')).toBe(false);
+    expect(await heading('Работа')).toBeInTheDocument();
+    expect(screen.getByText('В очереди')).toBeInTheDocument();
+    expect(localStorage.getItem('sapsr_last_teacher_id')).toBe('7');
+  });
+
+  it('единственный преподаватель выбирается сам; ошибка сервера — словами', async () => {
+    const { user } = start({
+      ...studentRoutes,
+      'GET /teachers': [TEACHERS[0]],
+      'POST /upload': jsonResponse({ error: 'Файл пустой.' }, 400),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    await waitFor(() => expect(screen.getByLabelText('Преподаватель')).toHaveValue('7'));
+    expect(screen.queryByRole('option', { name: 'Выберите преподавателя' })).toBeNull();
+    await user.upload(screen.getByLabelText(/Выберите PDF/), pdf());
+    await user.click(screen.getByRole('button', { name: 'Отправить на проверку' }));
+    expect(await screen.findByText('Файл пустой.')).toBeInTheDocument();
+  });
+
+  it('нет преподавателей группы — сказано, к кому обратиться', async () => {
+    const { user } = start({ ...studentRoutes, 'GET /teachers': [] });
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    expect(await screen.findByText(/Для группы 321702 нет преподавателей/)).toBeInTheDocument();
+  });
+
+  it('новая версия — с тем же преподавателем', async () => {
+    const { user } = start({ ...studentRoutes, 'GET /submissions': [SUBMISSIONS[1]] });
+    await user.click(await screen.findByRole('button', { name: /Курсовая\.pdf/ }));
+    await user.click(screen.getByRole('button', { name: 'Загрузить новую версию' }));
+    expect(await heading('Новая версия')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Преподаватель')).toHaveValue('7'));
+  });
+
+  it('у старой версии загрузить новую нельзя — только у последней', async () => {
+    const { user } = start(studentRoutes);
+    await user.click(await screen.findByRole('button', { name: /Курсовая v2\.pdf/ }));
+    await user.click(screen.getByRole('button', { name: /Комментарии преподавателя — в версии 1/ }));
+    await screen.findByText('Только PDF');
+    expect(screen.queryByRole('button', { name: 'Загрузить новую версию' })).toBeNull();
+  });
+});
+
+describe('Telegram: родные кнопки', () => {
+  it('главная кнопка — «Сдать работу», «Назад» и «Настройки» — в Telegram', async () => {
+    const { tg } = start(studentRoutes, { native: true, platform: 'android' });
+    await heading('Мои работы');
+    await waitFor(() => expect(tg.MainButton.params.text).toBe('Сдать работу'));
+    // Своей кнопки нет — её заменяет родная.
+    expect(screen.queryByRole('button', { name: 'Сдать работу' })).toBeNull();
+    expect(tg.BackButton.visible).toBe(false);
+
+    act(() => tg.MainButton.click());
+    expect(await heading('Сдать работу')).toBeInTheDocument();
+    expect(tg.BackButton.visible).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+    await waitFor(() => expect(tg.MainButton.params.text).toBe('Отправить на проверку'));
+    expect(tg.MainButton.params.is_active).toBe(false);
+
+    act(() => tg.BackButton.click());
+    expect(await heading('Мои работы')).toBeInTheDocument();
+    act(() => tg.SettingsButton.click());
+    expect(await heading('Настройки')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Как в Telegram' })).toBeChecked();
+  });
+
+  it('вне Telegram — своя стрелка «Назад»', async () => {
+    const { user } = start(studentRoutes);
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    await user.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await heading('Мои работы')).toBeInTheDocument();
+  });
+});
+
+describe('смена роли', () => {
+  it('после подтверждения — снова выбор роли, прежнюю можно вернуть кнопкой «Войти»', async () => {
+    const { user } = start(studentRoutes);
+    await heading('Мои работы');
+    await user.click(screen.getByTitle('Настройки'));
+    await user.click(screen.getByRole('button', { name: 'Сменить роль' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сменить' }));
+    expect(await heading('Выберите роль')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Войти' }));
+    expect(await heading('Мои работы')).toBeInTheDocument();
   });
 });

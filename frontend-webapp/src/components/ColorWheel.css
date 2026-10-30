@@ -75,6 +75,6 @@
 
 .color-wheel:focus-visible,
 .color-brightness:focus-visible {
-  outline: 3px solid var(--tg-theme-button-color, #2e8d8a);
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }

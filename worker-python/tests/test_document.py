@@ -10,6 +10,15 @@ from sapsr.document.build import build_document, join_lines
 from sapsr.document.extract import extract
 from sapsr.document.labeling import RuleLabeler
 from sapsr.document.model import Document
+from sapsr.document.text import font_display_name
+
+
+@pytest.mark.typical
+def test_font_name_is_readable():
+    """В замечании — «Times New Roman», а не внутреннее имя шрифта из PDF."""
+    assert font_display_name("AAAAAA+TimesNewRomanPSMT") == "Times New Roman"
+    assert font_display_name("Arial,Bold") == "Arial"
+    assert font_display_name("VOAZZS+SFRM1440") == "SFRM1440"
 
 
 def build(kb, raw):
@@ -141,3 +150,34 @@ def test_document_json_roundtrip(kb):
     assert restored.model_dump() == doc.model_dump()
     assert restored.block(doc.blocks[5].id).text == doc.blocks[5].text
     assert doc.meta.labeler.name == "rule-labeler" and doc.meta.pages == 8
+
+
+# ── места замечаний для документа с комментариями ──────────────────────────
+
+def _block(block_id, page, top, lines=None, kind="list_item"):
+    from sapsr.document.model import Block, LineGeom
+    geoms = [LineGeom(page=p, bbox=(85.0, t, 500.0, t + 14.0)) for p, t in (lines or [(page, top)])]
+    return Block(id=block_id, type=kind, page=page, bbox=(85.0, top, 500.0, top + 14.0), text="– пункт", lines=geoms)
+
+
+def test_list_evidence_covers_whole_list_on_each_page():
+    from sapsr.document.model import DocMeta
+    from sapsr.report.areas import locate
+    from sapsr.report.model import Evidence, Finding
+    doc = Document(meta=DocMeta(pages=3), blocks=[
+        _block("b-0001", 1, 100.0, kind="paragraph"),
+        _block("b-0002", 1, 700.0),
+        _block("b-0003", 1, 740.0, lines=[(1, 740.0), (2, 72.0)]),  # пункт переходит на следующую страницу
+        _block("b-0099", 1, 800.0, kind="page_number"),  # номер страницы между пунктами не выделяется
+        _block("b-0004", 2, 90.0),
+    ])
+    finding = Finding(id="f-001", requirement_id="FMT-LIST-SIMPLE", category="format", severity="major",
+                      origin="symbolic", blocking=False, message="Неправильно оформлен простой список",
+                      evidence=[Evidence(page=1, block_id="b-0002", block_end="b-0004"),
+                                Evidence(page=3, bbox=(10.0, 20.0, 30.0, 40.0)), Evidence(page=2)])
+    locate([finding], doc)
+    list_areas = [(a.page, a.bbox[1]) for a in finding.evidence[0].areas]
+    assert list_areas == [(1, 700.0), (1, 740.0), (2, 72.0), (2, 90.0)]
+    assert [(a.page, a.bbox) for a in finding.evidence[1].areas] == [(3, (10.0, 20.0, 30.0, 40.0))]
+    # Страница без блока — без прямоугольника: комментарий встанет заметкой на полях.
+    assert finding.evidence[2].areas is None

@@ -46,9 +46,9 @@ def test_narrow_margin(service_factory):
     report = final_report(service_factory(llm=None), HYBRID / "narrow-margin.pdf")
     f = next(f for f in report.findings if f.requirement_id == "FMT-MARGIN-LEFT")
     assert f.page == "2–8" and not f.blocking and f.severity == "minor"
-    assert "15.0 мм" in f.found and [e.page for e in f.evidence] == list(range(2, 9))
-    assert f.expected == "Левое поле должно быть 30 мм."
-    assert f.fix.startswith("Установите левое поле 30 мм: \\geometry{left=3cm}")
+    assert f.message == "Левое поле 15 мм вместо 30." and [e.page for e in f.evidence] == list(range(2, 9))
+    assert f.found == "Так на 7 стр." and f.expected == "Левое поле — 30 мм."
+    assert f.fix.startswith("Установите левое поле 30 мм. В Word") and "\\geometry{left=3cm}" in f.fix
 
 
 @pytest.mark.negative
@@ -176,7 +176,7 @@ def test_simple_list_rules(kb):
         p.add(item, x0=LEFT + INDENT)
     findings, _ = check_raw(kb, raw_document(title_page(), p))
     lists = next(f for f in findings if f.requirement_id == "LST-SIMPLE")
-    assert lists.found.startswith("Списков с нарушениями: 1; элементов с неверным знаком в конце: 1 из 3")
+    assert lists.found == "Пунктов с ошибкой: 1 из 3 (списков: 1)."
 
 
 @pytest.mark.boundary

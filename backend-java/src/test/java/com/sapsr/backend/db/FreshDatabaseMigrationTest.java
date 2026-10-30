@@ -62,7 +62,7 @@ class FreshDatabaseMigrationTest {
     void appliesAllMigrationsFromScratch() {
         List<String> applied = jdbc.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
-        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6", "7");
+        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
     }
 
     @Test

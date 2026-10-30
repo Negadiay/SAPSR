@@ -34,8 +34,6 @@ public class AdminUsers {
 
     private static final Logger log = LoggerFactory.getLogger(AdminUsers.class);
     private static final ObjectMapper JSON = new ObjectMapper();
-    /** Хвост «(гр. 321702)», который регистрация дописывает к ФИО студента. */
-    private static final Pattern GROUP_SUFFIX = Pattern.compile("\\s*\\(гр\\.\\s*\\d{6}\\)\\s*$");
     /** ФИО: с заглавной, буквы кириллицы и латиницы, пробел, точка (инициалы), дефис, апостроф. */
     private static final Pattern NAME = Pattern.compile("[А-ЯЁA-Z][А-ЯЁа-яёA-Za-z'.\\- ]{1,99}");
 
@@ -55,7 +53,7 @@ public class AdminUsers {
     }
 
     public static class NotFound extends RuntimeException {
-        public NotFound() { super("Пользователь не найден"); }
+        public NotFound() { super("Пользователь не найден."); }
     }
 
     /** Действие — только над студентом: данные преподавателя администратор лишь просматривает. */
@@ -111,16 +109,8 @@ public class AdminUsers {
         }
     }
 
-    /** ФИО для показа и правки — без «(гр. …)», которое регистрация дописывает студентам. */
-    public static String displayName(User user) {
-        String full = user.getFullName() == null ? "" : user.getFullName();
-        String name = GROUP_SUFFIX.matcher(full).replaceFirst("").strip();
-        if (name.isEmpty() && user.getLastName() != null) name = user.getLastName();
-        return name;
-    }
-
     private Person person(User u) {
-        return new Person(u.getTelegramId(), displayName(u), STUDENT.equals(u.getRole()) ? u.getGroupNumber() : null);
+        return new Person(u.getTelegramId(), u.displayName(), STUDENT.equals(u.getRole()) ? u.getGroupNumber() : null);
     }
 
     // ── правка ───────────────────────────────────────────────────────────────────────────────
@@ -132,10 +122,10 @@ public class AdminUsers {
      */
     public Person update(long id, String rawName, String rawGroup) {
         User user = users.findById(id).orElseThrow(NotFound::new);
-        if (!STUDENT.equals(user.getRole())) throw new NotAStudent("Изменить можно только данные студента");
+        if (!STUDENT.equals(user.getRole())) throw new NotAStudent("Изменить можно только данные студента.");
         String name = rawName == null ? "" : rawName.strip().replaceAll("\\s+", " ");
         if (!NAME.matcher(name).matches()) {
-            throw new Invalid("name", "ФИО — буквы, пробелы, точки и дефисы, с заглавной");
+            throw new Invalid("name", "ФИО — с заглавной буквы: буквы, пробелы, точки, дефисы.");
         }
         String group = rawGroup == null ? "" : rawGroup.strip();
         if (!calendar.isPossibleGroup(group)) throw new Invalid("group", groupHint());
@@ -153,7 +143,7 @@ public class AdminUsers {
             if (i > 0) text.append(i == digits.size() - 1 ? " или " : ", ");
             text.append(digits.get(i));
         }
-        return text.toString();
+        return text.append('.').toString();
     }
 
     // ── назначение администратором ───────────────────────────────────────────────────────────
@@ -164,9 +154,9 @@ public class AdminUsers {
      * о них удаляются, как при отзыве работы. ФИО остаётся — для экрана настроек.
      */
     public int makeAdmin(long id, long adminId) {
-        if (id == adminId) throw new NotAStudent("Вы уже администратор");
+        if (id == adminId) throw new NotAStudent("Вы уже администратор.");
         User user = users.findById(id).orElseThrow(NotFound::new);
-        if (!STUDENT.equals(user.getRole())) throw new NotAStudent("Администратором можно сделать только студента");
+        if (!STUDENT.equals(user.getRole())) throw new NotAStudent("Администратором можно сделать только студента.");
 
         List<Submission> works = submissions.findByStudent_TelegramIdOrderByCreatedAtDesc(id);
         for (Submission s : works) {
@@ -178,7 +168,7 @@ public class AdminUsers {
             deleteStoredFile(s);
         }
 
-        String name = displayName(user);
+        String name = user.displayName();
         user.setRole(ADMIN);
         user.setFullName(name.isEmpty() ? null : name);
         user.setGroupNumber(null);

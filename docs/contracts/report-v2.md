@@ -108,7 +108,9 @@
 | `quote` | дословный фрагмент документа. У содержательных замечаний цитата проверена: она есть в тексте |
 | `block_id` | блок модели документа (`b-0028`) — для отладки и будущей подсветки |
 | `section` | раздел: номер (`1.2`) или заголовок (`Введение`) |
+| `block_end` | последний блок, если место — несколько блоков подряд: весь список от первого пункта до последнего |
 | `bbox` | прямоугольник на странице (пока заполняется у скрытого текста) |
+| `areas` | **с 29.10.2026** (решение 14): где выделить место в файле работы — `[{"page": 3, "bbox": [x0, top, x1, bottom]}]`, по прямоугольнику на блок и страницу; абзац на двух страницах даёт два. Колонтитулы внутри диапазона не входят. Нет — место без блока (страница целиком, весь документ). По ним бэкенд ставит комментарии в PDF (`api-v1.md`, раздел 17) |
 
 **Категории:**
 
@@ -165,6 +167,7 @@
 | `main_font`, `main_size` | основной шрифт и размер, как их увидел разметчик |
 | `title_page.student_name` | ФИО студента с титульного листа, как написано («И.И. Иванов») |
 | `title_page.matches_registration` | совпадает ли фамилия с зарегистрированной (`student.last_name` задания); отсутствует — сравнить не с чем |
+| `title_page.work_type` | **26.10.2026**: вид работы по титульному листу — `course_work`, `course_project`, `diploma` — по словам «к курсовому проекту», «курсовая работа», «дипломный проект» или обозначению «БГУИР КП7 …»; отсутствует — не распознан. Студент вид работы не выбирает: бэкенд записывает его в работу, дипломную — только в 8 семестре (решение 11) |
 
 Ответ на вопрос Котко (К2) — в каком поле ФИО с титульного листа: `document.title_page`. Несовпадение даёт ещё и замечание `TTL-STUDENT-MATCH` (`needs_teacher_review: true`, сдачу не блокирует).
 
@@ -219,7 +222,7 @@
 
 **Предупреждения (`warnings[].code`):** `DEFAULT_PROFILE`, `PROFILE_NOT_FOUND`, `CONVERTED_FROM_DOCX` (проверена PDF-версия работы из DOCX), `CLOUD_LLM` (текст обрабатывала облачная модель, включённая настройкой — решение 2).
 
-**Метрики:** `pages`, `blocks`, `sections`; `content_fragments`, `content_chars_dropped`; `claims_extracted`, `claims_accepted`, `claims_rejected_quote`, `claims_rejected_value`, `claims_hallucinated_quote_share` — доля выдуманных цитат; `reasoning_firings`; `requirements_checked`, `requirements_quotes_rejected`; `llm_calls`, `llm_cache_hits`, `llm_schema_retries`, `llm_schema_failures`, `llm_errors`, `llm_ms`. В режиме `neural` — `neural_findings`, `neural_quotes`, `neural_quotes_unverified`.
+**Метрики:** `pages`, `blocks`, `sections`; `content_fragments`, `content_chars_dropped`; `claims_extracted`, `claims_accepted`, `claims_rejected_quote`, `claims_rejected_value`, `claims_hallucinated_quote_share` — доля выдуманных цитат; `reasoning_firings`; `requirements_checked`, `requirements_quotes_rejected`; `llm_calls`, `llm_cache_hits`, `llm_schema_retries`, `llm_schema_failures`, `llm_errors`, `llm_ms`, `llm_rate_waits` — сколько раз облачный сервис попросил подождать (лимит бесплатного тарифа, решение 2). В режиме `neural` — `neural_findings`, `neural_quotes`, `neural_quotes_unverified`.
 
 ## 9. Что нужно экрану отчёта (план Халилова, И4)
 

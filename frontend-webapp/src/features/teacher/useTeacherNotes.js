@@ -6,11 +6,10 @@ const loadNotes = (storageKey) => {
 
 // Заметки преподавателя: хранятся в localStorage устройства.
 export function useTeacherNotes({ userRole, currentUserId }) {
-  const [notes, setNotes]                     = useState([]);
-  const [noteInput, setNoteInput]             = useState('');
+  const [notes, setNotes]                 = useState([]);
+  const [noteInput, setNoteInput]         = useState('');
   // id редактируемой заметки, 'new' — создаётся новая
-  const [editingNoteId, setEditingNoteId]     = useState(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
 
   const storageKey = `sapsr_notes_${currentUserId || 'teacher'}`;
 
@@ -21,7 +20,7 @@ export function useTeacherNotes({ userRole, currentUserId }) {
 
   const saveNotes = (next) => {
     setNotes(next);
-    localStorage.setItem(storageKey, JSON.stringify(next));
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* не запомнится — не страшно */ }
   };
 
   const closeEditor = () => {
@@ -31,33 +30,25 @@ export function useTeacherNotes({ userRole, currentUserId }) {
 
   const startNew = () => { setNoteInput(''); setEditingNoteId('new'); };
   const startEdit = (note) => { setEditingNoteId(note.id); setNoteInput(note.text); };
-  const cancelEdit = () => setEditingNoteId(null);
 
   const saveNew = () => {
     const text = noteInput.trim();
     if (!text) return;
-    saveNotes([...notes, { id: Date.now(), text }]);
+    saveNotes([{ id: Date.now(), text }, ...notes]);
     closeEditor();
   };
 
   const saveEdit = (id) => {
     const text = noteInput.trim();
     if (!text) return;
-    saveNotes(notes.map(n => n.id === id ? { ...n, text } : n));
+    saveNotes(notes.map((n) => (n.id === id ? { ...n, text } : n)));
     closeEditor();
   };
 
-  const requestDelete = (id) => setDeleteConfirmId(id);
-  const cancelDelete = () => setDeleteConfirmId(null);
-
-  const confirmDelete = () => {
-    saveNotes(notes.filter(n => n.id !== deleteConfirmId));
-    setDeleteConfirmId(null);
-  };
+  const remove = (id) => saveNotes(notes.filter((n) => n.id !== id));
 
   return {
     notes, noteInput, setNoteInput, editingNoteId,
-    startNew, startEdit, cancelEdit, saveNew, saveEdit,
-    deleteConfirmId, requestDelete, cancelDelete, confirmDelete,
+    startNew, startEdit, cancelEdit: closeEditor, saveNew, saveEdit, remove,
   };
 }

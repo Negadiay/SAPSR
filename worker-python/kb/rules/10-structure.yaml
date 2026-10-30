@@ -9,10 +9,10 @@
   severity: critical
   blocking: true
   check: document.pages
-  message: "Документ пустой."
-  expected: "PDF должен содержать страницы с текстовым слоем."
+  message: "В файле нет страниц."
+  expected: "PDF со страницами работы."
   found: "Страниц не найдено."
-  fix: "Экспортируйте работу в PDF повторно."
+  fix: "Сохраните работу в PDF заново."
 
 - id: DOC-NO-TEXT
   title: В документе есть текстовый слой
@@ -21,10 +21,10 @@
   severity: critical
   blocking: true
   check: document.text_layer
-  message: "Документ не содержит текста."
-  expected: "PDF должен иметь текстовый слой для автоматической проверки."
-  found: "Текстовый слой не обнаружен — возможно, это скан."
-  fix: "Экспортируйте документ как текстовый PDF, а не как изображение."
+  message: "В файле нет текста — похоже, это скан."
+  expected: "PDF с текстом, а не с картинками страниц."
+  found: "Текст не найден."
+  fix: "Сохраните работу в PDF из Word или LaTeX, а не сканом или фотографией."
 
 - id: STR-TITLE-PAGE
   title: Титульный лист
@@ -34,9 +34,9 @@
   blocking: true
   check: structure.required_part
   params: { part: part.title_page }
-  message: "Отсутствует обязательный раздел: «{part_title}»."
-  expected: "В документе должен быть раздел «{part_title}»."
-  found: "На первой странице нет признаков титульного листа (министерство, университет, кафедра)."
+  message: "Нет титульного листа."
+  expected: "Первая страница — титульный лист."
+  found: "На первой странице нет министерства, университета и кафедры."
   fix: "Добавьте титульный лист первой страницей."
 
 - id: STR-TOC
@@ -47,9 +47,9 @@
   blocking: true
   check: structure.required_part
   params: { part: part.toc }
-  message: "Отсутствует обязательный раздел: «{part_title}»."
-  expected: "В документе должен быть раздел «{part_title}»."
-  found: "Раздел не найден среди заголовков документа."
+  message: "Нет раздела «{part_title}»."
+  expected: "Раздел «{part_title}» с отдельным заголовком."
+  found: "Заголовок не найден."
   fix: "Добавьте раздел «{part_title}» с отдельным заголовком."
 
 - id: STR-INTRO
@@ -60,9 +60,9 @@
   blocking: true
   check: structure.required_part
   params: { part: part.intro }
-  message: "Отсутствует обязательный раздел: «{part_title}»."
-  expected: "В документе должен быть раздел «{part_title}»."
-  found: "Раздел не найден среди заголовков документа (строка оглавления не считается)."
+  message: "Нет раздела «{part_title}»."
+  expected: "Раздел «{part_title}» с отдельным заголовком."
+  found: "Заголовок не найден (строка в содержании не считается)."
   fix: "Добавьте раздел «{part_title}» с отдельным заголовком."
 
 - id: STR-CONCLUSION
@@ -73,9 +73,9 @@
   blocking: true
   check: structure.required_part
   params: { part: part.conclusion }
-  message: "Отсутствует обязательный раздел: «{part_title}»."
-  expected: "В документе должен быть раздел «{part_title}»."
-  found: "Раздел не найден среди заголовков документа (строка оглавления не считается)."
+  message: "Нет раздела «{part_title}»."
+  expected: "Раздел «{part_title}» с отдельным заголовком."
+  found: "Заголовок не найден (строка в содержании не считается)."
   fix: "Добавьте раздел «{part_title}» с отдельным заголовком."
 
 - id: STR-REFERENCES
@@ -86,9 +86,9 @@
   blocking: true
   check: structure.required_part
   params: { part: part.references }
-  message: "Отсутствует обязательный раздел: «{part_title}»."
-  expected: "В документе должен быть раздел «{part_title}»."
-  found: "Раздел не найден среди заголовков документа (строка оглавления не считается)."
+  message: "Нет раздела «{part_title}»."
+  expected: "Раздел «{part_title}» с отдельным заголовком."
+  found: "Заголовок не найден (строка в содержании не считается)."
   fix: "Добавьте раздел «{part_title}» с отдельным заголовком."
 
 - id: STR-NUMBERING
@@ -98,7 +98,7 @@
   severity: minor
   check: structure.section_numbering
   params: { max_level: 1 }
-  message: "Нарушена последовательность номеров разделов."
-  expected: "Разделы должны нумероваться последовательно: 1, 2, 3…"
-  found: "Пропуски перед разделами: {gaps}."
-  fix: "Проверьте нумерацию разделов в документе."
+  message: "Номера разделов идут не подряд."
+  expected: "Разделы нумеруются подряд: 1, 2, 3…"
+  found: "Пропущены номера перед разделами: {gaps}."
+  fix: "Исправьте нумерацию разделов."

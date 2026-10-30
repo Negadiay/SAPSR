@@ -18,6 +18,7 @@ public record TaskMessage(
         FileRef file,
         CheckProfile profile,
         StudentInfo student,
+        LlmChoice llm,
         PreviousVersion previous,
         @JsonProperty("trace_id") UUID traceId,
         // Переходное поле: нынешний обработчик читает абсолютный путь. Удалить, когда он перейдёт на storage_key.
@@ -43,11 +44,22 @@ public record TaskMessage(
             @JsonProperty("first_name") String firstName,
             String group) {}
 
+    /**
+     * Модель, которую выбрал администратор (решение 13): id из каталога обработчика, адреса здесь нет.
+     * null — модель обработчика по умолчанию.
+     */
+    public record LlmChoice(String model) {}
+
     /** Предыдущая версия той же работы. Пока всегда null; аннотации добавятся вместе со связью версий. */
     public record PreviousVersion(@JsonProperty("task_id") int taskId) {}
 
-    /** Задание на проверку сохранённой работы; {@code file} — абсолютный путь к её файлу. */
+    /** Задание на проверку сохранённой работы моделью по умолчанию; {@code file} — абсолютный путь к её файлу. */
     public static TaskMessage check(Submission submission, Path file) {
+        return check(submission, file, null);
+    }
+
+    /** То же, моделью {@code modelId} из каталога обработчика; null — по умолчанию. */
+    public static TaskMessage check(Submission submission, Path file, String modelId) {
         User student = submission.getStudent();
         return new TaskMessage(
                 SCHEMA,
@@ -58,6 +70,7 @@ public record TaskMessage(
                 student == null
                         ? new StudentInfo(null, null, null)
                         : new StudentInfo(student.getLastName(), student.getFirstName(), student.getGroupNumber()),
+                modelId == null ? null : new LlmChoice(modelId),
                 null,
                 submission.getTraceId(),
                 file.toString().replace('\\', '/'));

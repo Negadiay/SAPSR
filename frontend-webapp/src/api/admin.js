@@ -23,3 +23,10 @@ export const fetchPeople = (group) => apiFetch(`/admin/groups/${group}/people`);
 export const saveUser = (id, data) => putJson(`/admin/users/${id}`, data);
 
 export const makeAdmin = (id) => postJson(`/admin/users/${id}/admin`, {});
+
+// «Красная зона» (api-v1.md, раздел 16): состояние обработчика и модель проверки.
+export const fetchSystem = () => apiFetch('/admin/system');
+
+// model: id из списка обработчика или null — снова по умолчанию; облачную — только с confirmCloud.
+export const saveModel = (model, confirmCloud = false) =>
+  putJson('/admin/system/model', { model, confirm_cloud: confirmCloud });

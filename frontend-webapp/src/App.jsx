@@ -1,14 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useLayoutEffect } from 'react';
 import './styles/app.css';
 
 import Screen from './components/Screen';
-import Icon from './components/Icon';
-import ConfirmDialog from './components/ConfirmDialog';
-import BottomNav from './navigation/BottomNav';
-import { getTabs } from './navigation/tabs';
-import { useTabs } from './navigation/useTabs';
-import { useKeyboardAwareNav } from './navigation/useKeyboardAwareNav';
+import { useNavigator } from './navigation/useNavigator';
 import { useSession } from './features/registration/useSession';
 import { useRegistration } from './features/registration/useRegistration';
 import RoleScreen from './features/registration/RoleScreen';
@@ -16,187 +10,119 @@ import StudentRegisterScreen from './features/registration/StudentRegisterScreen
 import TeacherRegisterScreen from './features/registration/TeacherRegisterScreen';
 import ConfirmCodeScreen from './features/registration/ConfirmCodeScreen';
 import { useStudentWorkspace } from './features/student/useStudentWorkspace';
-import UploadTab from './features/student/UploadTab';
-import StudentWorksTab from './features/student/StudentWorksTab';
+import WorksScreen from './features/student/WorksScreen';
+import WorkScreen from './features/student/WorkScreen';
+import UploadScreen from './features/student/UploadScreen';
 import { useTeacherWorkspace } from './features/teacher/useTeacherWorkspace';
-import QueueTab from './features/teacher/QueueTab';
-import HistoryTab from './features/teacher/HistoryTab';
-import NotesTab from './features/teacher/NotesTab';
+import QueueScreen from './features/teacher/QueueScreen';
+import TeacherWorkScreen from './features/teacher/TeacherWorkScreen';
+import NotesScreen from './features/teacher/NotesScreen';
 import { useAdminCalendar } from './features/admin/useAdminCalendar';
-import AdminTab from './features/admin/AdminTab';
+import AdminScreen from './features/admin/AdminScreen';
 import { useSettings } from './features/settings/useSettings';
-import { presetFor, themeVariables } from './features/settings/customTheme';
-import SettingsTab from './features/settings/SettingsTab';
-import { useTutorial } from './features/tutorial/useTutorial';
-import TutorialOverlay from './features/tutorial/TutorialOverlay';
+import { themeVariables } from './features/settings/customTheme';
+import SettingsScreen from './features/settings/SettingsScreen';
+import { useTour } from './features/tour/useTour';
+import TourOverlay from './features/tour/TourOverlay';
+import { paintChrome } from './telegram/webApp';
+import { setMainButtonColors } from './telegram/useTelegramButtons';
 
-const MotionDiv = motion.div;
-
-const tabVariants = {
-  enter:  (d) => ({ x: d > 0 ? 300 : -300, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit:   (d) => ({ x: d < 0 ? 300 : -300, opacity: 0 }),
-};
-
-// Каркас приложения: связывает блоки из features/ и решает, какой экран показать.
+// Каркас приложения: тема, вход, стек экранов роли. Сами экраны — в features/.
 function App() {
   const settings = useSettings();
   const session = useSession();
   const { step, userRole } = session;
-  const tabs = getTabs(userRole);
+  const main = step === 'main';
 
-  // Ref для блокировки свайпа во время туториала (избегает stale closure)
-  const swipeBlockedRef = useRef(false);
-  const { activeTab, direction, showTab, goToTab } = useTabs({
-    swipeEnabled: step === 'main', tabCount: tabs.length, swipeBlockedRef,
-  });
-  const { keyboardOpen, navRef } = useKeyboardAwareNav();
-
-  const tutorial = useTutorial({ userRole, activeTab, showTab });
-  useEffect(() => { swipeBlockedRef.current = tutorial.active; }, [tutorial.active]);
-
-  const registration = useRegistration({
-    session,
-    onRegistered: tutorial.maybeLaunch,
-    onLoggedIn: () => showTab(0, 0),
-  });
-  const student = useStudentWorkspace({ active: step === 'main' && userRole === 'student' });
+  const nav = useNavigator({ role: userRole, active: main });
+  // Обучение: после регистрации — само; администратора — при первом входе (его не регистрируют).
+  const tour = useTour({ role: userRole, nav, ready: main && Boolean(nav.current), autoStart: userRole === 'admin' });
+  const registration = useRegistration({ session, onRegistered: tour.maybeStart });
+  const student = useStudentWorkspace({ active: main && userRole === 'student' });
   const teacher = useTeacherWorkspace({
-    active: step === 'main' && userRole === 'teacher',
+    active: main && userRole === 'teacher',
     userRole,
     currentUserId: session.currentUserId,
-    onOpenQueue: () => showTab(0, -1),
+    onOpenQueue: () => nav.home(),
   });
-  const admin = useAdminCalendar({ active: step === 'main' && userRole === 'admin' });
+  const admin = useAdminCalendar({ active: main && userRole === 'admin' });
 
-  const handleTabChange = (index) => { goToTab(index); student.upload.clearStatus(); };
-
-  const tabId = tabs[activeTab]?.id;
-
-  // Своя тема заменяет ночной и контрастный режимы: её цвета — переменными CSS на корне.
-  const custom = settings.custom.enabled ? settings.custom.colors : null;
-  const themeClass = custom
-    ? 'app-custom'
-    : `${settings.theme === 'dark' ? 'app-dark' : ''} ${settings.contrast ? 'app-contrast' : ''}`;
-  // Фон страницы под приложением виден, когда экран оттягивают за край, — красим его в цвет темы.
-  const pageBackground = custom ? custom.bg : presetFor(settings.theme, settings.contrast).bg;
+  // Палитра — переменными CSS на корне; шапка Telegram и главная кнопка — в цвет темы.
+  const { colors } = settings;
   useEffect(() => {
-    document.documentElement.style.backgroundColor = pageBackground;
-    document.body.style.backgroundColor = pageBackground;
-  }, [pageBackground]);
+    document.documentElement.style.backgroundColor = colors.bg;
+    document.body.style.backgroundColor = colors.bg;
+    paintChrome(colors.bg);
+    setMainButtonColors({ color: colors.button, text_color: colors.buttonText });
+  }, [colors]);
+
+  // Новый экран открывается сверху.
+  const screenKey = nav.current ? `${nav.depth}-${nav.current.screen}-${nav.current.params?.id ?? ''}` : step;
+  useLayoutEffect(() => { window.scrollTo?.(0, 0); }, [screenKey]);
+
+  const themeClass = [
+    settings.custom.enabled ? 'app-custom' : '',
+    settings.dark ? 'app-dark' : '',
+    settings.contrast && !settings.custom.enabled ? 'app-contrast' : '',
+  ].filter(Boolean).join(' ');
+
+  // Заголовок экрана: «Назад» своей стрелкой, только если нет родной кнопки Telegram; справа — обучение и настройки.
+  const header = (actions = []) => ({
+    onBack: nav.canGoBack && !nav.nativeBack ? nav.back : undefined,
+    actions,
+  });
+  const rootActions = [
+    ...(userRole === 'teacher' ? [{ icon: 'notes', label: 'Заметки', onClick: () => nav.push('notes') }] : []),
+    { icon: 'help', label: 'Обучение', onClick: tour.start },
+    { icon: 'settings', label: 'Настройки', onClick: () => nav.push('settings') },
+  ];
+
+  const renderMain = () => {
+    const { screen, params } = nav.current || {};
+    switch (screen) {
+      case 'works':
+        return <WorksScreen works={student.works} me={session.profile} header={header(rootActions)}
+          onOpen={(id) => nav.push('work', { id })} onUpload={() => nav.push('upload')} />;
+      case 'upload':
+        return <UploadScreen me={session.profile} preset={params.preset} header={header()}
+          onUploaded={async (id) => {
+            await student.works.refresh();
+            if (id) nav.replace('work', { id });
+            else nav.back();
+          }} />;
+      case 'work':
+        return userRole === 'teacher'
+          ? <TeacherWorkScreen key={params.id} id={params.id} teacher={teacher} header={header()} onDecided={nav.back} />
+          : <WorkScreen key={params.id} id={params.id} works={student.works} header={header()}
+            onSelectVersion={(id) => nav.replace('work', { id })}
+            onUploadNew={(preset) => nav.push('upload', { preset })}
+            onWithdrawn={nav.back} />;
+      case 'queue':
+        return <QueueScreen teacher={teacher} header={header(rootActions)} onOpen={(id) => nav.push('work', { id })} />;
+      case 'notes':
+        return <NotesScreen notes={teacher.notes} header={header()} onFind={teacher.findFromNote} />;
+      case 'admin':
+        return <AdminScreen admin={admin} header={header(rootActions)} />;
+      case 'settings':
+        return <SettingsScreen settings={settings} profile={session.profile} header={header()}
+          onNeedProfile={session.refreshProfile}
+          onChangeRole={userRole === 'admin' ? undefined : registration.reset} />;
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className={`App ${themeClass} font-${settings.fontSize} ${keyboardOpen ? 'keyboard-open' : ''}`}
-      style={custom ? themeVariables(custom) : undefined}>
-
-      {/* Диалог подтверждения удаления заметки */}
-      {teacher.notes.deleteConfirmId !== null && (
-        <ConfirmDialog
-          title="Удалить заметку?"
-          body="Это действие нельзя отменить."
-          confirmLabel="Удалить"
-          onConfirm={teacher.notes.confirmDelete}
-          onCancel={teacher.notes.cancelDelete}
-        />
-      )}
-
-      {/* Диалог подтверждения отзыва работы */}
-      {student.works.withdrawConfirmId !== null && (
-        <ConfirmDialog
-          title="Отозвать работу?"
-          body="Работа исчезнет из списка преподавателя, а уведомление в Telegram будет удалено."
-          confirmLabel="Отозвать"
-          onConfirm={student.works.confirmWithdraw}
-          onCancel={student.works.cancelWithdraw}
-        />
-      )}
-
-      {/* Кнопка туториала; у администратора обучения нет */}
-      {step === 'main' && userRole !== 'admin' && (
-        <button className="tutorial-btn" onClick={tutorial.start} title="Справка">
-          <Icon name="help" label="Справка" />
-        </button>
-      )}
-
-      {/* Туториал */}
-      {tutorial.active && (
-        <TutorialOverlay
-          steps={tutorial.steps}
-          step={tutorial.stepIndex}
-          onNext={tutorial.next}
-          onSkip={tutorial.skip}
-          refs={tutorial.refs}
-        />
-      )}
-
-      {step !== 'main' && (
-        <div className="branding fade-in">
-          <img src="cat.jpg" alt="Logo" className="logo" />
-          <h1>SAPSR</h1>
-        </div>
-      )}
-
-      <AnimatePresence custom={direction} mode="wait">
-        {step === 'loading' && (
-          <Screen key="loading">
-            <p className="description">Загрузка...</p>
-          </Screen>
-        )}
-
-        {step === 'role' && (
-          <RoleScreen key="role" registration={registration} registeredRole={session.registeredRole} />
-        )}
-
-        {step === 'register' && userRole === 'student' && (
-          <StudentRegisterScreen key="reg-student" registration={registration} />
-        )}
-
-        {step === 'register' && userRole === 'teacher' && (
-          <TeacherRegisterScreen key="reg-teacher" registration={registration} />
-        )}
-
-        {step === 'confirm_code' && (
-          <ConfirmCodeScreen key="confirm-code" registration={registration} />
-        )}
-
-        {step === 'main' && (
-          <MotionDiv key={activeTab} custom={direction} variants={tabVariants}
-            initial="enter" animate="center" exit="exit"
-            transition={{ type: 'spring', stiffness: 520, damping: 36, mass: 0.75 }}
-            className="screen main-content"
-          >
-            {tabId === 'upload' && (
-              <UploadTab upload={student.upload} me={session.profile} teacherSelectRef={tutorial.refs.teacherSel}
-                fileUploadRef={tutorial.refs.fileUpload} submitRef={tutorial.refs.submitBtn} />
-            )}
-            {tabId === 'works' && <StudentWorksTab works={student.works} />}
-            {tabId === 'queue' && (
-              <QueueTab queue={teacher.queue} searchRef={tutorial.refs.teacherSearch}
-                listRef={tutorial.refs.submissions} />
-            )}
-            {tabId === 'history' && <HistoryTab history={teacher.history} />}
-            {tabId === 'admin' && <AdminTab admin={admin} />}
-            {tabId === 'notes' && (
-              <NotesTab notes={teacher.notes} onFind={teacher.findFromNote} addNoteRef={tutorial.refs.addNoteBtn} />
-            )}
-            {tabId === 'settings' && (
-              <SettingsTab settings={settings} onLogout={registration.reset}
-                profile={session.profile} onNeedProfile={session.refreshProfile} />
-            )}
-          </MotionDiv>
-        )}
-      </AnimatePresence>
-
-      {step === 'main' && (
-        <BottomNav
-          tabs={tabs}
-          activeTab={activeTab}
-          onSelect={handleTabChange}
-          navRef={navRef}
-          tutorialRefs={tutorial.refs}
-          badgeCount={teacher.queue.pending.length}
-        />
-      )}
+    <div className={`App ${themeClass} font-${settings.fontSize}`} style={themeVariables(colors)}>
+      <main className="app-main" key={screenKey}>
+        {step === 'loading' && <Screen><p className="screen-note">Загрузка…</p></Screen>}
+        {step === 'role' && <RoleScreen registration={registration} registeredRole={session.registeredRole} />}
+        {step === 'register' && userRole === 'student' && <StudentRegisterScreen registration={registration} />}
+        {step === 'register' && userRole === 'teacher' && <TeacherRegisterScreen registration={registration} />}
+        {step === 'confirm_code' && <ConfirmCodeScreen registration={registration} />}
+        {main && renderMain()}
+      </main>
+      {tour.active && main && <TourOverlay tour={tour} />}
     </div>
   );
 }

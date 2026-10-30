@@ -9,7 +9,7 @@ spring.datasource.password=ПАРОЛЬ_ИЗ_ENV
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 # Схему меняют только миграции Flyway (src/main/resources/db/migration); Hibernate её лишь сверяет.
 spring.jpa.hibernate.ddl-auto=validate
-spring.jpa.show-sql=true
+spring.jpa.show-sql=false
 
 # Базы, созданные до Flyway старым init.sql, принимаются как версия 1 — см. config/FlywayConfig.java.
 
@@ -36,6 +36,8 @@ sapsr.cors.allowed-origins=
 
 # Telegram Bot
 telegram.bot.token=ВАШ_ТОКЕН
+# Сообщение «SAPSR снова работает» всем пользователям при каждом запуске; false — не рассылать (отладка).
+sapsr.bot.startup-notice=true
 bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 
 # RabbitMQ
@@ -46,6 +48,7 @@ spring.rabbitmq.password=ПАРОЛЬ_ИЗ_ENV
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
 sapsr.rabbitmq.progress-queue=pdf_progress_queue
+sapsr.rabbitmq.status-queue=worker_status_queue
 
 # Email (Gmail SMTP для верификации преподавателей)
 # Используй App Password: Google Account -> Security -> 2FA -> App passwords

@@ -60,7 +60,7 @@ class SpacingParams(Params):
     allowed_max_ratio: float
 
 
-@check("layout.line_spacing", SpacingParams, provides=("ratio", "gap_pt", "size_pt"))
+@check("layout.line_spacing", SpacingParams, provides=("ratio", "gap_pt", "size_pt", "direction"))
 def line_spacing(ctx: CheckContext, params: SpacingParams) -> list[Hit]:
     """Межстрочный интервал по медиане расстояний между строками основного текста.
 
@@ -86,7 +86,9 @@ def line_spacing(ctx: CheckContext, params: SpacingParams) -> list[Hit]:
     ratio = median_gap / size
     if params.allowed_min_ratio <= ratio <= params.allowed_max_ratio:
         return []
-    return [Hit(values={"ratio": ratio, "gap_pt": median_gap, "size_pt": size},
+    # ratio — расстояние между строками к размеру шрифта, а не множитель интервала из Word: студенту — словами.
+    direction = "меньше" if ratio < params.allowed_min_ratio else "больше"
+    return [Hit(values={"ratio": ratio, "gap_pt": median_gap, "size_pt": size, "direction": direction},
                 location="Межстрочный интервал")]
 
 

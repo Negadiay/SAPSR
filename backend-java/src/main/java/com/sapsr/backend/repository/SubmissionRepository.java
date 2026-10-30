@@ -60,13 +60,17 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
                 s.status = case when s.status = 'QUEUED' then 'PROCESSING' else s.status end,
                 s.processingStartedAt = coalesce(s.processingStartedAt, :now)
             where s.id = :id
-              and (s.contentStatus is null or s.contentStatus = 'PENDING')
+              and (s.contentStatus is null or s.contentStatus = 'PENDING' or s.contentStatus = 'LATE')
             """)
     int recordProgress(@Param("id") Integer id, @Param("stage") String stage, @Param("now") LocalDateTime now);
 
     /** Содержательная проверка идёт дольше тайм-аута с прихода фазы format. */
     @Query("select s.id from Submission s where s.contentStatus = 'PENDING' and s.formatReceivedAt < :before")
     List<Integer> findContentOverdue(@Param("before") LocalDateTime before);
+
+    /** Содержание опаздывает (работа уже у преподавателя) и после фазы format прошло больше :before — итога не будет. */
+    @Query("select s.id from Submission s where s.contentStatus = 'LATE' and s.formatReceivedAt < :before")
+    List<Integer> findContentGaveUp(@Param("before") LocalDateTime before);
 
     /** Проверка началась, а фазы format нет дольше stuck-timeout — обработчик, скорее всего, упал. */
     @Query("""
@@ -80,6 +84,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
     @Modifying
     @Query("update Submission s set s.teacherMessageId = :messageId where s.id = :id")
     int setTeacherMessageId(@Param("id") Integer id, @Param("messageId") Integer messageId);
+
+    /** Номер сообщения студенту об итоге проверки — чтобы дописать в него итог содержания. */
+    @Transactional
+    @Modifying
+    @Query("update Submission s set s.studentMessageId = :messageId where s.id = :id")
+    int setStudentMessageId(@Param("id") Integer id, @Param("messageId") Integer messageId);
 
     @Query("""
             select s from Submission s

@@ -73,7 +73,7 @@ class AdminUsersTest {
     @Test
     @Tag("boundary")
     void hintNamesPossibleFirstDigits() {
-        assertThat(adminUsers.groupHint()).isEqualTo("Номер группы — шесть цифр, первая — 3, 4, 5 или 6");
+        assertThat(adminUsers.groupHint()).isEqualTo("Номер группы — шесть цифр, первая — 3, 4, 5 или 6.");
     }
 
     @Test
@@ -81,8 +81,8 @@ class AdminUsersTest {
     void displayNameDropsGroupSuffix() {
         User u = new User();
         u.setFullName("Терешкова А.В. (гр. 321702)");
-        assertThat(AdminUsers.displayName(u)).isEqualTo("Терешкова А.В.");
+        assertThat(u.displayName()).isEqualTo("Терешкова А.В.");
         u.setFullName("Гракова Наталья Викторовна");
-        assertThat(AdminUsers.displayName(u)).isEqualTo("Гракова Наталья Викторовна");
+        assertThat(u.displayName()).isEqualTo("Гракова Наталья Викторовна");
     }
 }

@@ -31,7 +31,7 @@ describe('ConfirmDialog', () => {
   it('отменяет по кнопке «Отмена» и по нажатию на фон', async () => {
     const { onConfirm, onCancel, user } = setup();
     await user.click(screen.getByRole('button', { name: 'Отмена' }));
-    await user.click(document.querySelector('.confirm-overlay'));
+    await user.click(document.querySelector('.dialog-overlay'));
     expect(onCancel).toHaveBeenCalledTimes(2);
     expect(onConfirm).not.toHaveBeenCalled();
   });

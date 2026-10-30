@@ -1,6 +1,7 @@
 package com.sapsr.backend.controller;
 
 import com.sapsr.backend.SapsrTelegramBot;
+import com.sapsr.backend.bot.AppLink;
 import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.entity.Annotation;
 import com.sapsr.backend.entity.ReviewFile;
@@ -47,11 +48,11 @@ public class TeacherDashboardController {
     @GetMapping("/submissions")
     public ResponseEntity<?> getSubmissions(HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Откройте приложение из Telegram."));
 
         Optional<User> teacher = userRepository.findById(telegramId);
         if (teacher.isEmpty() || !"TEACHER".equals(teacher.get().getRole())) {
-            return ResponseEntity.status(403).body(Map.of("error", "Доступ запрещён"));
+            return ResponseEntity.status(403).body(Map.of("error", "Раздел только для преподавателя."));
         }
 
         List<Submission> submissions = submissionRepository.findPendingForTeacher(telegramId);
@@ -69,13 +70,20 @@ public class TeacherDashboardController {
             // Отклонённая работа видна сразу после фазы format (решение 9): PENDING — содержание ещё проверяется.
             item.put("content_status", s.getContentStatus());
             item.put("format_errors", s.getFormatErrors());
-            if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
+            putStudent(item, s);
             item.put("file_name", s.displayFileName());
             item.put("review_annotations", reviewFiles.countAnnotations(s.getId()));
             item.put("has_review_file", reviewFiles.find(s.getId()).isPresent());
             result.add(item);
         }
         return ResponseEntity.ok(result);
+    }
+
+    /** ФИО без «(гр. …)» и группа отдельным полем. */
+    private static void putStudent(Map<String, Object> item, Submission s) {
+        if (s.getStudent() == null) return;
+        item.put("student_name", s.getStudent().displayName());
+        item.put("student_group", s.getStudent().getGroupNumber());
     }
 
     /** Номер версии работы: 1 — первая загрузка, дальше по цепочке parent_id. */
@@ -95,11 +103,11 @@ public class TeacherDashboardController {
                                         @RequestBody Map<String, Object> body,
                                         HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Откройте приложение из Telegram."));
 
         Optional<User> teacher = userRepository.findById(telegramId);
         if (teacher.isEmpty() || !"TEACHER".equals(teacher.get().getRole())) {
-            return ResponseEntity.status(403).body(Map.of("error", "Доступ запрещён"));
+            return ResponseEntity.status(403).body(Map.of("error", "Раздел только для преподавателя."));
         }
 
         Optional<Submission> opt = submissionRepository.findById(id);
@@ -107,18 +115,18 @@ public class TeacherDashboardController {
 
         Submission submission = opt.get();
         if (submission.getTeacher() == null || !submission.getTeacher().getTelegramId().equals(telegramId)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Эта работа не назначена вам"));
+            return ResponseEntity.status(403).body(Map.of("error", "Это работа другого преподавателя."));
         }
 
         if (submission.getTeacherVerdict() != null && !submission.getTeacherVerdict().isBlank()) {
             return ResponseEntity.status(409).body(Map.of("code", "VERDICT_ALREADY_SET",
-                    "error", "По работе уже вынесен вердикт"));
+                    "error", "Решение по работе уже принято."));
         }
 
         String verdict = String.valueOf(body.getOrDefault("verdict", "")).toUpperCase(Locale.ROOT);
         if (!"APPROVED".equals(verdict) && !"REVISION".equals(verdict)) {
             return ResponseEntity.badRequest().body(Map.of("code", "VALIDATION_ERROR", "field", "verdict",
-                    "error", "verdict должен быть APPROVED или REVISION"));
+                    "error", "Неизвестное решение."));
         }
 
         Object rawComment = body.get("comment");
@@ -130,14 +138,14 @@ public class TeacherDashboardController {
         if (reviewFileId != null && (reviewFile.isEmpty()
                 || !String.valueOf(reviewFileId).equals(String.valueOf(reviewFile.get().getId())))) {
             return ResponseEntity.badRequest().body(Map.of("code", "VALIDATION_ERROR", "field", "review_file_id",
-                    "error", "Размеченный файл не относится к этой работе"));
+                    "error", "Файл с пометками — от другой работы. Загрузите его заново."));
         }
         long annotationCount = reviewFiles.countAnnotations(submission.getId());
 
         // На доработку — с текстом или хотя бы с одним комментарием в размеченном файле (api-v1.md, раздел 9).
         if ("REVISION".equals(verdict) && comment.isEmpty() && annotationCount == 0) {
             return ResponseEntity.badRequest().body(Map.of("code", "COMMENT_REQUIRED",
-                    "error", "При отправке на доработку напишите комментарий или приложите файл с пометками"));
+                    "error", "Для доработки загрузите файл с пометками."));
         }
 
         submission.setTeacherVerdict(verdict);
@@ -148,9 +156,9 @@ public class TeacherDashboardController {
             String teacherName = teacher.get().getFullName() != null ? teacher.get().getFullName() : "Преподаватель";
             // Комментарии из файла — прямо в сообщении: студент видит их сразу, файл понадобится при исправлении.
             List<Annotation> annotations = reviewFile.map(reviewFiles::annotationsOf).orElse(List.of());
-            bot.notifyUser(submission.getStudent().getTelegramId(), BotMessages.verdictForStudent(
+            bot.send(submission.getStudent().getTelegramId(), BotMessages.verdictForStudent(
                     teacherName, submission.displayFileName(), "APPROVED".equals(verdict), comment,
-                    annotations, reviewFile.isPresent()));
+                    annotations, reviewFile.isPresent()), List.of(AppLink.work(submission.getId())));
         }
 
         return ResponseEntity.ok(Map.of("status", "OK", "verdict", verdict));
@@ -159,11 +167,11 @@ public class TeacherDashboardController {
     @GetMapping("/history")
     public ResponseEntity<?> getHistory(HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Откройте приложение из Telegram."));
 
         Optional<User> teacher = userRepository.findById(telegramId);
         if (teacher.isEmpty() || !"TEACHER".equals(teacher.get().getRole())) {
-            return ResponseEntity.status(403).body(Map.of("error", "Доступ запрещён"));
+            return ResponseEntity.status(403).body(Map.of("error", "Раздел только для преподавателя."));
         }
 
         List<Submission> submissions = submissionRepository.findHistoryForTeacher(telegramId);
@@ -175,7 +183,8 @@ public class TeacherDashboardController {
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
-            if (s.getStudent() != null) item.put("student_name", s.getStudent().getFullName());
+            item.put("version", versionOf(s));
+            putStudent(item, s);
             item.put("file_name", s.displayFileName());
             item.put("review_annotations", reviewFiles.countAnnotations(s.getId()));
             item.put("has_review_file", reviewFiles.find(s.getId()).isPresent());

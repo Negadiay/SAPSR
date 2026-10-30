@@ -11,8 +11,13 @@
   stub    — заготовленные ответы из функции или JSON-файла (модульные тесты);
   off     — модель выключена: содержательные этапы пропускаются с записью в pipeline.skipped.
 
-Облачная модель (решение 2) включается только явно: SAPSR_LLM_ALLOW_CLOUD=1. Без этого
-обращение к нелокальному адресу отклоняется ещё до отправки текста работы.
+Облачная модель (решения 2 и 13) включается только явно: SAPSR_LLM_ALLOW_CLOUD=1. Без этого,
+а также без HTTPS или без ключа доступа обращение к нелокальному адресу отклоняется ещё до отправки
+текста работы. Перенаправления облачный запрос не выполняет: текст не уйдёт по чужому адресу.
+Персональные данные из текста убирает sapsr/llm/privacy.py до вызова клиента.
+
+Бесплатный тариф облака (решение 2: Groq) ограничивает запросы и токены в минуту. Ответ 429 — не сбой:
+клиент ждёт, сколько просит сервис, если до конца срока проверки хватает времени.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -71,6 +77,10 @@ class LlmConfig:
     replay_dir: Optional[Path] = None
     stub_file: Optional[Path] = None
     ping_ttl_s: float = 30.0
+    # Заголовки и поля запроса, которых требует облачный сервис (каталог моделей, llm-models.yaml):
+    # например, каталог Yandex Cloud или запрет хранить запросы у посредника.
+    headers: dict = field(default_factory=dict)
+    extra_body: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.mode not in MODES:
@@ -96,6 +106,8 @@ class LlmStats:
     schema_failures: int = 0
     errors: int = 0
     ms: int = 0
+    # Сколько раз облачный сервис попросил подождать (лимит бесплатного тарифа).
+    rate_waits: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def add(self, **values):
@@ -113,7 +125,7 @@ class LlmStats:
     def as_dict(self) -> dict:
         return {"llm_calls": self.calls, "llm_cache_hits": self.cache_hits,
                 "llm_schema_retries": self.schema_retries, "llm_schema_failures": self.schema_failures,
-                "llm_errors": self.errors, "llm_ms": self.ms}
+                "llm_errors": self.errors, "llm_ms": self.ms, "llm_rate_waits": self.rate_waits}
 
 
 def is_local_url(url: str) -> bool:
@@ -188,6 +200,18 @@ class LlmClient:
     def is_cloud(self) -> bool:
         return self.config.mode in ("live", "record") and not is_local_url(self.config.base_url)
 
+    def cloud_problem(self) -> Optional[str]:
+        """Почему текст работы нельзя отправить облачной модели; None — можно."""
+        if not self.config.allow_cloud:
+            return "Адрес модели не локальный, а облачная модель не разрешена (SAPSR_LLM_ALLOW_CLOUD)."
+        if urlparse(self.config.base_url).scheme != "https":
+            return "Облачная модель — только по HTTPS: иначе текст работы и ключ уйдут открытым текстом."
+        if not self.config.api_key:
+            return "Для облачной модели не задан ключ доступа."
+        if not self.config.model:
+            return "Облачная модель не настроена: не указано имя модели."
+        return None
+
     @property
     def model_name(self) -> str:
         if self.config.mode == "stub":
@@ -224,7 +248,7 @@ class LlmClient:
             return False
         if mode in ("stub", "replay"):
             return True
-        if self.is_cloud and not self.config.allow_cloud:
+        if self.is_cloud and self.cloud_problem():
             return False
         now = time.monotonic()
         if now - self._ping_at < self.config.ping_ttl_s:
@@ -239,8 +263,10 @@ class LlmClient:
                 if not self._ping_ok:
                     log.warning("модель не загружена в Ollama", extra={"fields": {"model": self.config.model}})
             else:
-                resp = self._session.get(f"{self._openai_base()}/models", headers=self._headers(), timeout=5)
-                self._ping_ok = resp.status_code < 500
+                resp = self._session.get(f"{self._openai_base()}/models", headers=self._headers(), timeout=5,
+                                         allow_redirects=False)
+                # 401/403 — ключ не подошёл: модель недоступна, а не «вероятно, работает».
+                self._ping_ok = resp.status_code < 400 or resp.status_code == 404
         except Exception as exc:
             log.warning("языковая модель недоступна", extra={"fields": {"error": type(exc).__name__}})
             self._ping_ok = False
@@ -249,8 +275,8 @@ class LlmClient:
     def unavailable_reason(self) -> str:
         if self.config.mode == "off":
             return "Языковая модель выключена настройкой."
-        if self.is_cloud and not self.config.allow_cloud:
-            return "Адрес модели не локальный, а облачная модель не разрешена (SAPSR_LLM_ALLOW_CLOUD)."
+        if self.is_cloud and self.cloud_problem():
+            return self.cloud_problem()
         return "Языковая модель недоступна."
 
     # ── вызов ───────────────────────────────────────────────────────────────
@@ -260,8 +286,8 @@ class LlmClient:
         """Ответ модели строго по JSON-схеме. Не прошёл схему — один повтор с текстом ошибки."""
         if self.config.mode == "off":
             raise LlmUnavailable(self.unavailable_reason())
-        if self.is_cloud and not self.config.allow_cloud:
-            raise LlmUnavailable(self.unavailable_reason())
+        if self.is_cloud and self.cloud_problem():
+            raise LlmUnavailable(self.cloud_problem())
         json_schema = schema.model_json_schema()
         key = request_key(self.model_name, prompt_ref, system, user, json_schema)
         started = time.perf_counter()
@@ -332,6 +358,10 @@ class LlmClient:
         timeout = min(timeout_s or self.config.timeout_s, self.config.timeout_s)
         if timeout <= 0:
             raise LlmTimeout("не осталось времени на вызов модели")
+        if self.is_cloud:
+            # Объём — да, содержание — никогда: текст работы в журнал не пишется.
+            log.info("запрос к облачной модели", extra={"fields": {
+                "model": self.config.model, "chars": sum(len(m["content"]) for m in messages)}})
         try:
             if self.config.provider == "ollama":
                 return self._call_ollama(messages, json_schema, timeout)
@@ -364,7 +394,10 @@ class LlmClient:
         return base if base.endswith("/v1") else f"{base}/v1"
 
     def _headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.config.api_key}"} if self.config.api_key else {}
+        headers = {str(k): str(v) for k, v in self.config.headers.items()}
+        if self.config.api_key:
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
+        return headers
 
     def _call_openai(self, messages: list[dict], json_schema: dict, timeout: float) -> str:
         body = {
@@ -375,10 +408,103 @@ class LlmClient:
             "response_format": {"type": "json_schema",
                                 "json_schema": {"name": "answer", "schema": json_schema, "strict": False}},
         }
-        resp = self._session.post(f"{self._openai_base()}/chat/completions", json=body,
-                                  headers=self._headers(), timeout=(5, timeout))
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        # Поля сервиса не перекрывают модель, сообщения и схему ответа.
+        body.update({k: v for k, v in self.config.extra_body.items() if k not in body})
+        give_up = time.monotonic() + timeout
+        while True:
+            left = give_up - time.monotonic()
+            if left <= 0:
+                raise LlmTimeout(f"модель не ответила за {timeout:.0f} с")
+            resp = self._session.post(f"{self._openai_base()}/chat/completions", json=body,
+                                      headers=self._headers(), timeout=(5, left), allow_redirects=False)
+            if resp.is_redirect:
+                raise LlmUnavailable("облачный сервис ответил перенаправлением — запрос не повторяется по чужому адресу")
+            if resp.status_code in RETRY_STATUSES:
+                # Бесплатный тариф ограничивает запросы и токены в минуту: ждём, сколько просит сервис, —
+                # проверка идёт дольше, но не теряет разделы. Не дождаться до конца срока — раздел пропускается.
+                wait = retry_after(resp)
+                if wait > give_up - time.monotonic():
+                    self.stats.add(errors=1)
+                    raise LlmUnavailable(f"облачный сервис ограничил число запросов (HTTP {resp.status_code}), "
+                                         f"ждать {wait:.0f} с — дольше, чем осталось времени")
+                self.stats.add(rate_waits=1)
+                log.info("облачный сервис просит подождать", extra={"fields": {
+                    "status": resp.status_code, "wait_s": round(wait, 1)}})
+                self._sleep(wait)
+                continue
+            failed = failed_generation(resp)
+            if failed is not None:
+                # Сервис сам сверил ответ со схемой и отклонил его (у Groq — json_validate_failed): отдаём ответ
+                # нашей проверке схемы — она попросит модель исправиться, как и после любого ответа не по схеме.
+                return failed
+            if resp.status_code >= 400:
+                self.stats.add(errors=1)
+                if resp.status_code in (401, 403):
+                    self._ping_ok, self._ping_at = False, time.monotonic()
+                # Тело ошибки в журнал не пишется: в нём может оказаться текст запроса.
+                raise LlmUnavailable(f"облачный сервис отклонил запрос: HTTP {resp.status_code}"
+                                     + (f" ({error_code(resp)})" if error_code(resp) else ""))
+            return resp.json()["choices"][0]["message"]["content"]
+
+    @staticmethod
+    def _sleep(seconds: float) -> None:
+        time.sleep(seconds)
+
+
+# 429 — превышен лимит тарифа, 498 — у Groq нет свободных мощностей, 503 — сервис перегружен.
+RETRY_STATUSES = (429, 498, 503)
+_DEFAULT_WAIT_S = 5.0
+_DURATION = re.compile(r"(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+(?:\.\d+)?)ms)?$")
+
+
+def _seconds(text: Optional[str]) -> Optional[float]:
+    """«2», «7.66s», «2m59.56s», «850ms» → секунды; не разобрали — None."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return max(0.0, float(text))
+    except ValueError:
+        pass
+    m = _DURATION.match(text)
+    if not m or not any(m.groups()):
+        return None
+    h, mins, s, ms = (float(g) if g else 0.0 for g in m.groups())
+    return h * 3600 + mins * 60 + s + ms / 1000
+
+
+def retry_after(resp) -> float:
+    """Сколько ждать перед повтором: Retry-After, затем сброс лимита токенов или запросов (заголовки Groq и OpenAI)."""
+    headers = getattr(resp, "headers", None) or {}
+    for name in ("retry-after", "x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+        wait = _seconds(headers.get(name))
+        if wait is not None:
+            return wait
+    return _DEFAULT_WAIT_S
+
+
+def _error(resp) -> dict:
+    try:
+        body = resp.json()
+    except ValueError:  # тело — не JSON
+        return {}
+    error = body.get("error") if isinstance(body, dict) else None
+    return error if isinstance(error, dict) else {}
+
+
+def error_code(resp) -> Optional[str]:
+    code = _error(resp).get("code") or _error(resp).get("type")
+    return str(code) if code else None
+
+
+def failed_generation(resp) -> Optional[str]:
+    """Ответ модели, который сервис отклонил как не соответствующий схеме; None — это другая ошибка."""
+    if resp.status_code != 400:
+        return None
+    error = _error(resp)
+    if error.get("code") != "json_validate_failed":
+        return None
+    return str(error.get("failed_generation") or "")
 
 
 def _strip_fences(raw: str) -> str:

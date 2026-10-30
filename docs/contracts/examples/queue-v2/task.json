@@ -9,6 +9,7 @@
   },
   "profile": { "work_type": "course_work", "semester": 7, "stage": 2 },
   "student": { "last_name": "Иванов", "first_name": "Иван", "group": "321702" },
+  "llm": { "model": "main" },
   "previous": null,
   "trace_id": "4b1e0c7a-2f3d-4a5b-8c6d-7e8f9a0b1c2d",
   "file_path": "/app/storage/2026/10/8f3a2c1e-5b7d-4e2a-9c4f-1a2b3c4d5e6f.pdf"

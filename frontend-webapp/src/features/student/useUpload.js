@@ -1,105 +1,107 @@
 import { useState, useEffect } from 'react';
 import { fetchTeachers, uploadSubmission } from '../../api/submissions';
 import { readError } from '../../api/client';
-import { notifyHaptic, showPopup } from '../../telegram/webApp';
+import { notifyHaptic, setClosingConfirmation } from '../../telegram/webApp';
 
 const LAST_TEACHER_KEY = 'sapsr_last_teacher_id';
-const LAST_PROFILE_KEY = 'sapsr_last_profile';
-const EMPTY_PROFILE = { work_type: '' };
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
-const teacherIdOf = (teacher) => String(teacher.telegram_id || teacher.id || 0);
-
-// Вид работы запоминается; семестр и этап определяет сервер (решение 11), прежний выбор из памяти не берётся.
-const loadProfile = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(LAST_PROFILE_KEY) || '{}');
-    return { ...EMPTY_PROFILE, work_type: saved.work_type || '' };
-  } catch { return EMPTY_PROFILE; }
+const readStorage = (key) => {
+  try { return localStorage.getItem(key); } catch { return null; }
 };
 
-const saveProfile = (profile) => {
-  try { localStorage.setItem(LAST_PROFILE_KEY, JSON.stringify(profile)); } catch { /* без памяти — не страшно */ }
+const writeStorage = (key, value) => {
+  try { localStorage.setItem(key, value); } catch { /* без памяти — не страшно */ }
 };
 
-// Форма загрузки работы: список преподавателей, выбранный файл, отправка.
-export function useUpload({ active, onUploaded }) {
-  const [file, setFile]                           = useState(null);
-  const [status, setStatus]                       = useState(null);
-  const [teachers, setTeachers]                   = useState([]);
-  const [selectedTeacherId, setSelectedTeacherId] = useState('');
-  const [uploading, setUploading]                 = useState(false);
-  const [profile, setProfile]                     = useState(loadProfile);
+// Проверка до отправки: сервер примет только PDF до 50 МБ.
+const fileProblem = (file) => {
+  if (!file) return '';
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') return 'Нужен файл PDF.';
+  if (file.size > MAX_FILE_BYTES) return 'Файл больше 50 МБ.';
+  if (file.size === 0) return 'Файл пустой.';
+  return '';
+};
 
-  const loadTeachers = async () => {
-    try {
-      const res = await fetchTeachers();
-      if (res.ok) {
-        const data = await res.json();
-        setTeachers(data);
-        if (data.length > 0) {
-          const savedTeacherId = localStorage.getItem(LAST_TEACHER_KEY);
-          const savedExists = data.some(t => teacherIdOf(t) === savedTeacherId);
-          setSelectedTeacherId(savedExists ? savedTeacherId : teacherIdOf(data[0]));
-        }
-      }
-    } catch (err) { console.warn('Teachers error:', err); }
-  };
+const uploadError = async (res) => {
+  if (res.status === 413) return 'Файл больше 50 МБ.';
+  if (res.status === 401 || res.status === 403) return 'Сессия устарела. Закройте и откройте приложение.';
+  if (res.status >= 500) return 'Сервер не ответил. Попробуйте позже.';
+  return (await readError(res)).error || 'Не удалось отправить работу.';
+};
+
+/**
+ * Форма загрузки работы. preset — преподаватель прошлой версии («Загрузить новую версию»).
+ * Преподаватель выбирается сам, только если он один или его выбирали раньше: отправить не тому — хуже, чем выбрать.
+ * Вид работы не спрашиваем: сервер определяет его по семестру и титульному листу (решение 11).
+ */
+export function useUpload({ active, preset, onUploaded }) {
+  const [teachers, setTeachers]     = useState([]);
+  const [teachersLoaded, setLoaded] = useState(false);
+  const [teacherId, setTeacherId]   = useState(preset?.teacherId ? String(preset.teacherId) : '');
+  const [file, setFile]             = useState(null);
+  const [uploading, setUploading]   = useState(false);
+  const [error, setError]           = useState('');
 
   useEffect(() => {
-    if (active) loadTeachers();
+    if (!active) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchTeachers();
+        const data = res.ok ? await res.json() : [];
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setTeachers(list);
+        setTeacherId((current) => {
+          if (current && list.some((t) => String(t.telegram_id) === current)) return current;
+          const saved = readStorage(LAST_TEACHER_KEY);
+          if (saved && list.some((t) => String(t.telegram_id) === saved)) return saved;
+          return list.length === 1 ? String(list[0].telegram_id) : '';
+        });
+      } catch { /* список пуст — форма подскажет */ }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, [active]);
 
-  const selectTeacher = (teacherId) => {
-    setSelectedTeacherId(teacherId);
-    localStorage.setItem(LAST_TEACHER_KEY, teacherId);
+  const selectTeacher = (id) => {
+    setTeacherId(id);
+    if (id) writeStorage(LAST_TEACHER_KEY, id);
   };
 
-  const selectFile = (nextFile) => { setFile(nextFile); setStatus(null); };
+  const selectFile = (next) => { setFile(next || null); setError(''); };
 
-  const setProfileField = (field, value) => {
-    const next = { ...profile, [field]: value };
-    setProfile(next);
-    saveProfile(next);
-  };
-
-  const clearStatus = () => setStatus(null);
-  // Строка состояния под формой: tone — иконка и цвет (components/Icon.jsx, StatusIcon).
-  const fail = (text) => setStatus({ tone: 'error', text });
+  const problem = fileProblem(file);
+  const ready = Boolean(file && !problem && teacherId);
 
   const submit = async (e) => {
-    e.preventDefault();
-    if (!file || uploading) return;
-    setUploading(true); setStatus({ tone: 'pending', text: 'Загрузка...' });
+    e?.preventDefault();
+    if (!ready || uploading) return;
+    setUploading(true);
+    setError('');
+    setClosingConfirmation(true);
     try {
-      if (selectedTeacherId) localStorage.setItem(LAST_TEACHER_KEY, selectedTeacherId);
-      const res = await uploadSubmission(file, selectedTeacherId, profile);
+      const res = await uploadSubmission(file, teacherId);
       if (res.ok) {
-        setStatus({ tone: 'ok', text: 'Работа успешно отправлена!' }); setFile(null);
+        const body = await res.json().catch(() => ({}));
         notifyHaptic('success');
-        onUploaded();
-        showPopup({ title: 'Готово!', message: 'Файл отправлен на проверку.', buttons: [{ type: 'ok' }] });
+        setFile(null);
+        await onUploaded?.(body.db_id);
       } else {
         notifyHaptic('error');
-        if (res.status === 413) {
-          fail('Файл слишком большой. Максимальный размер — 50 МБ.');
-        } else if (res.status === 415 || res.status === 400) {
-          const err = await readError(res);
-          fail(err.error || 'Недопустимый формат файла. Загрузите PDF.');
-        } else if (res.status === 401 || res.status === 403) {
-          fail('Ошибка авторизации. Перезапустите приложение.');
-        } else if (res.status >= 500) {
-          fail('Ошибка сервера. Попробуйте чуть позже.');
-        } else {
-          const err = await readError(res);
-          fail(err.error || `Ошибка ${res.status}`);
-        }
+        setError(await uploadError(res));
       }
-    } catch { fail('Нет соединения с сервером. Проверьте интернет.'); }
-    finally { setUploading(false); }
+    } catch {
+      setError('Нет связи. Проверьте интернет.');
+    } finally {
+      setUploading(false);
+      setClosingConfirmation(false);
+    }
   };
 
   return {
-    file, status, teachers, selectedTeacherId, uploading, profile,
-    selectTeacher, selectFile, setProfileField, clearStatus, submit,
+    teachers, teachersLoaded, teacherId, file, problem, ready, uploading, error,
+    selectTeacher, selectFile, submit,
   };
 }

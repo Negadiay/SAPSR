@@ -6,6 +6,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-sapsr_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       POSTGRES_DB: sapsr_db
+      # Время — по Минску, даже если машина (с VPN для ngrok) считает себя в другом поясе.
+      TZ: Europe/Minsk
     # Только с этого компьютера: снаружи база не видна. Сервисы внутри Compose ходят по имени postgres-db.
     ports:
       - "127.0.0.1:5433:5432"
@@ -41,6 +43,7 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
+      TZ: Europe/Minsk
       RABBITMQ_USER: ${RABBITMQ_USER:-rmq_user}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
       # Файлы работ по ключу storage_key (queue-v2.md, раздел 3).
@@ -51,6 +54,16 @@ services:
       # Ollama на ноутбуке (решение 8); без неё проверяется только оформление.
       SAPSR_LLM_BASE_URL: ${SAPSR_LLM_BASE_URL:-http://host.docker.internal:11434}
       SAPSR_LLM_MODEL: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
+      # Каталог моделей (worker-python/llm-models.yaml, решение 13): какую из них применять, выбирает администратор.
+      SAPSR_LLM_LIGHT_MODEL: ${SAPSR_LLM_LIGHT_MODEL:-qwen3.5:2b}
+      SAPSR_LLM_HEAVY_MODEL: ${SAPSR_LLM_HEAVY_MODEL:-qwen3.5:9b}
+      # Облачная — только если всё это задано в .env; по умолчанию запрещена.
+      SAPSR_LLM_ALLOW_CLOUD: ${SAPSR_LLM_ALLOW_CLOUD:-0}
+      SAPSR_LLM_CLOUD_BASE_URL: ${SAPSR_LLM_CLOUD_BASE_URL:-}
+      SAPSR_LLM_CLOUD_MODEL: ${SAPSR_LLM_CLOUD_MODEL:-}
+      SAPSR_LLM_CLOUD_API_KEY: ${SAPSR_LLM_CLOUD_API_KEY:-}
+      SAPSR_LLM_CLOUD_HEADERS: ${SAPSR_LLM_CLOUD_HEADERS:-}
+      SAPSR_LLM_CLOUD_EXTRA_BODY: ${SAPSR_LLM_CLOUD_EXTRA_BODY:-}
       # live — настоящая модель; replay — записанные ответы модели из test-fixtures/llm-replay, без Ollama:
       # запасной показ, если модель на машине не поднимется (README, «Показ без модели»).
       SAPSR_LLM_MODE: ${SAPSR_LLM_MODE:-live}
@@ -71,6 +84,8 @@ services:
     restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/sapsr_db
+      # Бэкенд и так ставит себе пояс Минска при запуске (BackendApplication); строка — для журналов контейнера.
+      TZ: Europe/Minsk
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-sapsr_user}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       SPRING_RABBITMQ_HOST: rabbitmq
@@ -80,6 +95,8 @@ services:
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-YOUR_GMAIL@gmail.com}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-YOUR_APP_PASSWORD}
       BOT_WEBAPP_URL: https://${NGROK_DOMAIN:?Укажи NGROK_DOMAIN в .env}
+      # «SAPSR снова работает» всем пользователям при запуске; SAPSR_STARTUP_NOTICE=false в .env — не рассылать.
+      SAPSR_BOT_STARTUPNOTICE: ${SAPSR_STARTUP_NOTICE:-true}
     ports:
       - "8080:8080"
     volumes:

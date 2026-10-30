@@ -1,6 +1,7 @@
 package com.sapsr.backend.controller;
 
 import com.sapsr.backend.SapsrTelegramBot;
+import com.sapsr.backend.bot.AppLink;
 import com.sapsr.backend.entity.Annotation;
 import com.sapsr.backend.entity.ReviewFile;
 import com.sapsr.backend.entity.Submission;
@@ -51,6 +52,7 @@ class TeacherDashboardControllerTest {
         student.setTelegramId(STUDENT_ID);
         student.setRole("STUDENT");
         student.setFullName("Терешкова А.В. (гр. 321702)");
+        student.setGroupNumber("321702");
         when(users.findById(TEACHER_ID)).thenReturn(Optional.of(teacher));
 
         work = new Submission();
@@ -84,7 +86,9 @@ class TeacherDashboardControllerTest {
                 .containsEntry("first_submitted_at", first.toString())
                 .containsEntry("created_at", "2026-10-21T12:00")
                 .containsEntry("status", "REJECTED")
-                .containsEntry("review_annotations", 3L);
+                .containsEntry("review_annotations", 3L)
+                .containsEntry("student_name", "Терешкова А.В.")
+                .containsEntry("student_group", "321702");
     }
 
     @Test
@@ -121,8 +125,8 @@ class TeacherDashboardControllerTest {
         assertThat(work.getTeacherVerdict()).isEqualTo("REVISION");
         assertThat(work.getTeacherComment()).isNull();
         ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
-        verify(bot).notifyUser(eq(STUDENT_ID), text.capture());
-        assertThat(text.getValue()).contains("Работа отправлена на доработку")
+        verify(bot).send(eq(STUDENT_ID), text.capture(), eq(List.of(AppLink.work(153))));
+        assertThat(text.getValue()).contains("Работа возвращена на доработку")
                 .contains("1. Стр. 3 — «Система принимает файлы в форматах DOCX…»\nСведите к одному варианту");
     }
 
@@ -146,7 +150,7 @@ class TeacherDashboardControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(409);
         assertThat(body(response)).containsEntry("code", "VERDICT_ALREADY_SET");
-        verify(bot, never()).notifyUser(anyLong(), anyString());
+        verify(bot, never()).send(anyLong(), anyString(), any());
     }
 
     @Test

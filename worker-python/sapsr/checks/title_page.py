@@ -201,3 +201,24 @@ def student_matches_registration(ctx: CheckContext, params: StudentParams) -> li
     if not found or surname_matches(found, last_name):
         return []
     return [Hit(values={"name": found}, evidence=_title_evidence(found), pages=[1], location="Страница 1")]
+
+
+# ── вид работы ──────────────────────────────────────────────────────────────
+
+# Вид работы студент не выбирает: он написан на титуле («Пояснительная записка к курсовому проекту»)
+# и закодирован в обозначении («БГУИР КП7 …»). Дипломная — первой: её обозначение тоже бывает «…П».
+WORK_TYPE_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    ("diploma", re.compile(r"дипломн\w*\s+(?:проект|работ)|выпускн\w*\s+квалификационн\w*\s+работ"
+                           r"|бгуир\s+д[пр]\d*\b", re.IGNORECASE)),
+    ("course_project", re.compile(r"курсов\w*\s+проект|бгуир\s+кп\d*\b", re.IGNORECASE)),
+    ("course_work", re.compile(r"курсов\w*\s+работ|бгуир\s+кр\d*\b", re.IGNORECASE)),
+)
+
+
+def work_type_on_title(text: str) -> Optional[str]:
+    """course_work, course_project или diploma по тексту титульного листа; None — не распознан."""
+    flat = re.sub(r"\s+", " ", text or "")
+    for work_type, pattern in WORK_TYPE_PATTERNS:
+        if pattern.search(flat):
+            return work_type
+    return None

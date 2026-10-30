@@ -33,9 +33,9 @@
       "needs_teacher_review": false,
       "blocking": false,
       "title": "Левое поле",
-      "message": "Нарушено левое поле страницы.",
-      "expected": "Левое поле должно быть 30 мм.",
-      "found": "Наименьшее левое поле — 15.0 мм; страниц с нарушением: 7.",
+      "message": "Левое поле 15 мм вместо 30.",
+      "expected": "Левое поле — 30 мм.",
+      "found": "Так на 7 стр.",
       "evidence": [
         {
           "page": 2
@@ -62,10 +62,10 @@
       "source": {
         "doc": "СТП 01-2024"
       },
-      "fix": "Установите левое поле 30 мм: \\geometry{left=3cm} в LaTeX или «Макет → Поля» в Word.",
+      "fix": "Установите левое поле 30 мм. В Word: «Макет → Поля»; в LaTeX: \\geometry{left=3cm}.",
       "page": "2–8",
       "location": "Страницы: 2–8",
-      "rule": "Левое поле должно быть 30 мм."
+      "rule": "Левое поле — 30 мм."
     }
   ],
   "requirements": [],
@@ -77,13 +77,14 @@
     "main_size": 14.0,
     "title_page": {
       "student_name": "И.И. Иванов",
-      "matches_registration": true
+      "matches_registration": true,
+      "work_type": "course_project"
     }
   },
   "pipeline": {
     "mode": "hybrid",
     "worker_version": "2.0.0",
-    "kb_version": "2026.10.18+1679ca33",
+    "kb_version": "2026.10.18+e9f1e8f4",
     "models": [
       {
         "role": "layout",

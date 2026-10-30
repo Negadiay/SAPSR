@@ -31,7 +31,7 @@
       "needs_teacher_review": false,
       "blocking": false,
       "title": "Согласованность перечней",
-      "message": "«Форматы входных файлов»: перечни в разных частях записки не совпадают.",
+      "message": "«Форматы входных файлов»: перечни в разных разделах не совпадают.",
       "expected": "Одинаковый перечень во всех разделах.",
       "found": "Введение: DOCX, PDF; подраздел 1.2: PDF.",
       "evidence": [
@@ -39,13 +39,35 @@
           "page": 3,
           "quote": "Система принимает файлы в форматах DOCX и PDF",
           "block_id": "b-0028",
-          "section": "Введение"
+          "section": "Введение",
+          "areas": [
+            {
+              "page": 3,
+              "bbox": [
+                85.0,
+                133.2,
+                552.1,
+                252.2
+              ]
+            }
+          ]
         },
         {
           "page": 4,
           "quote": "Входные данные системы — только файл пояснительной записки в формате PDF",
           "block_id": "b-0038",
-          "section": "1.2"
+          "section": "1.2",
+          "areas": [
+            {
+              "page": 4,
+              "bbox": [
+                85.0,
+                343.2,
+                524.2,
+                378.2
+              ]
+            }
+          ]
         }
       ],
       "source": {
@@ -67,13 +89,14 @@
     "main_size": 14.0,
     "title_page": {
       "student_name": "И.И. Иванов",
-      "matches_registration": true
+      "matches_registration": true,
+      "work_type": "course_project"
     }
   },
   "pipeline": {
     "mode": "hybrid",
     "worker_version": "2.0.0",
-    "kb_version": "2026.10.18+1679ca33",
+    "kb_version": "2026.10.18+e9f1e8f4",
     "models": [
       {
         "role": "layout",
@@ -142,6 +165,7 @@
       "llm_cache_hits": 0,
       "llm_calls": 6,
       "llm_errors": 0,
+      "llm_rate_waits": 0,
       "llm_schema_failures": 0,
       "llm_schema_retries": 0,
       "pages": 8,

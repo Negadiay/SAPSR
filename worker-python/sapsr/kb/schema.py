@@ -11,7 +11,6 @@ Severity = Literal["critical", "major", "minor", "info"]
 Category = Literal["format", "structure", "content", "requirements", "integrity"]
 RuleStage = Literal["format", "content"]
 Cardinality = Literal["single", "multi", "text"]
-WorkType = Literal["course_work", "course_project", "diploma"]
 
 RULE_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$")
 

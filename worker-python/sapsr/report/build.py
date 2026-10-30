@@ -75,5 +75,7 @@ def build_report(*, phase: str, kb: KnowledgeBase, profile: ResolvedProfile, tas
     )
 
 
-def title_page_info(student_name: Optional[str], last_name: Optional[str], matches: Optional[bool]) -> TitlePageInfo:
-    return TitlePageInfo(student_name=student_name, matches_registration=matches if last_name else None)
+def title_page_info(student_name: Optional[str], last_name: Optional[str], matches: Optional[bool],
+                    work_type: Optional[str] = None) -> TitlePageInfo:
+    return TitlePageInfo(student_name=student_name, matches_registration=matches if last_name else None,
+                         work_type=work_type)

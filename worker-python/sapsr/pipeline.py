@@ -23,13 +23,13 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterator, Optional
 
 from sapsr.checks.context import CheckContext
 from sapsr.checks.engine import GATE_CHECKS, run_format_rules, run_rule
-from sapsr.checks.title_page import StudentParams, student_on_title, surname_matches
+from sapsr.checks.title_page import StudentParams, student_on_title, surname_matches, work_type_on_title
 from sapsr.content.claims import extract_claims
 from sapsr.content.findings import claim_findings
 from sapsr.content.fragments import build_fragments
@@ -44,7 +44,10 @@ from sapsr.document.labeling import Labeler, RuleLabeler
 from sapsr.document.model import Document
 from sapsr.errors import CheckFailure
 from sapsr.kb.loader import ActiveRule, KnowledgeBase, ResolvedProfile
+from sapsr.llm.catalog import LlmRegistry
 from sapsr.llm.client import LlmClient
+from sapsr.llm.privacy import PrivateLlm, Redactor
+from sapsr.report.areas import locate
 from sapsr.report.build import build_report, title_page_info
 from sapsr.report.model import (
     DocumentInfo, Finding, ModelInfo, PipelineWarning, PromptInfo, Report, RequirementStatus,
@@ -55,6 +58,14 @@ from sapsr.task import Task
 log = logging.getLogger("sapsr.pipeline")
 
 STAGES = ("extract", "structure", "format", "claims", "reasoning", "report")
+
+# Даты — по Минску, а не по часовому поясу машины: VPN для ngrok переводит её в пояс другой страны.
+# В Беларуси круглый год UTC+3 (переходов нет с 2011 года), поэтому базу часовых поясов не подключаем.
+MINSK = timezone(timedelta(hours=3), "Europe/Minsk")
+
+
+def minsk_now() -> datetime:
+    return datetime.now(MINSK)
 
 ProgressCallback = Callable[[str, int], None]
 
@@ -81,14 +92,18 @@ class _Run:
     metrics: dict = field(default_factory=dict)
     prompts: list[PromptInfo] = field(default_factory=list)
     llm_used: bool = False
+    # Модель этой проверки: выбранная администратором или по умолчанию; у облачной — с защитой данных.
+    llm: Optional[LlmClient] = None
+    llm_id: Optional[str] = None
 
 
 class CheckService:
-    def __init__(self, kb: KnowledgeBase, llm: Optional[LlmClient], directory: Directory, *,
+    def __init__(self, kb: KnowledgeBase, llm: LlmClient | LlmRegistry | None, directory: Directory, *,
                  mode: str = "hybrid", max_pages: int = 300, task_timeout_s: Optional[float] = 540,
-                 labeler: Optional[Labeler] = None, clock: Callable[[], datetime] = datetime.now):
+                 labeler: Optional[Labeler] = None, clock: Callable[[], datetime] = minsk_now):
         self.kb = kb
-        self.llm = llm
+        # Одна модель (тесты, командная строка) — каталог из одной модели.
+        self.models = LlmRegistry.single(llm) if isinstance(llm, LlmClient) else llm
         self.directory = directory
         self.mode = mode
         self.max_pages = max_pages
@@ -96,6 +111,11 @@ class CheckService:
         self.labeler = labeler or RuleLabeler(kb.layout, kb.concepts)
         self.clock = clock
         self.reasoner = Reasoner(kb.reasoning)
+
+    @property
+    def llm(self) -> Optional[LlmClient]:
+        """Модель по умолчанию."""
+        return self.models.client(self.models.default_id) if self.models is not None else None
 
     # ── публичный вход ──────────────────────────────────────────────────────
 
@@ -108,7 +128,8 @@ class CheckService:
         profile = self.kb.resolve_profile(task.profile.work_type, task.profile.semester,
                                           task.profile.stage, explicit=profile_id)
         run = _Run(task=task, profile=profile, mode=mode, deadline=Deadline(self.task_timeout_s))
-        llm_before = self.llm.stats.snapshot() if self.llm is not None else {}
+        self._choose_llm(run)
+        llm_before = run.llm.stats.snapshot() if run.llm is not None else {}
         if profile.warning:
             run.warnings.append(PipelineWarning(code=profile.warning[0], message=profile.warning[1]))
         if task.file.source_format == "docx":
@@ -138,6 +159,7 @@ class CheckService:
         unreadable = any(f.blocking and self._is_gate(run, f) for f in findings)
 
         content_planned = self._plan_content(run, passed, unreadable)
+        locate(findings, doc)
         format_report = self._report(run, "format", findings, document_info, [], content_checked=False)
         yield PhaseResult("format", format_report, passed, final=not content_planned)
         if not content_planned:
@@ -162,14 +184,14 @@ class CheckService:
             if mode == "neural":
                 prompt = self.kb.prompt("neural")
                 run.prompts.append(PromptInfo(id=prompt.id, version=prompt.version))
-                neural, metrics = neural_findings(doc, fragments, self.llm, prompt, profile,
+                neural, metrics = neural_findings(doc, fragments, run.llm, prompt, profile,
                                                   self._neural_rule(), run.deadline, run.skipped)
                 all_findings.extend(neural)
                 run.metrics.update(metrics)
             elif fragments:
                 prompt = self.kb.prompt("claims")
                 run.prompts.append(PromptInfo(id=prompt.id, version=prompt.version))
-                claims, stats = extract_claims(doc, fragments, self.llm, prompt, self.kb.concepts,
+                claims, stats = extract_claims(doc, fragments, run.llm, prompt, self.kb.concepts,
                                                profile.content, run.deadline, run.skipped)
                 run.metrics.update(stats.as_metrics())
 
@@ -183,14 +205,17 @@ class CheckService:
                     prompt = self.kb.prompt("requirements")
                     run.prompts.append(PromptInfo(id=prompt.id, version=prompt.version))
                     requirements, req_findings, req_metrics = check_requirements(
-                        doc, self.kb, profile, task, self.llm, run.deadline, run.skipped)
+                        doc, self.kb, profile, task, run.llm, run.deadline, run.skipped)
                     all_findings.extend(req_findings)
                     run.metrics.update(req_metrics)
-        if self.llm is not None:
-            run.metrics.update(self.llm.stats.since(llm_before))
+        if run.llm is not None:
+            run.metrics.update(run.llm.stats.since(llm_before))
+            if isinstance(run.llm, PrivateLlm):
+                run.metrics["pd_redacted"] = run.llm.redactor.replaced
 
         notify("report", 6)
         started = time.perf_counter()
+        locate(all_findings, doc)
         content_report = self._report(run, "content", all_findings, document_info, requirements,
                                       content_checked=True)
         # Время сборки отчёта дописывается в уже собранный отчёт.
@@ -200,6 +225,16 @@ class CheckService:
         yield PhaseResult("content", content_report, passed, final=True)
 
     # ── шаги ────────────────────────────────────────────────────────────────
+
+    def _choose_llm(self, run: _Run) -> None:
+        if self.models is None:
+            return
+        choice = self.models.choose(run.task.llm.model)
+        run.llm, run.llm_id = choice.client, choice.model_id
+        if choice.warning:
+            run.warnings.append(PipelineWarning(code="LLM_FALLBACK", message=choice.warning))
+        if run.llm is not None and run.llm.is_cloud:
+            run.llm = PrivateLlm(run.llm, Redactor.for_task(run.task))
 
     def _format_findings(self, run: _Run, ctx: CheckContext) -> list[Finding]:
         if run.mode != "neural":
@@ -237,16 +272,18 @@ class CheckService:
             run.skipped.append(SkippedCheck(id="*", stage="claims", reason="DISABLED",
                                             message="Содержательная проверка выключена в профиле."))
             return False
-        if self.llm is None or not self.llm.available():
-            reason = self.llm.unavailable_reason() if self.llm else "Языковая модель не настроена."
+        if run.llm is None or not run.llm.available():
+            reason = run.llm.unavailable_reason() if run.llm else "Языковая модель не настроена."
             run.skipped.append(SkippedCheck(id="*", stage="claims", reason="LLM_UNAVAILABLE",
                                             message=reason + " Содержательная проверка не выполнялась."))
             return False
         run.llm_used = True
-        if self.llm.is_cloud:
+        if run.llm.is_cloud:
             run.warnings.append(PipelineWarning(
-                code="CLOUD_LLM", message="Текст работы обрабатывался облачной моделью (включено настройкой)."))
-            log.warning("используется облачная языковая модель")
+                code="CLOUD_LLM", message="Текст работы проверяла облачная модель — её выбрал администратор. "
+                                          "Титульный лист в модель не отправлялся, ФИО, почта, телефоны и номера "
+                                          "групп в тексте заменены метками."))
+            log.warning("используется облачная языковая модель", extra={"fields": {"model_id": run.llm_id}})
         return True
 
     def _neural_rule(self) -> ActiveRule:
@@ -267,16 +304,17 @@ class CheckService:
         return DocumentInfo(
             pages=doc.meta.pages, sha256=doc.meta.sha256, source_format=doc.meta.source_format,
             main_font=doc.meta.main_font or None, main_size=doc.meta.main_size or None,
-            title_page=title_page_info(student, last_name, matches),
+            title_page=title_page_info(student, last_name, matches,
+                                       work_type_on_title(ctx.raw.first_page_text) if ctx.raw.pages else None),
         )
 
     def _models(self, run: _Run) -> list[ModelInfo]:
         labeler = ModelInfo(role="layout", name=self.labeler.name, version=self.labeler.version)
         models = [labeler]
-        if run.llm_used and self.llm is not None:
-            details = self.llm.model_details()
-            models.append(ModelInfo(role="llm", name=self.llm.model_name, provider=self.llm.config.provider,
-                                    quantization=details.get("quantization"), cloud=self.llm.is_cloud))
+        if run.llm_used and run.llm is not None:
+            details = run.llm.model_details()
+            models.append(ModelInfo(role="llm", name=run.llm.model_name, provider=run.llm.config.provider,
+                                    quantization=details.get("quantization"), cloud=run.llm.is_cloud))
         return models
 
     def _report(self, run: _Run, phase: str, findings: list[Finding], document: DocumentInfo,

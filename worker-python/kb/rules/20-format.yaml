@@ -9,10 +9,10 @@
   check: fonts.main_size
   # pdfLaTeX сообщает 13,28 пт вместо 14 пт — диапазон расширен, чтобы не было ложных замечаний.
   params: { min_pt: 12, max_pt: 16, share_over_pct: 0, share_upto_pct: 30 }
-  message: "Размер основного шрифта вне допустимого диапазона."
-  expected: "Допустимый диапазон: {min_pt:g}–{max_pt:g} pt."
-  found: "Доминирующий размер: {dominant_pt:g} pt; затронуто {affected} стр. ({pct:.0f}%)."
-  fix: "Измените размер основного текста на 14 pt."
+  message: "Основной текст набран {dominant_pt:g} пт вместо 14."
+  expected: "Основной текст — 14 пт (допустимо {min_pt:g}–{max_pt:g} пт)."
+  found: "Так на {affected} стр. ({pct:.0f} %)."
+  fix: "Установите размер основного текста 14 пт."
 
 - id: FMT-FONT-SIZE-MASS
   title: Размер основного шрифта на большей части страниц
@@ -22,10 +22,10 @@
   blocking: true
   check: fonts.main_size
   params: { min_pt: 12, max_pt: 16, share_over_pct: 30, share_upto_pct: 100 }
-  message: "Размер основного шрифта вне допустимого диапазона."
-  expected: "Допустимый диапазон: {min_pt:g}–{max_pt:g} pt."
-  found: "Доминирующий размер: {dominant_pt:g} pt; затронуто {affected} стр. ({pct:.0f}%)."
-  fix: "Измените размер основного текста на 14 pt."
+  message: "Основной текст набран {dominant_pt:g} пт вместо 14."
+  expected: "Основной текст — 14 пт (допустимо {min_pt:g}–{max_pt:g} пт)."
+  found: "Так на {affected} стр. ({pct:.0f} %)."
+  fix: "Установите размер основного текста 14 пт."
 
 - id: FMT-FONT-FAMILY
   title: Семейство шрифта
@@ -42,10 +42,10 @@
     # метрически совместимый Liberation Serif (решение 3, задача 3.2) — это не ошибка студента.
     docx_substitutes: [liberationserif, liberationsans, tinos, arimo]
     min_share_pct: 0
-  message: "Обнаружен нестандартный шрифт."
-  expected: "Рекомендуется Times New Roman 14 pt (или Computer Modern для LaTeX)."
-  found: "Шрифт «{font}» на {affected} стр. ({pct:.0f}%)."
-  fix: "Убедитесь, что шрифт встроен и соответствует требованиям кафедры."
+  message: "Основной текст набран шрифтом «{font}»."
+  expected: "Times New Roman (в LaTeX — Computer Modern)."
+  found: "Шрифт «{font}» на {affected} стр. ({pct:.0f} %)."
+  fix: "Наберите основной текст шрифтом Times New Roman."
 
 - id: FMT-REF-FONT
   title: Шрифт списка источников
@@ -53,10 +53,10 @@
   source: { doc: "СТП 01-2024", clause: null }
   severity: minor
   check: fonts.reference_font
-  message: "Шрифт списка использованных источников отличается от основного текста."
-  expected: "Список источников должен быть оформлен тем же основным шрифтом, что и документ."
-  found: "Основной шрифт: «{main_font}»; в списке источников: «{ref_font}»."
-  fix: "Приведите список источников к общему стилю документа."
+  message: "Список источников набран другим шрифтом."
+  expected: "Тот же шрифт, что в основном тексте."
+  found: "Основной текст — «{main_font}», список источников — «{ref_font}»."
+  fix: "Наберите список источников основным шрифтом."
 
 # Поля: край текста — 2-й и 98-й процентили положения символов основного текста.
 # Допуск 5,3 мм ≈ 15 пт — как в прежнем анализаторе.
@@ -67,10 +67,10 @@
   severity: minor
   check: margins.side
   params: { side: left, norm_mm: 30, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
-  message: "Нарушено левое поле страницы."
-  expected: "Левое поле должно быть {norm_mm:g} мм."
-  found: "Наименьшее левое поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
-  fix: "Установите левое поле {norm_mm:g} мм: \\geometry{{left=3cm}} в LaTeX или «Макет → Поля» в Word."
+  message: "Левое поле {actual_mm:.0f} мм вместо {norm_mm:g}."
+  expected: "Левое поле — {norm_mm:g} мм."
+  found: "Так на {affected} стр."
+  fix: "Установите левое поле {norm_mm:g} мм. В Word: «Макет → Поля»; в LaTeX: \\geometry{{left=3cm}}."
 
 - id: FMT-MARGIN-RIGHT
   title: Правое поле
@@ -79,10 +79,10 @@
   severity: minor
   check: margins.side
   params: { side: right, norm_mm: 15, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
-  message: "Нарушено правое поле страницы."
-  expected: "Правое поле должно быть {norm_mm:g} мм."
-  found: "Наименьшее правое поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
-  fix: "Установите правое поле {norm_mm:g} мм: \\geometry{{right=1.5cm}} в LaTeX или «Макет → Поля» в Word."
+  message: "Правое поле {actual_mm:.0f} мм вместо {norm_mm:g}."
+  expected: "Правое поле — {norm_mm:g} мм."
+  found: "Так на {affected} стр."
+  fix: "Установите правое поле {norm_mm:g} мм. В Word: «Макет → Поля»; в LaTeX: \\geometry{{right=1.5cm}}."
 
 - id: FMT-MARGIN-TOP
   title: Верхнее поле
@@ -91,10 +91,10 @@
   severity: minor
   check: margins.side
   params: { side: top, norm_mm: 20, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
-  message: "Нарушено верхнее поле страницы."
-  expected: "Верхнее поле должно быть {norm_mm:g} мм."
-  found: "Наименьшее верхнее поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
-  fix: "Установите верхнее поле {norm_mm:g} мм: \\geometry{{top=2cm}} в LaTeX или «Макет → Поля» в Word."
+  message: "Верхнее поле {actual_mm:.0f} мм вместо {norm_mm:g}."
+  expected: "Верхнее поле — {norm_mm:g} мм."
+  found: "Так на {affected} стр."
+  fix: "Установите верхнее поле {norm_mm:g} мм. В Word: «Макет → Поля»; в LaTeX: \\geometry{{top=2cm}}."
 
 - id: FMT-MARGIN-BOTTOM
   title: Нижнее поле
@@ -103,10 +103,10 @@
   severity: minor
   check: margins.side
   params: { side: bottom, norm_mm: 27, tolerance_mm: 5.3, low_percentile: 2, high_percentile: 98, min_chars: 5 }
-  message: "Нарушено нижнее поле страницы."
-  expected: "Нижнее поле должно быть {norm_mm:g} мм."
-  found: "Наименьшее нижнее поле — {actual_mm:.1f} мм; страниц с нарушением: {affected}."
-  fix: "Установите нижнее поле {norm_mm:g} мм: \\geometry{{bottom=2.7cm}} в LaTeX или «Макет → Поля» в Word."
+  message: "Нижнее поле {actual_mm:.0f} мм вместо {norm_mm:g}."
+  expected: "Нижнее поле — {norm_mm:g} мм."
+  found: "Так на {affected} стр."
+  fix: "Установите нижнее поле {norm_mm:g} мм. В Word: «Макет → Поля»; в LaTeX: \\geometry{{bottom=2.7cm}}."
 
 - id: LAY-PAGE-NUMBERS
   title: Нумерация страниц
@@ -115,10 +115,10 @@
   severity: minor
   check: layout.page_numbers
   params: { start_page: 3, min_coverage: 0.5, min_checkable_pages: 3 }
-  message: "Номера страниц не обнаружены."
-  expected: "Нумерация должна быть в нижней части страниц начиная со стр. {start_page}."
-  found: "Найдено на {found} из {checkable} проверяемых страниц."
-  fix: "Проверьте настройки колонтитулов."
+  message: "Не найдены номера страниц."
+  expected: "Номер внизу каждой страницы, начиная со {start_page}-й."
+  found: "Номер есть на {found} из {checkable} стр."
+  fix: "Включите номера страниц в нижнем колонтитуле."
 
 - id: LAY-LINE-SPACING
   title: Межстрочный интервал
@@ -135,10 +135,10 @@
     min_gaps: 5
     allowed_min_ratio: 1.1
     allowed_max_ratio: 2.2
-  message: "Межстрочный интервал (~{ratio:.2f}×) отличается от рекомендованного 1,5."
-  expected: "Основной текст должен быть набран с полуторным межстрочным интервалом."
-  found: "Медианное расстояние между строками: {gap_pt:.1f} pt при размере шрифта {size_pt:g} pt."
-  fix: "Установите \\linespread{{1.5}} в LaTeX или интервал 1,5 в Word."
+  message: "Межстрочный интервал {direction} полуторного."
+  expected: "Полуторный интервал в основном тексте."
+  found: "Расстояние между строками — {gap_pt:.0f} пт при шрифте {size_pt:g} пт."
+  fix: "Установите интервал 1,5. В Word: «Абзац → Междустрочный»; в LaTeX: \\linespread{{1.5}}."
 
 - id: LAY-PARAGRAPH-INDENT
   title: Абзацный отступ
@@ -156,7 +156,7 @@
     indented_share_max: 0.03
     flush_share_min: 0.4
     left_edge_pt: 85
-  message: "Не обнаружены красные строки (отступ первой строки абзаца)."
-  expected: "Первая строка каждого абзаца должна иметь отступ 1,25 см."
-  found: "Строк с отступом: {indented} из {total}."
-  fix: "Добавьте \\setlength{{\\parindent}}{{1.25cm}} в LaTeX или настройте отступ первой строки в Word."
+  message: "Нет абзацного отступа."
+  expected: "Первая строка абзаца — с отступом 1,25 см."
+  found: "Отступ есть у {indented} строк из {total}."
+  fix: "Задайте отступ первой строки 1,25 см. В Word: «Абзац → Первая строка»; в LaTeX: \\setlength{{\\parindent}}{{1.25cm}}."

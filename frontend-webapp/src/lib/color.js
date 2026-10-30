@@ -8,12 +8,12 @@ export function normalizeHex(value) {
   return null;
 }
 
-export function hexToRgb(hex) {
+function hexToRgb(hex) {
   const n = parseInt(normalizeHex(hex).slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-export const rgbToHex = (rgb) => '#' + rgb.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
+const rgbToHex = (rgb) => '#' + rgb.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
 
 // h — оттенок 0–360° (угол на круге), s — насыщенность 0–1 (от центра к краю), v — яркость 0–1.
 export function hexToHsv(hex) {
@@ -42,7 +42,7 @@ const channel = (c) => {
   return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
 };
 
-export function luminance(hex) {
+function luminance(hex) {
   const [r, g, b] = hexToRgb(hex).map(channel);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }

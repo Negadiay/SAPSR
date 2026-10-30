@@ -1,97 +1,689 @@
-/* --- ГЛОБАЛЬНЫЕ НАСТРОЙКИ --- */
-* {
-  box-sizing: border-box;
-  scrollbar-width: none;
+/* Основа оформления. Цвета — только переменными: палитру ставит App (features/settings/customTheme.js),
+   здесь — светлая по умолчанию на случай, если переменные ещё не заданы. Размеры — в em от размера текста
+   приложения, поэтому всё растёт вместе с настройкой «Размер текста». */
+
+:root {
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
 }
-*::-webkit-scrollbar {
-  display: none;
-}
+
+* { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
-  width: 100%;
   min-height: 100%;
   overflow-x: hidden;
-  background-color: #f0f9f5;
+  background: #eef3f2;
 }
 
-/* --- СВЕТЛАЯ ТЕМА (по умолчанию) --- */
-/* Переопределяем переменные Telegram собственными значениями */
 .App {
-  --tg-theme-bg-color:            #f0f9f5;
-  --tg-theme-secondary-bg-color:  #dff0e9;
-  --tg-theme-button-color:        #2e8d8a;
-  --tg-theme-button-text-color:   #ffffff;
-  --tg-theme-text-color:          #1c3a38;
-  --tg-theme-hint-color:          #6a8a88;
-  --app-font-size: 14px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  font-size: var(--app-font-size);
-  color: var(--tg-theme-text-color, #1c3a38);
+  --bg: #eef3f2;
+  --surface: #ffffff;
+  --field: rgba(22, 48, 46, 0.05);
+  --text: #16302e;
+  --hint: #55706d;
+  --accent: #1f7c79;
+  --on-accent: #ffffff;
+  --accent-tint: rgba(31, 124, 121, 0.12);
+  --line: rgba(22, 48, 46, 0.14);
+  --ok: #2e7d32;
+  --warning: #9a5400;
+  --error: #c62828;
+  --ok-tint: rgba(46, 125, 50, 0.12);
+  --warning-tint: rgba(154, 84, 0, 0.14);
+  --error-tint: rgba(198, 40, 40, 0.12);
+  --on-ok: #ffffff;
+  --on-warning: #ffffff;
+  --on-error: #ffffff;
+  --radius: 0.85em;
+  --border: 1px;
+  --fs: 15px;
+
+  min-height: 100vh;
   min-height: var(--tg-viewport-stable-height, 100vh);
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: var(--fs);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Размер текста (настройки) */
+.font-small  { --fs: 13px; }
+.font-normal { --fs: 15px; }
+.font-large  { --fs: 17px; }
+.font-xlarge { --fs: 20px; }
+
+/* Высокий контраст: толще рамки, кнопки с обводкой */
+.app-contrast { --border: 2px; }
+.app-contrast .card,
+.app-contrast .input,
+.app-contrast .btn-secondary { border-color: var(--text); }
+
+p { margin: 0; }
+h1, h2, h3 { margin: 0; font-weight: 700; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* Поля ввода не мельче 16 px: иначе iOS увеличивает страницу при фокусе. */
+input, select, textarea { font-size: max(16px, 1em); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- КАРКАС --- */
+.app-main {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0.5em 1em 2.5em;
+  animation: screen-in 0.18s ease-out;
+}
+
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(0.4em); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-main { animation: none; }
+}
+
+.screen-body {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  width: 100%;
-  background-color: var(--tg-theme-bg-color, #f0f9f5);
+  gap: 0.85em;
 }
 
-/* --- БРЕНДИНГ --- */
-.branding {
+/* --- ЗАГОЛОВОК ЭКРАНА --- */
+.app-header {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  width: 100%;
+  gap: 0.25em;
+  min-height: 2.9em;
 }
 
-.logo {
-  width: 100px;
-  height: 100px;
-  margin-bottom: 10px;
-  border-radius: 20px;
-  object-fit: cover;
+.app-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.45em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
-h1 {
-  font-size: 28px;
-  margin: 10px 0;
-  color: var(--tg-theme-button-color, #2e8d8a);
-  font-weight: 800;
+.header-back { margin-left: -0.5em; }
+
+.header-actions {
+  display: flex;
+  margin-right: -0.4em;
 }
 
-.description {
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6em;
+  height: 2.6em;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.icon-btn .icon { width: 1.35em; height: 1.35em; }
+.icon-btn:active { background: var(--accent-tint); }
+.icon-btn-danger { color: var(--error); }
+
+/* --- ТЕКСТ --- */
+.hint {
+  color: var(--hint);
+  font-size: 0.87em;
+}
+
+.section-title {
+  font-size: 1em;
+  margin-bottom: 0.35em;
+}
+
+.empty {
+  padding: 2em 1em;
   text-align: center;
-  font-size: 14px;
-  opacity: 0.8;
-  margin-bottom: 25px;
-}
-
-/* --- ЭКРАНЫ И МАКЕТЫ ТАБОВ --- */
-.screen {
+  color: var(--hint);
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
-  max-width: 400px;
+  gap: 0.4em;
 }
 
-.main-content {
-  padding-bottom: 140px;
+.empty p:first-of-type { color: var(--text); }
+.empty-icon { width: 2.4em; height: 2.4em; color: var(--hint); stroke-width: 1.5; }
+
+/* --- КНОПКИ --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  min-height: 2.9em;
+  padding: 0.6em 1em;
+  border: var(--border) solid transparent;
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
 }
 
-.tab-view {
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn-block { width: 100%; }
+
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-secondary { background: var(--accent-tint); color: var(--accent); }
+.btn-danger { background: var(--error); color: var(--on-error); }
+.btn-ok { background: var(--ok); color: var(--on-ok); }
+.btn-warning { background: var(--warning); color: var(--on-warning); }
+.btn-ghost-danger { background: transparent; color: var(--error); border-color: var(--error); }
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  align-self: flex-start;
+  padding: 0.2em 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.93em;
+  cursor: pointer;
+}
+
+.link-danger { color: var(--error); }
+.link-btn:disabled { opacity: 0.45; cursor: default; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+.actions > .btn { flex: 1 1 9em; }
+
+/* --- ПОЛЯ --- */
+.form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  width: 100%;
+  gap: 0.85em;
 }
 
-.view-title {
-  font-size: 24px;
-  margin-bottom: 20px;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.field-label { font-weight: 600; font-size: 0.93em; }
+.field-error { color: var(--error); font-size: 0.87em; font-weight: 600; }
+
+.input {
+  width: 100%;
+  min-height: 2.9em;
+  padding: 0.55em 0.8em;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.input::placeholder { color: var(--hint); opacity: 0.8; }
+.input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-tint); }
+.input[aria-invalid="true"] { border-color: var(--error); }
+
+select.input {
+  appearance: none;
+  padding-right: 2.4em;
+  background-image: linear-gradient(45deg, transparent 50%, var(--hint) 50%), linear-gradient(135deg, var(--hint) 50%, transparent 50%);
+  background-position: calc(100% - 1.2em) 55%, calc(100% - 0.85em) 55%;
+  background-size: 0.35em 0.35em;
+  background-repeat: no-repeat;
+  text-overflow: ellipsis;
+}
+
+input[type="search"].input { -webkit-appearance: none; }
+
+.code-input {
+  text-align: center;
+  font-size: 1.6em;
+  letter-spacing: 0.35em;
   font-weight: 700;
-  color: var(--tg-theme-button-color, #2e8d8a);
-  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
 }
+
+/* Выбор файла */
+.file-drop {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 1em;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.file-drop-chosen { border-style: solid; border-color: var(--accent); }
+.file-drop-icon { width: 2em; height: 2em; color: var(--accent); stroke-width: 1.6; }
+
+.file-drop-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.file-drop-text .hint { font-weight: 400; }
+.file-drop-name { overflow-wrap: anywhere; }
+
+/* --- КАРТОЧКИ И СПИСКИ --- */
+.card {
+  display: block;
+  width: 100%;
+  padding: 0.9em 1em;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.card-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  cursor: pointer;
+}
+
+.card-link:active { background: var(--accent-tint); }
+
+.card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-title-extra { color: var(--hint); font-weight: 600; }
+.card-subtitle { color: var(--hint); font-size: 0.93em; overflow-wrap: anywhere; }
+.card-meta { color: var(--hint); font-size: 0.85em; }
+.card-chevron { width: 1.2em; height: 1.2em; color: var(--hint); }
+
+.card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+/* --- СОСТОЯНИЯ --- */
+.status-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45em;
+  font-size: 0.93em;
+  font-weight: 600;
+}
+
+.status-line .status-icon { margin-top: 0.12em; }
+.status-line-ok { color: var(--ok); }
+.status-line-error { color: var(--error); }
+.status-line-warning { color: var(--warning); }
+.status-line-pending, .status-line-muted { color: var(--hint); }
+.form-status { padding: 0.6em 0.8em; border-radius: var(--radius); background: var(--error-tint); }
+
+.term-info {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.6em;
+  color: var(--hint);
+  font-size: 0.93em;
+}
+
+.term-info span:first-child { color: var(--text); font-weight: 600; }
+.term-info-warning { color: var(--warning); font-weight: 600; }
+
+/* Работы проверяет облачная модель (решение 13) — студенту говорится об этом при сдаче */
+.cloud-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  color: var(--hint);
+  font-size: 0.87em;
+}
+
+.cloud-note .icon { flex-shrink: 0; width: 1.3em; height: 1.3em; margin-top: 0.05em; color: var(--warning); }
+
+/* Ход проверки по шагам */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0.4em 1em;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.6em;
+  padding: 0.55em 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.step:last-child { border-bottom: none; }
+.step .status-icon { grid-row: span 2; margin-top: 0.15em; width: 1.25em; height: 1.25em; }
+.step-title { font-weight: 700; }
+.step-text { color: var(--hint); font-size: 0.93em; }
+.step-error .step-text { color: var(--error); }
+.step-warning .step-text { color: var(--warning); }
+.step-ok .step-text { color: var(--ok); }
+
+/* --- ЭКРАН РАБОТЫ --- */
+.work-head { display: flex; flex-direction: column; gap: 0.2em; }
+.work-file { font-size: 1.1em; font-weight: 700; overflow-wrap: anywhere; }
+
+.teacher-note {
+  margin: 0;
+  padding: 0.6em 0.9em;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  white-space: pre-line;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0.7em 0.9em;
+  border: var(--border) solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notice span { flex: 1; }
+
+.version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.version {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15em 0.6em;
+  width: 100%;
+  padding: 0.6em 0.9em;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.version .status-line { grid-column: 1 / -1; }
+.version-name { font-weight: 700; }
+.version-current { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); cursor: default; }
+
+/* Замечания */
+.findings { display: flex; flex-direction: column; gap: 1em; }
+
+.finding-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.finding {
+  padding: 0.7em 0.9em;
+  border: var(--border) solid var(--line);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.finding-error { border-left-color: var(--error); }
+.finding-review { border-left-color: var(--accent); }
+.finding-message { font-weight: 600; overflow-wrap: anywhere; }
+.finding-meta { margin-top: 0.2em; color: var(--hint); font-size: 0.85em; }
+
+.finding-details {
+  margin: 0.4em 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  font-size: 0.93em;
+}
+
+.finding-details dt { font-weight: 700; color: var(--hint); font-size: 0.9em; }
+.finding-details dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Решение преподавателя */
+.verdict-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8em, 1fr));
+  gap: 0.5em;
+}
+
+.help-details summary { color: var(--accent); font-weight: 600; cursor: pointer; }
+.help-details p { margin-top: 0.4em; color: var(--hint); font-size: 0.93em; }
+
+/* --- ПЕРЕКЛЮЧАТЕЛИ --- */
+.segmented {
+  display: flex;
+  padding: 0.2em;
+  border-radius: var(--radius);
+  background: var(--field);
+  gap: 0.2em;
+}
+
+.segment {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  min-height: 2.4em;
+  padding: 0.3em 0.25em;
+  border: none;
+  border-radius: calc(var(--radius) - 0.15em);
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segment-active { background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+.app-contrast .segment-active { outline: var(--border) solid var(--text); }
+
+.segment-count {
+  min-width: 1.5em;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.8em;
+  line-height: 1.5em;
+}
+
+/* Содержимое вкладки: при переключении — нажатием или свайпом — въезжает со стороны новой вкладки. */
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85em;
+}
+
+.tab-from-right { animation: tab-in-right 0.22s ease-out; }
+.tab-from-left { animation: tab-in-left 0.22s ease-out; }
+
+@keyframes tab-in-right { from { opacity: 0; transform: translateX(1.5em); } }
+@keyframes tab-in-left { from { opacity: 0; transform: translateX(-1.5em); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-from-right, .tab-from-left { animation: none; }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 2.2em;
+  padding: 0.25em 0.8em;
+  border: var(--border) solid var(--line);
+  border-radius: 1.2em;
+  background: var(--surface);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.chip-active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* --- ДИАЛОГИ --- */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.dialog, .sheet {
+  width: 100%;
+  max-width: 24em;
+  padding: 1.3em 1.2em 1.1em;
+  border-radius: 1.1em;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.app-contrast .dialog, .app-contrast .sheet { border: var(--border) solid var(--text); }
+
+.dialog-title { font-size: 1.15em; font-weight: 700; }
+.dialog-body { margin-top: 0.5em; color: var(--hint); }
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5em;
+  margin-top: 1.2em;
+}
+
+.dialog-actions .btn { flex: 1 1 7em; }
+
+/* --- ВХОД --- */
+.entry { padding-top: 1.5em; }
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2em;
+  margin-bottom: 0.8em;
+}
+
+.brand-name { margin-top: 0.4em; font-size: 1.4em; font-weight: 800; color: var(--accent); }
+.brand-note { color: var(--hint); font-size: 0.93em; }
+.screen-lead { font-size: 1.2em; }
+.screen-note { color: var(--hint); }
+
+.role-row { display: flex; gap: 0.5em; align-items: stretch; }
+.role-row .card { flex: 1; }
+.role-icon { width: 1.8em; height: 1.8em; color: var(--accent); }
+
+.waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6em;
+  padding: 2em 0;
+  text-align: center;
+}
+
+.spinner {
+  width: 2.6em;
+  height: 2.6em;
+  border: 0.25em solid var(--accent-tint);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 3s; }
+}
+
+/* --- ЗАМЕТКИ --- */
+.note-card { display: flex; flex-direction: column; gap: 0.4em; }
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-actions { display: flex; justify-content: flex-end; margin: 0 -0.4em -0.4em 0; }
+.note-editor { display: flex; flex-direction: column; gap: 0.6em; }
+.note-textarea { min-height: 6em; resize: vertical; }

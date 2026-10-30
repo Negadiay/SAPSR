@@ -1,280 +1,231 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { mockApi, jsonResponse, stubTelegram } from './test/mockApi';
-import { shortName } from './lib/names';
-import { summarizeFindings } from './lib/findings';
 
-// Сквозной путь работы: профиль при загрузке → итог автопроверки у преподавателя →
-// PDF с пометками → вердикт → комментарии у студента. Плюс «кто вошёл» в настройках.
-
-vi.mock('framer-motion', () => ({
-  AnimatePresence: ({ children }) => children,
-  motion: { div: ({ className, children }) => <div className={className}>{children}</div> },
-}));
+// Кабинет преподавателя: очередь, работа, файл с пометками и решение (api-v1.md, разделы 6, 8, 9).
 
 const FINDINGS = JSON.stringify([
-  { severity: 'major', category: 'format', origin: 'symbolic', page: 3, message: 'Левое поле меньше 30 мм' },
-  { severity: 'warning', category: 'content', origin: 'hybrid', page: 4, needs_teacher_review: false,
-    message: 'Форматы входных файлов описаны по-разному' },
-  { severity: 'warning', category: 'requirements', origin: 'hybrid', needs_teacher_review: true,
-    message: 'Не удалось установить, описаны ли точки интеграции' },
+  { severity: 'minor', category: 'format', origin: 'symbolic', message: 'Межстрочный интервал меньше полуторного.' },
+  { severity: 'major', category: 'content', origin: 'neural', needs_teacher_review: true, page: 12,
+    message: 'Не удалось установить, выполнено ли требование «Обработка рассогласований».' },
 ]);
 
-const QUEUE = [{
-  id: 153, student_name: 'Терешкова А.В. (гр. 321702)', file_name: 'Курсовая.pdf', status: 'REJECTED',
-  created_at: '2026-10-21T12:00:00', first_submitted_at: '2026-10-20T09:15:00', version: 2,
-  format_errors: FINDINGS, review_annotations: 0, has_review_file: false,
-}];
+const PENDING = [
+  { id: 21, student_name: 'Терешкова А.В.', student_group: '321702', file_name: 'КП7_321702_Терешкова.pdf',
+    status: 'SUCCESS', content_status: 'DONE', format_errors: FINDINGS, version: 2,
+    created_at: '2026-10-25T09:15:00', first_submitted_at: '2026-10-18T20:00:00', review_annotations: 0, has_review_file: false },
+  { id: 22, student_name: 'Иванов И.И.', student_group: '321701', file_name: 'курсовая.pdf',
+    status: 'REJECTED', content_status: 'PENDING', format_errors: '[{"severity":"major","category":"format","origin":"symbolic","message":"Левое поле"}]',
+    version: 1, created_at: '2026-10-24T22:47:00', review_annotations: 0, has_review_file: false },
+];
 
-const ANNOTATIONS = [
-  { id: 31, page: 4, kind: 'HIGHLIGHT', quoted_text: 'PDF и DOCX', comment: 'Сверьте с разделом 1.5', reply_to_id: null },
-  { id: 32, page: 4, kind: 'NOTE', comment: 'И с заключением', reply_to_id: 31 },
-  { id: 33, page: 9, kind: 'INK', reply_to_id: null },
+const HISTORY = [
+  { id: 11, student_name: 'Сидоров П.П.', student_group: '321702', file_name: 'Сидоров.pdf', teacher_verdict: 'REVISION',
+    version: 1, created_at: '2026-10-10T11:00:00', has_review_file: true, review_annotations: 1 },
 ];
 
 const teacherRoutes = {
-  'GET /me': { role: 'TEACHER', telegram_id: 42, full_name: 'Гракова Наталья Викторовна',
-    last_name: 'Гракова', first_name: 'Наталья', middle_name: 'Викторовна' },
-  'GET /teacher/submissions': QUEUE,
-  'GET /teacher/history': [],
+  'GET /me': { role: 'TEACHER', telegram_id: 7, full_name: 'Гракова Наталья Викторовна' },
+  'GET /teacher/submissions': PENDING,
+  'GET /teacher/history': HISTORY,
+  'GET /submissions/11/annotations': { annotations: [{ id: 5, page: 2, kind: 'NOTE', comment: 'Добавьте схему' }] },
 };
 
-// Курс, семестр и этап определяет сервер (решение 11): 321702 осенью 2026 года — 4 курс, 7 семестр.
-const studentRoutes = {
-  'GET /me': { role: 'STUDENT', telegram_id: 42, full_name: 'Терешкова А.В. (гр. 321702)',
-    last_name: 'Терешкова', first_name: null, middle_name: null, group: '321702',
-    course: 4, semester: 7, stage: 2, deadline: '2026-12-26', course_overridden: false },
-  'GET /teachers': [{ telegram_id: 7, full_name: 'Гракова Н.В.' }],
-  'GET /submissions': [],
-};
-
-const start = (routes) => {
-  stubTelegram();
+const start = (routes = teacherRoutes) => {
+  stubTelegram({ userId: 7 });
   const api = mockApi(routes);
   const user = userEvent.setup();
   render(<App />);
   return { api, user };
 };
 
-// Вкладки — иконки без текста; у кнопки есть подпись для программ чтения с экрана.
-const tabButton = (label) => within(document.querySelector('.bottom-nav')).getByRole('button', { name: label });
+const heading = (name) => screen.findByRole('heading', { name });
+const openWork = async (user, name) => user.click(await screen.findByRole('button', { name: new RegExp(name) }));
 
-describe('загрузка с профилем проверки', () => {
-  it('студент выбирает только вид работы, курс, семестр и этап показаны', async () => {
-    const { api, user } = start({ ...studentRoutes, 'POST /upload': {} });
-    await screen.findByRole('option', { name: 'Гракова Н.В.' });
-    expect(screen.getByText('4 курс · 7 семестр')).toBeInTheDocument();
-    expect(screen.getByText('к 2-й опроцентовке · сдача до 26.12.2026')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Семестр')).toBeNull();
-    expect(screen.queryByLabelText('Этап')).toBeNull();
+describe('очередь', () => {
+  it('работы на проверке с итогом автоматической проверки; проверенные — отдельно', async () => {
+    const { user } = start();
+    expect(await heading('Работы')).toBeInTheDocument();
+    expect(await screen.findByText('Терешкова А.В.')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveTextContent('2');
+    expect(screen.getByText('Оформление без ошибок')).toBeInTheDocument();
+    expect(screen.getByText('Содержание: 1 замечание, на ваше решение: 1')).toBeInTheDocument();
+    expect(screen.getByText('Ошибок оформления: 1')).toBeInTheDocument();
+    expect(screen.getByText('Содержание проверяется')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText('Вид работы'), 'course_work');
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'Курсовая.pdf', { type: 'application/pdf' }));
-    await user.click(screen.getByRole('button', { name: 'Отправить' }));
-
-    await waitFor(() => expect(api.find('POST', '/upload')).toHaveLength(1));
-    const { body } = api.find('POST', '/upload')[0];
-    expect(body.get('work_type')).toBe('course_work');
-    expect(body.has('semester')).toBe(false);
-    expect(body.has('stage')).toBe(false);
-    expect(JSON.parse(localStorage.getItem('sapsr_last_profile'))).toEqual({ work_type: 'course_work' });
+    await user.click(screen.getByRole('tab', { name: 'Проверено' }));
+    expect(screen.getByText('Сидоров П.П.')).toBeInTheDocument();
+    expect(screen.getByText('На доработке')).toBeInTheDocument();
+    expect(screen.queryByText('Терешкова А.В.')).toBeNull();
   });
 
-  it('прежний выбор семестра из памяти не берётся', async () => {
-    localStorage.setItem('sapsr_last_profile', JSON.stringify({ work_type: 'course_project', semester: '1', stage: '3' }));
-    start(studentRoutes);
-    await screen.findByRole('option', { name: 'Гракова Н.В.' });
-    expect(screen.getByLabelText('Вид работы')).toHaveValue('course_project');
+  it('поиск по фамилии с опечаткой и фильтр по группе', async () => {
+    const { user } = start();
+    await screen.findByText('Терешкова А.В.');
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск' }), 'терешкво');
+    expect(screen.getByText('Терешкова А.В.')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов И.И.')).toBeNull();
+    await user.clear(screen.getByRole('searchbox', { name: 'Поиск' }));
+
+    await user.click(screen.getByRole('button', { name: '321701' }));
+    expect(screen.getByText('Иванов И.И.')).toBeInTheDocument();
+    expect(screen.queryByText('Терешкова А.В.')).toBeNull();
   });
 
-  it('если семестр не определился, говорит, к кому обратиться', async () => {
-    start({ ...studentRoutes, 'GET /me': { ...studentRoutes['GET /me'], group: '921701', course: null, semester: null } });
-    expect(await screen.findByText(/Семестр по группе 921701 не определился/)).toHaveTextContent('сообщите администратору');
+  it('на телефоне вкладки листаются свайпом, вертикальная прокрутка их не трогает', async () => {
+    start();
+    await screen.findByText('Терешкова А.В.');
+    const list = screen.getByText('Терешкова А.В.').closest('.screen-body');
+    const swipe = (from, to) => {
+      fireEvent.touchStart(list, { touches: [{ clientX: from[0], clientY: from[1] }] });
+      fireEvent.touchEnd(list, { changedTouches: [{ clientX: to[0], clientY: to[1] }] });
+    };
+    swipe([300, 400], [280, 150]);  // прокрутка вниз
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveAttribute('aria-selected', 'true');
+
+    swipe([300, 400], [120, 410]);  // влево — следующая вкладка
+    expect(screen.getByRole('tab', { name: 'Проверено' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Сидоров П.П.')).toBeInTheDocument();
+    swipe([300, 400], [120, 400]);  // дальше вкладок нет — остаёмся
+    expect(screen.getByRole('tab', { name: 'Проверено' })).toHaveAttribute('aria-selected', 'true');
+
+    swipe([100, 400], [300, 390]);  // вправо — обратно
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveAttribute('aria-selected', 'true');
+    // Свайп по полю поиска — это выделение текста, а не переход.
+    fireEvent.touchStart(screen.getByRole('searchbox', { name: 'Поиск' }), { touches: [{ clientX: 300, clientY: 100 }] });
+    fireEvent.touchEnd(list, { changedTouches: [{ clientX: 100, clientY: 100 }] });
+    expect(screen.getByRole('tab', { name: /На проверке/ })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('после всех опроцентовок — итоговая сдача', async () => {
-    start({ ...studentRoutes, 'GET /me': { ...studentRoutes['GET /me'], stage: null, deadline: null } });
-    expect(await screen.findByText('итоговая сдача')).toBeInTheDocument();
-  });
-
-  it('без профиля поля не передаются вовсе', async () => {
-    const { api, user } = start({ ...studentRoutes, 'POST /upload': {} });
-    await screen.findByRole('option', { name: 'Гракова Н.В.' });
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }));
-    await user.click(screen.getByRole('button', { name: 'Отправить' }));
-
-    await waitFor(() => expect(api.find('POST', '/upload')).toHaveLength(1));
-    const { body } = api.find('POST', '/upload')[0];
-    expect(body.has('semester')).toBe(false);
-    expect(body.has('work_type')).toBe(false);
+  it('без работ — что будет дальше', async () => {
+    start({ ...teacherRoutes, 'GET /teacher/submissions': [] });
+    expect(await screen.findByText('Новых работ нет.')).toBeInTheDocument();
+    expect(screen.getByText('О новой работе сообщим в чат.')).toBeInTheDocument();
   });
 });
 
-describe('работа у преподавателя', () => {
-  it('отклонённая работа видна до конца проверки содержания', async () => {
-    start({ ...teacherRoutes, 'GET /teacher/submissions': [{ ...QUEUE[0], content_status: 'PENDING' }] });
-    const card = (await screen.findByText('Курсовая.pdf')).closest('.ts-card-compact');
-    expect(card).toHaveTextContent('Содержание ещё проверяется');
-    expect(card).not.toHaveTextContent('Содержание: 2');
-  });
-
-  it('отклонённая работа видна с итогом проверки, версией и датой первой версии', async () => {
-    const { user } = start(teacherRoutes);
-    const card = (await screen.findByText('Курсовая.pdf')).closest('.ts-card-compact');
-
-    expect(card).toHaveTextContent('Ошибки оформления: 1');
-    expect(card).toHaveTextContent('Содержание: 2 (на вашу проверку: 1)');
-    expect(card).toHaveTextContent(/Версия 2 · первая пришла 20\.10\.2026/);
-
-    await user.click(screen.getByText('Курсовая.pdf'));
-    expect(card).toHaveTextContent('Форматы входных файлов описаны по-разному');
-    expect(card).toHaveTextContent('стр. 4 · правило + модель');
-    expect(card).toHaveTextContent('требует вашей проверки');
-    expect(within(card).getByRole('button', { name: 'Отчёт проверки' })).toBeInTheDocument();
-  });
-
-  it('после загрузки работы с пометками — коротко «загружен», и можно на доработку', async () => {
+describe('работа и решение', () => {
+  it('на доработку — только с файлом с пометками, после подтверждения', async () => {
+    let pending = PENDING;
     const { api, user } = start({
       ...teacherRoutes,
-      'POST /teacher/submissions/153/review-file': {
-        review_file_id: 7, annotations: ANNOTATIONS,
-        warnings: [{ code: 'DIFFERENT_DOCUMENT', message: 'длинный текст сервера' }],
+      'GET /teacher/submissions': () => pending,
+      'POST /teacher/submissions/21/review-file': {
+        review_file_id: 31, warnings: [],
+        annotations: [{ id: 1, page: 3, kind: 'HIGHLIGHT', quoted_text: 'Система', comment: 'Уточните' }],
       },
-      'POST /teacher/submissions/153/verdict': {},
+      'POST /teacher/submissions/21/verdict': () => { pending = PENDING.slice(1); return { status: 'OK' }; },
     });
-    await user.click(await screen.findByText('Курсовая.pdf'));
-    expect(screen.getByRole('button', { name: 'На доработку' })).toBeDisabled();
-    await user.upload(document.getElementById('review-file-153'),
-      new File(['%PDF'], 'Курсовая с пометками.pdf', { type: 'application/pdf' }));
+    await openWork(user, 'Терешкова');
+    expect(await heading('Работа')).toBeInTheDocument();
+    expect(screen.getByText('Получена 25.10.2026, 09:15')).toBeInTheDocument();
+    expect(screen.getByText('Версия 2, первая — 18.10, 20:00')).toBeInTheDocument();
+    expect(screen.getByText(/найдено нейросетью · на ваше решение/)).toBeInTheDocument();
 
-    expect(await screen.findByText('Документ успешно загружен')).toBeInTheDocument();
-    expect(screen.getByText('Похоже, это другой документ, а не работа этого студента.')).toBeInTheDocument();
-    // Что именно прочиталось, преподавателю не показываем — это увидит студент.
-    expect(screen.queryByText('Сверьте с разделом 1.5')).toBeNull();
-    expect(screen.queryByText(/Прочитано комментариев/)).toBeNull();
-    expect(api.find('POST', '/teacher/submissions/153/review-file')[0].body.get('file').name)
-      .toBe('Курсовая с пометками.pdf');
+    const revise = screen.getByRole('button', { name: 'На доработку' });
+    expect(revise).toBeDisabled();
+    expect(screen.getByText('Для доработки загрузите файл с пометками.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'На доработку' }));
-    await waitFor(() => expect(api.find('POST', '/teacher/submissions/153/verdict')).toHaveLength(1));
-    expect(api.find('POST', '/teacher/submissions/153/verdict')[0].body)
-      .toEqual({ verdict: 'REVISION', comment: '', review_file_id: 7 });
+    await user.upload(screen.getByLabelText('Загрузить файл'), new File(['%PDF'], 'review.pdf', { type: 'application/pdf' }));
+    expect(await screen.findByText('Загружено: 1 комментарий')).toBeInTheDocument();
+    expect(screen.getByText('Уточните')).toBeInTheDocument();
+    expect(revise).toBeEnabled();
+
+    await user.click(revise);
+    expect(screen.getByRole('dialog', { name: 'Вернуть на доработку?' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Вернуть' }));
+    await waitFor(() => expect(api.find('POST', '/teacher/submissions/21/verdict')).toHaveLength(1));
+    expect(api.find('POST', '/teacher/submissions/21/verdict')[0].body).toEqual({ verdict: 'REVISION', review_file_id: 31 });
+    expect(await heading('Работы')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Терешкова А.В.')).toBeNull());
   });
 
-  it('документ без комментариев — понятное предупреждение, на доработку не отправить', async () => {
+  it('«Принять» — с подтверждением: отмена ничего не отправляет', async () => {
+    const { api, user } = start({ ...teacherRoutes, 'POST /teacher/submissions/22/verdict': { status: 'OK' } });
+    await openWork(user, 'Иванов');
+    await user.click(await screen.findByRole('button', { name: 'Принять' }));
+    const dialog = screen.getByRole('dialog', { name: 'Принять работу?' });
+    expect(within(dialog).getByText('Студент получит уведомление. Изменить решение будет нельзя.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Отмена' }));
+    expect(api.find('POST', '/teacher/submissions/22/verdict')).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Принять' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Принять' }));
+    await waitFor(() => expect(api.find('POST', '/teacher/submissions/22/verdict')).toHaveLength(1));
+    expect(api.find('POST', '/teacher/submissions/22/verdict')[0].body).toEqual({ verdict: 'APPROVED' });
+  });
+
+  it('работа с комментариями автопроверки скачивается отдельной кнопкой', async () => {
+    const { api, user } = start({ ...teacherRoutes, 'GET /submissions/22/commented': new Response('pdf') });
+    await openWork(user, 'Иванов');
+    await user.click(await screen.findByRole('button', { name: 'С комментариями' }));
+    await waitFor(() => expect(api.find('GET', '/submissions/22/commented')).toHaveLength(1));
+    // Содержание ещё проверяется — так и сказано, без «не успело».
+    expect(screen.getByText('Содержание проверяется')).toBeInTheDocument();
+  });
+
+  it('ошибка решения видна на экране, без системного окна', async () => {
     const { user } = start({
       ...teacherRoutes,
-      'POST /teacher/submissions/153/review-file': {
-        review_file_id: 7, annotations: [], warnings: [{ code: 'NO_ANNOTATIONS', message: '...' }],
-      },
+      'POST /teacher/submissions/22/verdict': jsonResponse({ code: 'VERDICT_ALREADY_SET', error: 'Решение по работе уже принято.' }, 409),
     });
-    await user.click(await screen.findByText('Курсовая.pdf'));
-    await user.upload(document.getElementById('review-file-153'), new File(['%PDF'], 'print.pdf', { type: 'application/pdf' }));
-
-    expect(await screen.findByText(/В документе нет комментариев/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'На доработку' })).toBeDisabled();
+    await openWork(user, 'Иванов');
+    await user.click(await screen.findByRole('button', { name: 'Принять' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Принять' }));
+    expect(await screen.findByText('Решение по работе уже принято.')).toBeInTheDocument();
   });
 
-  it('не PDF — понятная ошибка, на доработку не отправить', async () => {
+  it('чужой или пустой файл — понятное предупреждение', async () => {
     const { user } = start({
       ...teacherRoutes,
-      'POST /teacher/submissions/153/review-file': jsonResponse(
-        { code: 'NOT_A_PDF', error: 'Файл не открывается как PDF.' }, 400),
+      'POST /teacher/submissions/22/review-file': { review_file_id: 32, annotations: [], warnings: [{ code: 'NO_ANNOTATIONS' }, { code: 'DIFFERENT_DOCUMENT' }] },
     });
-    await user.click(await screen.findByText('Курсовая.pdf'));
-    await user.upload(document.getElementById('review-file-153'), new File(['x'], 'scan.pdf', { type: 'application/pdf' }));
+    await openWork(user, 'Иванов');
+    await user.upload(await screen.findByLabelText('Загрузить файл'), new File(['%PDF'], 'r.pdf', { type: 'application/pdf' }));
+    expect(await screen.findByText('Комментариев нет — сохраните файл не через «Печать в PDF».')).toBeInTheDocument();
+    expect(screen.getByText('Похоже, это файл другой работы.')).toBeInTheDocument();
+    expect(screen.getByText('Загружено: 0 комментариев')).toBeInTheDocument();
+  });
 
-    expect(await screen.findByText('Файл не открывается как PDF.')).toBeInTheDocument();
-    expect(screen.queryByText('Документ успешно загружен')).toBeNull();
-    expect(screen.getByRole('button', { name: 'На доработку' })).toBeDisabled();
+  it('проверенная работа — решение и комментарии, без кнопок решения', async () => {
+    const { user } = start();
+    await screen.findByText('Терешкова А.В.');
+    await user.click(screen.getByRole('tab', { name: 'Проверено' }));
+    await openWork(user, 'Сидоров');
+    expect(await screen.findByText('Вы вернули работу на доработку')).toBeInTheDocument();
+    expect(await screen.findByText('Добавьте схему')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Принять' })).toBeNull();
   });
 });
 
-describe('прикрепление файла', () => {
-  it('коротко «Прикрепите файл работы», без подсказок об имени', async () => {
-    const { user } = start(studentRoutes);
-    await screen.findByRole('option', { name: 'Гракова Н.В.' });
-    expect(screen.getByText('Прикрепите файл работы')).toBeInTheDocument();
+describe('заметки', () => {
+  it('заметка ищет работы упомянутого студента', async () => {
+    const { user } = start();
+    await screen.findByText('Терешкова А.В.');
+    await user.click(screen.getByTitle('Заметки'));
+    expect(await heading('Заметки')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Новая заметка' }));
+    await user.type(screen.getByLabelText('Текст заметки'), 'Иванов 321701 — проверить поля');
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(screen.getByText('Иванов 321701 — проверить поля')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText('Вид работы'), 'course_work');
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'курсач финал.pdf', { type: 'application/pdf' }));
-    expect(screen.getByText('курсач финал.pdf')).toBeInTheDocument();
-    expect(screen.queryByText(/по форме|с названием/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Найти работы студента' }));
+    expect(await heading('Работы')).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Поиск' })).toHaveValue('Иванов 321701');
+    expect(screen.getByText('Иванов И.И.')).toBeInTheDocument();
+    expect(screen.queryByText('Терешкова А.В.')).toBeNull();
   });
 
-  it('ошибка загрузки — текстом, иконка лишь дополняет', async () => {
-    const { user } = start({ ...studentRoutes, 'POST /upload': jsonResponse({ error: 'Неизвестный вид работы' }, 400) });
-    await screen.findByRole('option', { name: 'Гракова Н.В.' });
-    await user.upload(document.getElementById('file-upload'), new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }));
-    await user.click(screen.getByRole('button', { name: 'Отправить' }));
-
-    expect(await screen.findByRole('status')).toHaveTextContent('Неизвестный вид работы');
-    expect(screen.getByRole('status').querySelector('svg.status-error')).not.toBeNull();
+  it('удаление — после подтверждения', async () => {
+    localStorage.setItem('sapsr_notes_7', JSON.stringify([{ id: 1, text: 'Старая заметка' }]));
+    const { user } = start();
+    await screen.findByText('Терешкова А.В.');
+    await user.click(screen.getByTitle('Заметки'));
+    await user.click(await screen.findByRole('button', { name: 'Удалить заметку' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }));
+    expect(screen.queryByText('Старая заметка')).toBeNull();
+    expect(screen.getByText('Заметок нет.')).toBeInTheDocument();
   });
-});
-
-describe('комментарии у студента', () => {
-  it('после вердикта показывает комментарии из файла по страницам', async () => {
-    const { api, user } = start({
-      ...studentRoutes,
-      'GET /submissions': [{
-        id: 153, file_name: 'Курсовая.pdf', status: 'REJECTED', teacher_verdict: 'REVISION',
-        created_at: '2026-10-21T12:00:00', has_review_file: true, review_annotations: 3,
-      }],
-      'GET /submissions/153/annotations': { review_file_id: 7, annotations: ANNOTATIONS },
-    });
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('Мои работы'));
-
-    await user.click(await screen.findByRole('button', { name: /Комментарии в файле: 3/ }));
-    expect(await screen.findByText('Сверьте с разделом 1.5')).toBeInTheDocument();
-    expect(screen.getByText('Страница 9')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Скачать файл с пометками' })).toBeInTheDocument();
-    expect(api.find('GET', '/submissions/153/annotations')).toHaveLength(1);
-  });
-});
-
-describe('кто вошёл', () => {
-  it('студент видит фамилию с инициалами и группу', async () => {
-    const { user } = start(studentRoutes);
-    await screen.findByRole('heading', { name: 'Загрузка работы' });
-    await user.click(tabButton('Настройки'));
-
-    expect(screen.getByText('Терешкова А. В.')).toBeInTheDocument();
-    expect(screen.getByText('Группа 321702 · 4 курс')).toBeInTheDocument();
-  });
-
-  it('преподаватель видит фамилию с инициалами без группы', async () => {
-    const { user } = start(teacherRoutes);
-    await screen.findByText('Курсовая.pdf');
-    await user.click(tabButton('Настройки'));
-
-    expect(screen.getByText('Гракова Н. В.')).toBeInTheDocument();
-    expect(screen.queryByText(/^Группа/)).not.toBeInTheDocument();
-  });
-});
-
-describe('вспомогательные функции', () => {
-  it('shortName собирает «Фамилия И. О.» из полей и из старой формы', () => {
-    expect(shortName({ last_name: 'Гракова', first_name: 'Наталья', middle_name: 'Викторовна' })).toBe('Гракова Н. В.');
-    expect(shortName({ last_name: 'Терешкова', full_name: 'Терешкова А.В. (гр. 321702)' })).toBe('Терешкова А. В.');
-    expect(shortName({ full_name: 'Иванов И.И. (гр. 321702)' })).toBe('Иванов И. И.');
-    expect(shortName({ last_name: 'Smith', first_name: 'John' })).toBe('Smith J.');
-    expect(shortName({ full_name: 'Петрова Анна Сергеевна' })).toBe('Петрова А. С.');
-    expect(shortName({})).toBe('');
-    expect(shortName(null)).toBe('');
-  });
-
-  it('summarizeFindings отделяет содержание от оформления и терпит мусор', () => {
-    const summary = summarizeFindings(FINDINGS);
-    expect(summary.formatErrors).toBe(1);
-    expect(summary.formatWarnings).toBe(0);
-    expect(summary.content).toHaveLength(2);
-    expect(summary.needsReview).toBe(1);
-    expect(summarizeFindings('не JSON').content).toEqual([]);
-    expect(summarizeFindings(null).formatErrors).toBe(0);
-  });
-
 });
