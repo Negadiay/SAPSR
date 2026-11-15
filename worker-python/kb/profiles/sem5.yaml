@@ -1,0 +1,14 @@
+# 5-й семестр: базовые правила оформления + требования методички к решателю задач (решение 16).
+# Этапы опроцентовки — поле stages у требования (kb/requirements/sem5.yaml).
+id: sem5
+title: 5-й семестр — курсовой проект по решателю задач
+extends: base
+match:
+  semesters: [5]
+
+rules:
+  include: all
+  exclude: ["NEURAL-*"]
+
+content:
+  requirement_sets: [sem5]

@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "81b0befde786bb61904a1b6faad432d546dbe3708b91d49951caa356e46204bf",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"PDF\"],\n      \"quote\": \"файл пояснительной записки в формате PDF\",\n      \"block_id\": \"b-0039\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

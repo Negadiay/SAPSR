@@ -1,0 +1,96 @@
+# Проверки на каждый push и pull request в dev и main (план 3-й опроцентовки, Т6).
+# Ни одно задание не запускает бота и не ходит в Telegram, ИИС или к языковой модели:
+# обработчик проверяется на заглушке модели и на записанных ответах (test-fixtures/llm-replay),
+# бэкенд — без BackendApplicationTests (полный контекст поднимает бота с настоящим токеном).
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  worker:
+    name: Обработчик (pytest, ruff, оценка на записях модели)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker-python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: worker-python/requirements*.txt
+      - run: pip install --disable-pip-version-check -r requirements-dev.txt
+      # Ошибки, с которыми код не запустится: синтаксис, неизвестные имена. Блокируют сборку.
+      - name: ruff — ошибки
+        run: python -m ruff check sapsr tests tools --select E9,F63,F7,F82
+      # Полный набор правил: в коде остались старые замечания, поэтому шаг сборку не блокирует.
+      - name: ruff — все правила (не блокирует)
+        run: python -m ruff check sapsr tests --statistics
+        continue-on-error: true
+      # Модель — сценарная заглушка и записанные ответы qwen3.5:4b; сеть не нужна.
+      - name: pytest
+        run: python -m pytest -q
+        env:
+          SAPSR_IIS_MODE: "off"
+      # Тот же корпус в трёх режимах на записанных ответах: отчёты двух запусков должны совпасть.
+      - name: Оценка качества на записях модели (воспроизводимость)
+        run: python tools/evaluate.py --llm replay --repeat 2 --out "$RUNNER_TEMP/quality"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quality
+          path: ${{ runner.temp }}/quality.*
+
+  frontend:
+    name: Интерфейс (lint, vitest, сборка)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-webapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend-webapp/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  backend:
+    name: Бэкенд (Maven, Testcontainers)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-java
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Тесты базы поднимают PostgreSQL через Testcontainers: Docker на ubuntu-latest уже есть.
+      # В репозитории нет application.properties (в нём токен бота) — для тестов хватает примера.
+      - name: Настройки для тестов
+        run: cp -n src/main/resources/application.properties.example src/main/resources/application.properties
+      - name: Тесты
+        run: sh ./mvnw -B test "-Dtest=!BackendApplicationTests" -Dsurefire.failIfNoSpecifiedTests=false
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: surefire-reports
+          path: backend-java/target/surefire-reports

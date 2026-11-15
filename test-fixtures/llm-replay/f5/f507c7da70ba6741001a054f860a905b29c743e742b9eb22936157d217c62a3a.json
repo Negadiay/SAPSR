@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "f507c7da70ba6741001a054f860a905b29c743e742b9eb22936157d217c62a3a",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"file\"],\n      \"quote\": \"загрузчик базы знаний читает факты и правила из файла\",\n      \"block_id\": \"b-0041\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.kb_representation\",\n      \"value\": [\"production_rules\"],\n      \"quote\": \"Решатель выделен в отдельный программный модуль и состоит из трёх компонентов: загрузчик базы знаний читает факты и правила...\",\n      \"block_id\": \"b-0041\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"На каждом шаге выбираются правила базы знаний, условия которых выполнены, и их заключения добавляются к фактам.\",\n      \"block_id\": \"b-0040\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.users\",\n      \"value\": [\"student\"],\n      \"quote\": \"Выходные данные — найденные неисправности...\",\n      \"block_id\": \"b-0040\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

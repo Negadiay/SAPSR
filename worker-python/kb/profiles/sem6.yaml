@@ -1,0 +1,14 @@
+# 6-й семестр: базовые правила оформления + требования методички к интерфейсу (решение 16).
+# Этапы опроцентовки — поле stages у требования (kb/requirements/sem6.yaml).
+id: sem6
+title: 6-й семестр — курсовой проект по интерфейсу
+extends: base
+match:
+  semesters: [6]
+
+rules:
+  include: all
+  exclude: ["NEURAL-*"]
+
+content:
+  requirement_sets: [sem6]

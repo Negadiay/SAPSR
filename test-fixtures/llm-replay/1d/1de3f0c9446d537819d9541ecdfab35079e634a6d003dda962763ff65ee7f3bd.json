@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "1de3f0c9446d537819d9541ecdfab35079e634a6d003dda962763ff65ee7f3bd",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0033]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 1.0,\n      \"quote\": \"Сценарий использования: пользователь выбирает признаки из списка, нажимает кнопку диагностики, система показывает возможные неисправности и объяснение, пользователь отмечает, помогла ли рекомендация.\"\n    },\n    {\n      \"block_id\": \"[b-0035]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.8,\n      \"quote\": \"\"\n    },\n    {\n      \"block_id\": \"[b-0040]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.9,\n      \"quote\": \"\"\n    },\n    {\n      \"block_id\": \"[b-0042]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.9,\n      \"quote\": \"\"\n    }\n  ]\n}"
+}

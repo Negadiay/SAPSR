@@ -14,6 +14,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRoleAndGroupNumber(String role, String groupNumber);
     Optional<User> findByEmail(String email);
 
+    /** Наибольший номер тёзки среди студентов группы с таким ФИО; 0 — таких ещё нет. */
+    @Query("""
+            select coalesce(max(u.namesakeNumber), 0) from User u
+            where u.role = 'STUDENT' and u.groupNumber = :group and u.nameKey = :nameKey
+            """)
+    int maxNamesakeNumber(@org.springframework.data.repository.query.Param("group") String group,
+                          @org.springframework.data.repository.query.Param("nameKey") String nameKey);
+
+    /** Сколько студентов группы носят это ФИО: больше одного — тёзки. */
+    @Query("""
+            select count(u) from User u
+            where u.role = 'STUDENT' and u.groupNumber = :group and u.nameKey = :nameKey
+            """)
+    long countNamesakes(@org.springframework.data.repository.query.Param("group") String group,
+                        @org.springframework.data.repository.query.Param("nameKey") String nameKey);
+
     /** Группы зарегистрированных студентов и число студентов в каждой — для экрана администратора. */
     @Query("""
             select u.groupNumber, count(u) from User u

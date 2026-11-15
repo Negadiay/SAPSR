@@ -1,21 +1,18 @@
 import { useState, useEffect } from 'react';
 import { fetchMe, registerStudent, registerTeacher, sendTeacherCode } from '../../api/auth';
 import { readError } from '../../api/client';
-import { notifyHaptic } from '../../telegram/webApp';
+import { notifyHaptic, showAlert } from '../../telegram/webApp';
+import { nameFormBody, nameFormProblem } from '../../lib/names';
 
-const STUDENT_INPUT_ALLOWED_RE = /[^А-ЯЁа-яё.,\s\d]/g;
-const STUDENT_REG_RE = /^[А-ЯЁ][а-яё]+\s[А-ЯЁ]\.[А-ЯЁ]\.,\s\d{6}$/;
 const OFFLINE = 'Нет связи с сервером. Попробуйте позже.';
 const ROLE_TITLES = { student: 'студент', teacher: 'преподаватель', admin: 'администратор' };
 
-const normalizeStudentInput = (value) => value.trim().replace(/\s+/g, ' ');
+const EMPTY_STUDENT = { lastName: '', firstName: '', middleName: '', noMiddle: false, group: '' };
 
-// Что не так в строке «Иванов И.И., 321702»; пусто — всё верно.
-export const studentInputProblem = (value) => {
-  const input = normalizeStudentInput(value);
-  if (!input) return 'Введите ФИО и группу.';
-  return STUDENT_REG_RE.test(input) ? '' : 'Пример: Иванов И.И., 321702';
-};
+export const groupProblem = (group) => (/^\d{6}$/.test(group || '') ? '' : 'Номер группы — шесть цифр.');
+
+// Что не так в форме регистрации студента; пусто — всё верно.
+export const studentFormProblem = (form) => nameFormProblem(form) || groupProblem(form.group);
 
 // Состояние и действия экранов выбора роли, регистрации и подтверждения кода.
 export function useRegistration({ session, onRegistered, onLoggedIn }) {
@@ -25,7 +22,7 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
   const [registering, setRegistering] = useState(false);
 
   // Регистрация студента
-  const [regInput, setRegInput]       = useState('');
+  const [student, setStudent]         = useState(EMPTY_STUDENT);
 
   // Регистрация преподавателя
   const [teacherEmail, setTeacherEmail]   = useState('');
@@ -45,7 +42,7 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
   }, [step, codeExpiresAt]);
 
   const clearForm = () => {
-    setRegInput(''); setRegCode(''); setRegError(''); setTeacherEmail('');
+    setStudent(EMPTY_STUDENT); setRegCode(''); setRegError(''); setTeacherEmail('');
   };
 
   const selectRole = (role) => {
@@ -78,33 +75,49 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
 
   const backToRole = () => { setRegError(''); setStep('role'); };
 
+  // Один аккаунт Telegram — один человек (решение 15): на 409 показываем текст сервера
+  // и открываем главный экран той роли, в которой аккаунт уже зарегистрирован.
+  const failRegistration = async (res, fallback) => {
+    const err = await readError(res);
+    const text = err.message || err.error || fallback;
+    setRegError(text);
+    if (res.status !== 409 || err.code !== 'ALREADY_REGISTERED') return;
+    try {
+      const me = await fetchMe();
+      const data = me.ok ? await me.json() : null;
+      const role = data?.role && data.role !== 'NONE' ? data.role.toLowerCase() : '';
+      if (!role) return;
+      showAlert(text);
+      if (data.telegram_id) setCurrentUserId(String(data.telegram_id));
+      enter(role, data);
+    } catch { /* остаёмся на форме с текстом ошибки */ }
+  };
+
   const reset = () => {
     signOut();
     clearForm();
   };
 
   // --- Регистрация студента ---
-  const changeRegInput = (value) => { setRegInput(value.replace(STUDENT_INPUT_ALLOWED_RE, '')); setRegError(''); };
+  const changeStudent = (next) => {
+    setStudent({ ...next, group: (next.group || '').replace(/\D/g, '').slice(0, 6) });
+    setRegError('');
+  };
 
   const submitStudent = async (e) => {
     e?.preventDefault();
     setRegError('');
-    const normalizedInput = normalizeStudentInput(regInput);
-    const problem = studentInputProblem(normalizedInput);
+    const problem = studentFormProblem(student);
     if (problem) { setRegError(problem); return; }
-    const groupNumber = normalizedInput.slice(-6);
-    const namePart = normalizedInput.slice(0, -8);
-    const fullName = namePart + ' (гр. ' + groupNumber + ')';
     setRegistering(true);
     try {
-      const res = await registerStudent(fullName);
+      const res = await registerStudent({ ...nameFormBody(student), group: student.group });
       if (res.ok) {
         notifyHaptic('success');
         enter('student');
         onRegistered('student');
       } else {
-        const err = await readError(res);
-        setRegError(err.error || 'Не удалось зарегистрироваться.');
+        await failRegistration(res, 'Не удалось зарегистрироваться.');
       }
     } catch { setRegError(OFFLINE); }
     finally { setRegistering(false); }
@@ -160,8 +173,7 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
         setCodeTimeLeft(0);
         onRegistered('teacher');
       } else {
-        const err = await readError(res);
-        setRegError(err.error || 'Не удалось зарегистрироваться.');
+        await failRegistration(res, 'Не удалось зарегистрироваться.');
       }
     } catch { setRegError(OFFLINE); }
     finally { setRegistering(false); }
@@ -174,7 +186,7 @@ export function useRegistration({ session, onRegistered, onLoggedIn }) {
   return {
     regError, registering,
     selectRole, loginExisting, backToRole, reset,
-    regInput, changeRegInput, submitStudent,
+    student, changeStudent, submitStudent,
     teacherEmail, setTeacherEmail, sendingCode, sendCode,
     regCode, setRegCode, codeTimeLeft, resendCode, confirmCode, backToEmail,
   };

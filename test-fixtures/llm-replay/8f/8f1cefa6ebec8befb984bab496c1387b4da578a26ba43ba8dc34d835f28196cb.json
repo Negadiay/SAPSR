@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "8f1cefa6ebec8befb984bab496c1387b4da578a26ba43ba8dc34d835f28196cb",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"PDF\"],\n      \"quote\": \"Система принимает файлы в формате PDF\",\n      \"block_id\": \"b-0028\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.kb_representation\",\n      \"value\": [\"ontology\"],\n      \"quote\": \"База знаний системы представлена онтологией предметной области нормоконтроля.\",\n      \"block_id\": \"b-0029\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"work.goal\",\n      \"value\": [\"разработка системы автоматической проверки оформления пояснительных записок студентов\"],\n      \"quote\": \"Целью курсового проекта является разработка системы автоматической проверки оформления пояснительных записок студентов.\",\n      \"block_id\": \"b-0027\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"work.tasks\",\n      \"value\": [\"автоматизация рутинных операций нормоконтроля\"],\n      \"quote\": \"автоматизация рутинных операций нормоконтроля позволяет сосредоточиться на содержании.\",\n      \"block_id\": \"b-0028\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

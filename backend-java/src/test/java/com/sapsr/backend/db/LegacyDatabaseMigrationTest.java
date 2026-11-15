@@ -39,7 +39,7 @@ class LegacyDatabaseMigrationTest {
     void baselinesExistingSchemaAndAppliesOnlyNewMigrations() {
         List<Map<String, Object>> history = jdbc.queryForList(
                 "SELECT version, type FROM flyway_schema_history WHERE success ORDER BY installed_rank");
-        assertThat(history).extracting(row -> row.get("version")).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+        assertThat(history).extracting(row -> row.get("version")).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
         assertThat(history.get(0).get("type")).isEqualTo("BASELINE");
     }
 
@@ -55,6 +55,17 @@ class LegacyDatabaseMigrationTest {
         Map<String, Object> yolkina = user(1002);
         assertThat(yolkina.get("last_name")).isEqualTo("Ёлкина");
         assertThat(yolkina.get("group_number")).isEqualTo("321701");
+    }
+
+    @Test
+    void oldStudentsGetNameKeyAndNamesakeNumber() {
+        // V11: ключ ФИО у аккаунта старой формы — по строке «Иванов И.И.» без группы; тёзок нет — номер 1.
+        Map<String, Object> ivanov = user(1001);
+        assertThat(ivanov.get("name_key")).isEqualTo("иванов и.и.");
+        assertThat(ivanov.get("namesake_number")).isEqualTo(1);
+        assertThat((String) user(1002).get("name_key")).startsWith("елкина");
+        assertThat(user(2001).get("name_key")).as("преподавателям номер тёзки не нужен").isNull();
+        assertThat(user(2001).get("namesake_number")).isNull();
     }
 
     @Test

@@ -12,6 +12,13 @@ const supports = (version) => {
 
 export const getInitData = () => webApp()?.initData || '';
 
+// Сообщение поверх приложения; вне Telegram и в старых клиентах — ничего (текст показывает сам экран).
+export const showAlert = (text) => {
+  try {
+    if (supports('6.2')) webApp().showAlert(text);
+  } catch { /* без окна — не страшно */ }
+};
+
 export const getTelegramUserId = () => {
   try {
     const user = new URLSearchParams(getInitData()).get('user');

@@ -26,6 +26,18 @@
   found: "Текст не найден."
   fix: "Сохраните работу в PDF из Word или LaTeX, а не сканом или фотографией."
 
+- id: DOC-TEXT-UNREADABLE
+  title: Текст в документе читается
+  category: structure
+  source: { doc: "SAPSR: требования к загружаемому файлу" }
+  severity: critical
+  blocking: true
+  check: document.text_readable
+  message: "Текст в файле не читается — похоже, шрифты сохранены без текста."
+  expected: "PDF, из которого текст можно выделить и скопировать."
+  found: "Вместо букв в файле — нераспознаваемые символы."
+  fix: "Сохраните PDF заново из Word («Сохранить как» → PDF) или из LaTeX с пакетом cm-super. Не печатайте в PDF через виртуальный принтер."
+
 - id: STR-TITLE-PAGE
   title: Титульный лист
   category: structure

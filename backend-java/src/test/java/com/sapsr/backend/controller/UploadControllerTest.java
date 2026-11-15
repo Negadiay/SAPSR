@@ -66,6 +66,8 @@ class UploadControllerTest {
     private final ReviewFileService reviewFiles = mock(ReviewFileService.class);
     private final ProcentovkaDateRepository procentovki = mock(ProcentovkaDateRepository.class);
     private final LlmModels llmModels = mock(LlmModels.class);
+    private final com.sapsr.backend.service.DocxConverter docxConverter =
+            mock(com.sapsr.backend.service.DocxConverter.class);
     private UploadController controller;
 
     @BeforeEach
@@ -246,6 +248,274 @@ class UploadControllerTest {
     }
 
     @Test
+    void registeredStudentCannotRegisterAgain() {
+        // Один аккаунт Telegram — один человек (решение 15): запись не меняется.
+        User student = users.findById(STUDENT_ID).orElseThrow();
+        student.setFullName("Иванов И.И. (гр. 321702)");
+
+        ResponseEntity<?> response = controller.register(
+                Map.of("role", "STUDENT", "full_name", "Петров П.П. (гр. 421702)"), requestAs(STUDENT_ID));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(body(response)).containsEntry("code", "ALREADY_REGISTERED");
+        assertThat((String) body(response).get("message")).contains("уже зарегистрирован");
+        assertThat(student.getFullName()).isEqualTo("Иванов И.И. (гр. 321702)");
+        assertThat(student.getGroupNumber()).isEqualTo("321702");
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void registeredTeacherCannotRegisterAgain() {
+        ResponseEntity<?> response = controller.register(
+                Map.of("role", "STUDENT", "full_name", "Петров П.П. (гр. 421702)"), requestAs(TEACHER_ID));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(body(response)).containsEntry("code", "ALREADY_REGISTERED");
+        assertThat(users.findById(TEACHER_ID).orElseThrow().getRole()).isEqualTo("TEACHER");
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void fileOverLimitIsRejectedWithReason() throws IOException {
+        ReflectionTestUtils.setField(controller, "maxUploadMb", 0);
+
+        ResponseEntity<?> response = upload("Курсовая.pdf");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(413);
+        assertThat(body(response)).containsEntry("code", "FILE_TOO_LARGE");
+        assertThat((String) body(response).get("message")).contains("Telegram не даст переслать");
+        assertThat(storedFiles()).isEmpty();
+        verify(submissions, never()).save(any());
+    }
+
+    @Test
+    void docxIsConvertedAndBothFilesAreKept() throws Exception {
+        byte[] docx = com.sapsr.backend.storage.FileKindTest.zip("[Content_Types].xml", "word/document.xml");
+        when(docxConverter.toPdf(docx)).thenReturn(PDF);
+
+        ResponseEntity<?> response = controller.uploadFile(
+                new MockMultipartFile("file", "Курсовая.docx", "application/octet-stream", docx), null, request());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        Submission saved = savedSubmission();
+        assertThat(saved.getSourceFormat()).isEqualTo("docx");
+        assertThat(saved.getStorageKey()).endsWith(".pdf");
+        assertThat(saved.getSourceStorageKey()).endsWith(".docx");
+        assertThat(Files.readAllBytes(storageRoot.resolve(saved.getStorageKey()))).isEqualTo(PDF);
+        assertThat(Files.readAllBytes(storageRoot.resolve(saved.getSourceStorageKey()))).isEqualTo(docx);
+        assertThat(saved.pdfFileName()).isEqualTo("Курсовая.pdf");
+        ArgumentCaptor<TaskMessage> task = ArgumentCaptor.forClass(TaskMessage.class);
+        verify(rabbit).convertAndSend(anyString(), task.capture());
+        assertThat(task.getValue().file().sourceFormat()).isEqualTo("docx");
+        assertThat(task.getValue().file().storageKey()).isEqualTo(saved.getStorageKey());
+
+        when(submissions.findById(153)).thenReturn(Optional.of(saved));
+        ResponseEntity<?> source = controller.getSource(153, request());
+        assertThat(source.getStatusCode().value()).isEqualTo(200);
+        assertThat((byte[]) source.getBody()).isEqualTo(docx);
+        assertThat(controller.getPdf(153, request()).getBody()).isEqualTo(PDF);
+        assertThat(controller.getSource(153, requestAs(7777L)).getStatusCode().value()).isEqualTo(403);
+    }
+
+    @Test
+    void failedConversionCreatesNoWork() throws Exception {
+        byte[] docx = com.sapsr.backend.storage.FileKindTest.zip("word/document.xml");
+        when(docxConverter.toPdf(docx)).thenThrow(
+                new com.sapsr.backend.service.DocxConverter.ConversionException("тайм-аут", null));
+
+        ResponseEntity<?> response = controller.uploadFile(
+                new MockMultipartFile("file", "Курсовая.docx", "application/octet-stream", docx), null, request());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(422);
+        assertThat(body(response)).containsEntry("code", "CONVERSION_FAILED");
+        assertThat(storedFiles()).isEmpty();
+        verify(submissions, never()).save(any());
+        verifyNoInteractions(rabbit);
+    }
+
+    @Test
+    void fileThatIsNeitherPdfNorDocxIsRejected() throws IOException {
+        ResponseEntity<?> response = controller.uploadFile(
+                new MockMultipartFile("file", "Курсовая.pdf", "application/pdf", new byte[] {'M', 'Z', 0, 1}),
+                null, request());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(body(response)).containsEntry("code", "UNSUPPORTED_FORMAT")
+                .containsEntry("message", "Нужен файл PDF или DOCX.");
+        assertThat(storedFiles()).isEmpty();
+        verify(submissions, never()).save(any());
+    }
+
+    @Test
+    void pdfSourceHasNoDocx() {
+        upload("Курсовая.pdf");
+        Submission saved = savedSubmission();
+        when(submissions.findById(153)).thenReturn(Optional.of(saved));
+
+        assertThat(saved.getSourceFormat()).isEqualTo("pdf");
+        assertThat(controller.getSource(153, request()).getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void studentRegistersByFieldsAndGetsNamesakeNumber() {
+        BsuirApiService iis = mock(BsuirApiService.class);
+        ReflectionTestUtils.setField(controller, "bsuirApiService", iis);
+        when(iis.groupExists("321702")).thenReturn(true);
+        when(users.maxNamesakeNumber("321702", "петров-водкин пётр".replace("-", "").replace('ё', 'е'))).thenReturn(1);
+        when(users.countNamesakes(anyString(), anyString())).thenReturn(2L);
+
+        ResponseEntity<?> response = controller.register(Map.of("role", "STUDENT", "last_name", " петров - водкин ",
+                "first_name", "пётр", "group", "321702"), requestAs(5005L));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(users).saveAndFlush(saved.capture());
+        User user = saved.getValue();
+        assertThat(user.getLastName()).isEqualTo("Петров-Водкин");
+        assertThat(user.getFirstName()).isEqualTo("Пётр");
+        assertThat(user.getMiddleName()).isNull();
+        assertThat(user.getGroupNumber()).isEqualTo("321702");
+        assertThat(user.getFullName()).isEqualTo("Петров-Водкин Пётр (гр. 321702)");
+        assertThat(user.displayName()).isEqualTo("Петров-Водкин Пётр");
+        assertThat(user.getNameKey()).isEqualTo("петровводкин петр");
+        assertThat(user.getNamesakeNumber()).as("наибольший номер тёзки + 1").isEqualTo(2);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> me = (Map<String, Object>) body(response).get("user");
+        assertThat(me).containsEntry("namesake_number", 2).containsEntry("profile_incomplete", false)
+                .containsEntry("group", "321702");
+    }
+
+    @Test
+    void registrationByFieldsValidatesEachField() {
+        BsuirApiService iis = mock(BsuirApiService.class);
+        ReflectionTestUtils.setField(controller, "bsuirApiService", iis);
+        when(iis.groupExists("321702")).thenReturn(true);
+
+        assertThat(body(controller.register(Map.of("role", "STUDENT", "last_name", "Ivanov", "first_name", "Иван",
+                "group", "321702"), requestAs(5005L)))).containsEntry("code", "VALIDATION_ERROR").containsEntry("field", "last_name");
+        assertThat(body(controller.register(Map.of("role", "STUDENT", "last_name", "Иванов", "first_name", "",
+                "group", "321702"), requestAs(5005L)))).containsEntry("field", "first_name");
+        assertThat(body(controller.register(Map.of("role", "STUDENT", "last_name", "Иванов", "first_name", "Иван",
+                "middle_name", "X", "group", "321702"), requestAs(5005L)))).containsEntry("field", "middle_name");
+        assertThat(body(controller.register(Map.of("role", "STUDENT", "last_name", "Иванов", "first_name", "Иван",
+                "group", "3217"), requestAs(5005L)))).containsEntry("field", "group");
+        assertThat(body(controller.register(Map.of("role", "STUDENT", "last_name", "Иванов", "first_name", "Иван",
+                "group", "999999"), requestAs(5005L)))).containsEntry("code", "GROUP_NOT_FOUND");
+        verify(users, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void unavailableIisIsNotReportedAsMissingGroup() {
+        BsuirApiService iis = mock(BsuirApiService.class);
+        ReflectionTestUtils.setField(controller, "bsuirApiService", iis);
+        when(iis.groupExists("321702")).thenThrow(new BsuirApiService.IisUnavailableException("connect timed out"));
+
+        ResponseEntity<?> fields = controller.register(Map.of("role", "STUDENT", "last_name", "Иванов",
+                "first_name", "Иван", "group", "321702"), requestAs(5005L));
+        ResponseEntity<?> legacy = controller.register(
+                Map.of("role", "STUDENT", "full_name", "Иванов И.И. (гр. 321702)"), requestAs(5006L));
+
+        for (ResponseEntity<?> response : List.of(fields, legacy)) {
+            assertThat(response.getStatusCode().value()).isEqualTo(503);
+            assertThat(body(response)).containsEntry("code", "IIS_UNAVAILABLE");
+        }
+        verify(users, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void studentFixesNameAndKeepsGroup() {
+        User student = users.findById(STUDENT_ID).orElseThrow();
+        student.setFullName("Иванов И.И. (гр. 321702)");
+        student.setNameKey("иванов и.и.");
+        student.setNamesakeNumber(1);
+        when(users.maxNamesakeNumber("321702", "иванов иван иванович")).thenReturn(2);
+
+        ResponseEntity<?> response = controller.patchMe(Map.of("last_name", "Иванов", "first_name", "Иван",
+                "middle_name", "Иванович"), request());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(student.getFirstName()).isEqualTo("Иван");
+        assertThat(student.getNamesakeNumber()).as("ФИО изменилось — номер тёзки новый").isEqualTo(3);
+        assertThat(student.getGroupNumber()).isEqualTo("321702");
+        assertThat(body(response)).containsEntry("profile_incomplete", false).containsEntry("first_name", "Иван");
+
+        // Те же данные ещё раз — номер не меняется.
+        controller.patchMe(Map.of("last_name", "ИВАНОВ", "first_name", "иван", "middle_name", "Иванович"), request());
+        assertThat(student.getNamesakeNumber()).isEqualTo(3);
+    }
+
+    @Test
+    void groupCannotBeChangedByStudent() {
+        ResponseEntity<?> response = controller.patchMe(Map.of("last_name", "Иванов", "first_name", "Иван",
+                "group", "421702"), request());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(body(response)).containsEntry("code", "VALIDATION_ERROR").containsEntry("field", "group")
+                .containsEntry("message", "Группу меняет администратор.");
+        assertThat(controller.patchMe(Map.of("last_name", "Иванов", "first_name", "Иван"), requestAs(TEACHER_ID))
+                .getStatusCode().value()).isEqualTo(403);
+        verify(users, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void meMarksOldAccountAsIncomplete() {
+        assertThat(body(controller.getMe(request()))).containsEntry("profile_incomplete", true)
+                .containsEntry("namesake_number", null);
+    }
+
+    @Test
+    void onlyStudentCanUploadAndOnlyToTeacher() throws IOException {
+        // План Котко, К7: преподаватель и незарегистрированный работы не сдают; адресат — только преподаватель.
+        assertThat(controller.uploadFile(pdf("Курсовая.pdf"), null, requestAs(TEACHER_ID)).getStatusCode().value())
+                .isEqualTo(403);
+        assertThat(controller.uploadFile(pdf("Курсовая.pdf"), null, requestAs(7777L)).getStatusCode().value())
+                .isEqualTo(403);
+        assertThat(controller.uploadFile(pdf("Курсовая.pdf"), null, new MockHttpServletRequest()).getStatusCode().value())
+                .isEqualTo(401);
+        ResponseEntity<?> toStudent = controller.uploadFile(pdf("Курсовая.pdf"), String.valueOf(STUDENT_ID), request());
+        assertThat(toStudent.getStatusCode().value()).isEqualTo(400);
+        assertThat(body(toStudent)).containsEntry("field", "teacher_id");
+        assertThat(controller.uploadFile(pdf("Курсовая.pdf"), "нет-такого", request()).getStatusCode().value()).isEqualTo(400);
+        assertThat(storedFiles()).isEmpty();
+        verify(submissions, never()).save(any());
+    }
+
+    @Test
+    void teacherIsChosenByKeyNotByTelegramId() {
+        User teacher = users.findById(TEACHER_ID).orElseThrow();
+        teacher.setUrlId("p-petrov");
+        teacher.setFullName("Петров Пётр Петрович");
+        when(users.findByRole("TEACHER")).thenReturn(List.of(teacher));
+
+        ResponseEntity<?> response = controller.uploadFile(pdf("Курсовая.pdf"), "p-petrov", request());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        Submission saved = savedSubmission();
+        assertThat(saved.getTeacher()).isSameAs(teacher);
+
+        // В списке работ студента и в списке преподавателей — ключ, а не Telegram ID.
+        when(submissions.findByStudent_TelegramIdOrderByCreatedAtDesc(STUDENT_ID)).thenReturn(List.of(saved));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> item = ((List<Map<String, Object>>) controller.getSubmissions(request()).getBody()).get(0);
+        assertThat(item).containsEntry("teacher_id", "p-petrov");
+        TeacherController teachers = new TeacherController(users, mock(BsuirApiService.class));
+        List<Map<String, Object>> list = teachers.getTeachers(new MockHttpServletRequest()).getBody();
+        assertThat(list).singleElement().satisfies(t -> assertThat(t).containsEntry("id", "p-petrov")
+                .containsEntry("full_name", "Петров Пётр Петрович").doesNotContainKey("telegram_id"));
+
+        teacher.setUrlId(null);
+        String key = com.sapsr.backend.service.TeacherKey.of(teacher, "");
+        assertThat(key).startsWith("t-").doesNotContain(String.valueOf(TEACHER_ID));
+        assertThat(com.sapsr.backend.service.TeacherKey.find(List.of(teacher), key, "")).contains(teacher);
+        assertThat(com.sapsr.backend.service.TeacherKey.of(teacher, "другой секрет")).isNotEqualTo(key);
+    }
+
+    @Test
+    void meTellsUploadLimit() {
+        assertThat(body(controller.getMe(request()))).containsEntry("max_upload_mb", 50);
+    }
+
+    @Test
     void registrationCannotGrantAdminRole() {
         ResponseEntity<?> response = controller.register(Map.of("role", "ADMIN", "full_name", "Хакер"), requestAs(7777L));
 
@@ -310,7 +580,7 @@ class UploadControllerTest {
         when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
                 .thenReturn(Optional.of(previous));
 
-        controller.uploadFile(pdf("Курсовая v2.pdf"), TEACHER_ID, request());
+        controller.uploadFile(pdf("Курсовая v2.pdf"), String.valueOf(TEACHER_ID), request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getParentId()).isEqualTo(150);
@@ -328,7 +598,7 @@ class UploadControllerTest {
         when(submissions.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(STUDENT_ID, TEACHER_ID))
                 .thenReturn(Optional.of(approved));
 
-        controller.uploadFile(pdf("Новая работа.pdf"), TEACHER_ID, request());
+        controller.uploadFile(pdf("Новая работа.pdf"), String.valueOf(TEACHER_ID), request());
 
         Submission saved = savedSubmission();
         assertThat(saved.getParentId()).isNull();
@@ -410,7 +680,7 @@ class UploadControllerTest {
 
         assertThat(list.get(0)).containsEntry("version", 2).containsEntry("parent_id", 150)
                 .containsEntry("failure_code", "PDF_ENCRYPTED").containsEntry("work_type", "course_project")
-                .containsEntry("teacher_id", TEACHER_ID).containsEntry("teacher_name", "Гракова Наталья Викторовна");
+                .containsEntry("teacher_id", "t-6682604d6424f175").containsEntry("teacher_name", "Гракова Наталья Викторовна");
         assertThat(list.get(1)).containsEntry("version", 1);
     }
 
@@ -440,7 +710,8 @@ class UploadControllerTest {
                 mock(GroupCourseOverrideRepository.class), procentovki, clock);
         controller = new UploadController(rabbit, submissions, users,
                 mock(EmailVerificationService.class), mock(BsuirApiService.class), mock(SapsrTelegramBot.class),
-                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles, calendar, llmModels);
+                new LocalFileStorage(storageRoot, Clock.systemDefaultZone()), reviewFiles, calendar, llmModels,
+                docxConverter);
     }
 
     private ResponseEntity<?> upload(String fileName) {
@@ -459,6 +730,11 @@ class UploadControllerTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("telegram_id", telegramId);
         return request;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> body(ResponseEntity<?> response) {
+        return (Map<String, Object>) response.getBody();
     }
 
     private Submission savedSubmission() {

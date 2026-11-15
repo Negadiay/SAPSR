@@ -4,14 +4,14 @@ import StatusLine from '../../components/StatusLine';
 import PrimaryAction from '../../components/PrimaryAction';
 import { formatSize } from '../../lib/format';
 import TermInfo from './TermInfo';
-import { useUpload } from './useUpload';
+import { teacherKey, useUpload } from './useUpload';
 
 // Сдача работы: преподаватель и файл. Курс и семестр сервер определяет сам — здесь они только видны;
 // вид работы — по семестру и титульному листу, поэтому его не спрашиваем.
 export default function UploadScreen({ me, preset, header, onUploaded }) {
-  const upload = useUpload({ active: true, preset, onUploaded });
+  const upload = useUpload({ active: true, preset, onUploaded, maxUploadMb: me?.max_upload_mb });
   const {
-    teachers, teachersLoaded, teacherId, file, problem, ready, uploading, error,
+    teachers, teachersLoaded, teacherId, file, problem, ready, uploading, error, maxMb,
     selectTeacher, selectFile, submit,
   } = upload;
   const noTeachers = teachersLoaded && teachers.length === 0;
@@ -41,7 +41,7 @@ export default function UploadScreen({ me, preset, header, onUploaded }) {
             onChange={(e) => selectTeacher(e.target.value)}>
             {/* Подсказка — только пока преподаватель не выбран: вернуться к «никому» нельзя */}
             {!teacherId && <option value="" disabled>{teachersLoaded ? 'Выберите преподавателя' : 'Загрузка…'}</option>}
-            {teachers.map((t) => <option key={t.telegram_id} value={t.telegram_id}>{t.full_name}</option>)}
+            {teachers.map((t) => <option key={teacherKey(t)} value={teacherKey(t)}>{t.full_name}</option>)}
           </select>
         )}
       </div>
@@ -57,12 +57,12 @@ export default function UploadScreen({ me, preset, header, onUploaded }) {
             </span>
           ) : (
             <span className="file-drop-text">
-              <span>Выберите PDF</span>
-              <span className="hint">до 50 МБ</span>
+              <span>Выберите PDF или DOCX</span>
+              <span className="hint">до {maxMb} МБ — больше Telegram не перешлёт преподавателю</span>
             </span>
           )}
         </label>
-        <input id="file-upload" className="visually-hidden" type="file" accept=".pdf,application/pdf"
+        <input id="file-upload" className="visually-hidden" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={(e) => { selectFile(e.target.files[0]); e.target.value = ''; }} />
         {problem && <p className="field-error">{problem}</p>}
       </div>

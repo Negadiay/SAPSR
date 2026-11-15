@@ -1,4 +1,4 @@
-﻿# Полная проверка SAPSR на машине с Docker Desktop (план Жерко, Ж1/Ж2/Ж6).
+# Полная проверка SAPSR на машине с Docker Desktop (план Жерко, Ж1/Ж2/Ж6).
 #   powershell -ExecutionPolicy Bypass -File scripts\check.ps1            — всё
 #   powershell -ExecutionPolicy Bypass -File scripts\check.ps1 -Skip unit  — без модульных тестов
 #   powershell -ExecutionPolicy Bypass -Command "& .\scripts\check.ps1 -Skip unit,bat"  — несколько частей:
@@ -202,6 +202,8 @@ if ($Skip -notcontains 'stack') {
         Result 'чужая подпись — 403, без подписи — 401' (($c1 -eq '403') -and ($c2 -eq '401'))
 
         Section 'Сквозной сценарий: загрузка эталонного PDF'
+        # Сдавать работы может только студент (план Котко, К7): тестовый студент — вставкой в базу.
+        Sql "insert into users (telegram_id, role, full_name, last_name, group_number) values (100500, 'STUDENT', 'Check C.C.', 'Check', '321702')" | Out-Null
         $id1 = Upload (Join-Path $Root 'test-fixtures\valid-format-sample.pdf')
         if ($id1) {
             $s1 = Wait-Status $id1
@@ -213,12 +215,13 @@ if ($Skip -notcontains 'stack') {
         Section 'Отрицательный: не PDF под видом PDF'
         $fake = Join-Path $env:TEMP 'sapsr-check-fake.pdf'
         [IO.File]::WriteAllBytes($fake, [Text.Encoding]::ASCII.GetBytes('PK not a pdf at all'))
-        $id2 = Upload $fake
-        if ($id2) {
-            $s2 = Wait-Status $id2
-            Log "  submission $id2 -> $s2"
-            Result 'не PDF: сбой проверки FAILED, обработчик жив' (($s2 -eq 'FAILED') -and ((Worker-Restarts) -eq 0)) "(статус $s2)"
-        } else { Result 'не PDF: загрузка' $false }
+        # С приёмом DOCX (решение 3) вид файла проверяется при загрузке: работа не создаётся.
+        $resp = Join-Path $env:TEMP 'sapsr-check-resp.json'
+        $code = & curl.exe -s -o $resp -w '%{http_code}' -H "Authorization: $(Sign-InitData 100500)" -F "file=@$fake;type=application/pdf" http://127.0.0.1:18080/api/v1/upload
+        $body = Get-Content $resp -Raw -Encoding UTF8
+        Log "  POST /upload -> $code $body"
+        Result 'не PDF: загрузка отклонена (400 UNSUPPORTED_FORMAT), обработчик жив' (($code -eq '400') -and ($body -match 'UNSUPPORTED_FORMAT') -and ((Worker-Restarts) -eq 0)) "(код $code)"
+        $id2 = $id1
 
         Section 'Отрицательный: задания, которые раньше роняли обработчик'
         $before = Worker-Restarts

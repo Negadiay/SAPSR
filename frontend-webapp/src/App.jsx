@@ -106,7 +106,7 @@ function App() {
       case 'settings':
         return <SettingsScreen settings={settings} profile={session.profile} header={header()}
           onNeedProfile={session.refreshProfile}
-          onChangeRole={userRole === 'admin' ? undefined : registration.reset} />;
+          onProfileSaved={(me) => (me ? session.setProfile(me) : session.refreshProfile())} />;
       default:
         return null;
     }

@@ -131,6 +131,52 @@ class TeacherDashboardControllerTest {
     }
 
     @Test
+    @Tag("typical")
+    void verdictGoesToStudentWithMarkedFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        // Решение 15: файл с пометками приходит студенту документом вместе с текстом вердикта.
+        ReviewFile file = markedFile(dir);
+        when(bot.sendDocument(eq(STUDENT_ID), any(), anyString(), anyString(), any(), any())).thenReturn(77);
+
+        ResponseEntity<?> response = controller.setVerdict(153, Map.of("verdict", "REVISION"), teacher());
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<byte[]> content = ArgumentCaptor.forClass(byte[].class);
+        verify(bot).sendDocument(eq(STUDENT_ID), content.capture(), eq("Курсовая (с комментариями).pdf"),
+                text.capture(), eq(List.of(AppLink.work(153))), any());
+        assertThat(content.getValue()).isEqualTo("%PDF-1.7 пометки".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(text.getValue()).contains("Работа возвращена на доработку").contains("Пометки — в приложенном файле.");
+        verify(bot, never()).send(anyLong(), anyString(), any());
+        assertThat(file.getId()).isEqualTo(7);
+    }
+
+    @Test
+    @Tag("negative")
+    void verdictFallsBackToTextWhenFileCannotBeSent(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        markedFile(dir);
+        when(bot.sendDocument(anyLong(), any(), anyString(), anyString(), any(), any())).thenReturn(null);
+
+        controller.setVerdict(153, Map.of("verdict", "REVISION"), teacher());
+
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(bot).send(eq(STUDENT_ID), text.capture(), eq(List.of(AppLink.work(153))));
+        assertThat(text.getValue()).contains("Пометки — в файле, он в приложении.");
+        assertThat(work.getTeacherVerdict()).isEqualTo("REVISION");
+    }
+
+    private ReviewFile markedFile(java.nio.file.Path dir) throws java.io.IOException {
+        java.nio.file.Path path = java.nio.file.Files.write(dir.resolve("marked.pdf"),
+                "%PDF-1.7 пометки".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        ReviewFile file = new ReviewFile();
+        file.setId(7);
+        when(reviewFiles.find(153)).thenReturn(Optional.of(file));
+        when(reviewFiles.countAnnotations(153)).thenReturn(1L);
+        when(reviewFiles.pathOf(file)).thenReturn(path);
+        return file;
+    }
+
+    @Test
     @Tag("negative")
     void reviewFileOfAnotherWorkIsRejected() {
         Map<String, Object> body = Map.of("verdict", "APPROVED", "review_file_id", 99);

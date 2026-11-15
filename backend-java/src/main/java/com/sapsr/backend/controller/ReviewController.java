@@ -34,6 +34,10 @@ public class ReviewController {
     private final ReviewFileService reviewFiles;
     private final ObjectMapper json = new ObjectMapper();
 
+    /** Предел размера размеченного файла — тот же, что у работы (решение 15). */
+    @org.springframework.beans.factory.annotation.Value("${sapsr.upload.max-size-mb:50}")
+    private int maxUploadMb = 50;
+
     public ReviewController(SubmissionRepository submissionRepository, UserRepository userRepository,
                             ReviewFileService reviewFiles) {
         this.submissionRepository = submissionRepository;
@@ -57,6 +61,7 @@ public class ReviewController {
         if (!isTeacherOf(submission, telegramId)) return error(403, "FORBIDDEN", "Это работа другого преподавателя.");
         if (hasVerdict(submission)) return error(409, "VERDICT_ALREADY_SET", "Решение по работе уже принято.");
         if (file == null || file.isEmpty()) return error(400, "VALIDATION_ERROR", "Файл пустой.");
+        if (ApiErrors.tooLarge(file.getSize(), maxUploadMb)) return ApiErrors.fileTooLarge(maxUploadMb);
 
         try {
             ReviewFileService.Attached attached = reviewFiles.attach(

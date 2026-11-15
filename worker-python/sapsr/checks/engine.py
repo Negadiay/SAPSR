@@ -21,7 +21,8 @@ from sapsr.report.model import Finding, SkippedCheck, SourceRef
 log = logging.getLogger("sapsr.checks")
 
 # Проверки, без которых остальные бессмысленны: нет страниц или текстового слоя.
-GATE_CHECKS = ("document.pages", "document.text_layer")
+GATE_CHECKS = ("document.pages", "document.text_layer", "document.text_readable")
+UNREADABLE_CHECK = "document.text_readable"
 TEMPLATE_FIELDS = ("message", "expected", "found", "fix", "explanation")
 
 
@@ -113,8 +114,17 @@ def run_format_rules(profile: ResolvedProfile, ctx: CheckContext) -> tuple[list[
     rules = applicable(profile.rules_for("format"), ctx)
     skipped: list[SkippedCheck] = []
     findings: list[Finding] = []
+    unreadable = False
     for active in (r for r in rules if r.rule.check in GATE_CHECKS):
-        findings.extend(run_rule(active, ctx, skipped))
+        if findings:
+            break  # нет страниц или текста — качество текста оценивать не по чему
+        found = run_rule(active, ctx, skipped)
+        unreadable = bool(found) and active.rule.check == UNREADABLE_CHECK
+        findings.extend(found)
+    if unreadable:
+        skipped.append(SkippedCheck(id="*", stage="format", reason="TEXT_UNREADABLE",
+                                    message="Оформление не проверено: текст в файле не читается."))
+        return findings, skipped
     if findings:
         skipped.append(SkippedCheck(id="*", stage="format", reason="NO_TEXT_LAYER",
                                     message="Остальные проверки не выполнялись: в документе нет текста."))

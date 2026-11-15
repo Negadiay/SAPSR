@@ -6,17 +6,15 @@
 
 ## Как записать
 
-На машине с Ollama и моделью `qwen3.5:4b`, из `worker-python`. Семестр и этап — те же, что будут на показе: от них зависят требования семестра в подсказках.
+На машине с Ollama и моделью `qwen3.5:4b`, из `worker-python`:
 
 ```bash
-for f in content-formats content-kb content-neural content-clean hidden-text; do
-  SAPSR_LLM_MODE=record SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay \
-    python analyzer.py ../test-fixtures/hybrid/$f.pdf --semester 7 --stage 2 --report v2 > /dev/null
-  SAPSR_LLM_MODE=record SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay \
-    python analyzer.py ../test-fixtures/hybrid/$f.pdf --semester 7 --stage 2 --report v2 --mode neural > /dev/null
-done
+python tools/record_replay.py                   # весь корпус, режимы hybrid и neural
+python tools/record_replay.py content-kb.pdf    # один документ
 ```
 
-Проверить: тот же отчёт без модели — `SAPSR_LLM_MODE=replay SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay python analyzer.py … --semester 7 --stage 2 --report v2`.
+Скрипт берёт документы из `test-fixtures/hybrid/expected.json` (кроме тех, что не читаются) и проверяет их с профилем из поля `profile` документа; по умолчанию — 7 семестр, этап 3. На этапе 3 проверяются все требования семестра, поэтому те же записи подходят для этапа 2 и для задания без этапа (сквозной прогон). Записано 15.11.2026: 128 ответов на 17 документов (у нечитаемых и зашифрованных до модели не доходит).
+
+Проверить: тот же отчёт без модели — `python analyzer.py ../test-fixtures/hybrid/content-formats.pdf --semester 7 --stage 3 --report v2 --llm replay` с `SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay`; это же делает `tests/test_replay.py`.
 
 В записи — только ответы модели, но в них есть цитаты из документов. Поэтому записываются только вымышленные записки из `test-fixtures/hybrid`, чужие работы — нет.

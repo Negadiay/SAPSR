@@ -257,6 +257,9 @@ class CheckService:
 
     def _plan_content(self, run: _Run, passed: bool, unreadable: bool) -> bool:
         if unreadable:
+            if any(s.reason == "TEXT_UNREADABLE" for s in run.skipped):
+                run.skipped.append(SkippedCheck(id="*", stage="claims", reason="TEXT_UNREADABLE",
+                                                message="Содержание не проверено: текст в файле не читается."))
             return False
         # Решение 9 (queue-v2.md, вопрос 3): отклонённая по оформлению работа проверяется содержательно,
         # если профиль не запрещает это явно.
@@ -278,6 +281,7 @@ class CheckService:
                                             message=reason + " Содержательная проверка не выполнялась."))
             return False
         run.llm_used = True
+        self._note_missing_requirements(run)
         if run.llm.is_cloud:
             run.warnings.append(PipelineWarning(
                 code="CLOUD_LLM", message="Текст работы проверяла облачная модель — её выбрал администратор. "
@@ -285,6 +289,22 @@ class CheckService:
                                           "групп в тексте заменены метками."))
             log.warning("используется облачная языковая модель", extra={"fields": {"model_id": run.llm_id}})
         return True
+
+    @staticmethod
+    def _note_missing_requirements(run: _Run) -> None:
+        """Набора требований к содержанию нет — говорим об этом явно (решение 16)."""
+        task_profile = run.task.profile
+        if run.mode != "hybrid" or run.profile.content.requirement_sets:
+            return
+        if task_profile.work_type == "diploma":
+            message = "Дипломные работы пока проверяются только по оформлению и согласованности текста."
+        elif task_profile.semester is not None:
+            message = (f"Требования к содержанию для {task_profile.semester} семестра пока не заданы — "
+                       "проверены оформление и согласованность текста.")
+        else:
+            return  # семестр не указан: об этом уже говорит предупреждение DEFAULT_PROFILE
+        run.skipped.append(SkippedCheck(id="requirements", stage="claims", reason="NO_REQUIREMENTS",
+                                        message=message))
 
     def _neural_rule(self) -> ActiveRule:
         rule = self.kb.rules["NEURAL-FREEFORM"]

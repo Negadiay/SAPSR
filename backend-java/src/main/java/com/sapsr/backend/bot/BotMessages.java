@@ -254,6 +254,12 @@ public final class BotMessages {
      */
     public static String verdictForStudent(String teacherName, String fileName, boolean approved, String comment,
                                            List<Annotation> annotations, boolean hasReviewFile) {
+        return verdictForStudent(teacherName, fileName, approved, comment, annotations, hasReviewFile, false);
+    }
+
+    /** attached — файл с пометками приложен к этому же сообщению (решение 15). */
+    public static String verdictForStudent(String teacherName, String fileName, boolean approved, String comment,
+                                           List<Annotation> annotations, boolean hasReviewFile, boolean attached) {
         StringBuilder text = new StringBuilder(approved
                 ? "✅ <b>Работа принята</b>\n"
                 : "🔄 <b>Работа возвращена на доработку</b>\n");
@@ -265,9 +271,9 @@ public final class BotMessages {
         if (annotations != null && !annotations.isEmpty()) {
             text.append("\n<b>Комментарии:</b>\n");
             appendComments(text, annotations);
-            text.append("\nФайл с пометками — в приложении.");
+            text.append(attached ? "\nФайл с пометками приложен." : "\nФайл с пометками — в приложении.");
         } else if (hasReviewFile) {
-            text.append("\nПометки — в файле, он в приложении.");
+            text.append(attached ? "\nПометки — в приложенном файле." : "\nПометки — в файле, он в приложении.");
         }
         return text.toString();
     }

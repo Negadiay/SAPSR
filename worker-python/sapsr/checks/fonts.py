@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Optional
 
 from sapsr.checks.context import CheckContext
-from sapsr.checks.registry import Hit, NoParams, Params, check
+from sapsr.checks.registry import Hit, NoParams, Params, SkipCheck, check
+from sapsr.document.t2a import TEX_TYPE3_FONT
 from sapsr.document.text import (
     font_display_name,
     font_family_key,
@@ -62,7 +63,12 @@ def family(ctx: CheckContext, params: FamilyParams) -> list[Hit]:
         families += params.docx_substitutes
     families = [font_family_key(f) for f in families]
     main = ctx.main_metrics()
-    bad = [m.page for m in main if m.font and not _allowed(m.font, families)]
+    dominant = ctx.dominant_main_font()
+    if not dominant or dominant == TEX_TYPE3_FONT:
+        # Шрифт без имени или растровый: семейство неизвестно — не выдаём «шрифтом unknown».
+        raise SkipCheck("FONT_UNKNOWN", "Семейство шрифта не проверено: в файле нет названия шрифта "
+                                        "основного текста.")
+    bad = [m.page for m in main if m.font and m.font != TEX_TYPE3_FONT and not _allowed(m.font, families)]
     if not bad:
         return []
     pct = len(bad) / max(1, len(main)) * 100
@@ -74,6 +80,23 @@ def family(ctx: CheckContext, params: FamilyParams) -> list[Hit]:
         pages=bad,
         location=f"Страницы: {pages_to_range(bad)}",
     )]
+
+
+class BitmapParams(Params):
+    # Срабатывает, если растровыми шрифтами TeX набрано больше этой доли символов основного текста.
+    min_share_pct: float
+
+
+@check("fonts.bitmap", BitmapParams, provides=("pct",))
+def bitmap(ctx: CheckContext, params: BitmapParams) -> list[Hit]:
+    """Растровые шрифты Type 3 из LaTeX без cm-super (решение 15)."""
+    chars = ctx.main_body_chars()
+    if not chars:
+        return []
+    pct = sum(1 for c in chars if c.font == TEX_TYPE3_FONT) / len(chars) * 100
+    if pct <= params.min_share_pct:
+        return []
+    return [Hit(values={"pct": pct}, location="Документ")]
 
 
 def _dominant(chars) -> Optional[str]:
@@ -90,7 +113,8 @@ def reference_font(ctx: CheckContext, params: NoParams) -> list[Hit]:
     if not metrics or not chars or not main_font:
         return []
     ref_font = _dominant(chars)
-    if not ref_font or font_style_key(ref_font) == font_style_key(main_font):
+    if not ref_font or TEX_TYPE3_FONT in (ref_font, main_font) \
+            or font_style_key(ref_font) == font_style_key(main_font):
         return []
     pages = [m.page for m in metrics]
     return [Hit(values={"main_font": font_display_name(main_font), "ref_font": font_display_name(ref_font)},

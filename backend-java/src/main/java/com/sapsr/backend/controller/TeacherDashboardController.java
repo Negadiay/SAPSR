@@ -11,6 +11,7 @@ import com.sapsr.backend.entity.WorkFileName;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.review.ReviewFileService;
+import com.sapsr.backend.service.Namesakes;
 import com.sapsr.backend.storage.FileStorage;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ContentDisposition;
@@ -72,6 +73,7 @@ public class TeacherDashboardController {
             item.put("format_errors", s.getFormatErrors());
             putStudent(item, s);
             item.put("file_name", s.displayFileName());
+            item.put("source_format", s.getSourceFormat());
             item.put("review_annotations", reviewFiles.countAnnotations(s.getId()));
             item.put("has_review_file", reviewFiles.find(s.getId()).isPresent());
             result.add(item);
@@ -80,8 +82,10 @@ public class TeacherDashboardController {
     }
 
     /** ФИО без «(гр. …)» и группа отдельным полем. */
-    private static void putStudent(Map<String, Object> item, Submission s) {
+    private void putStudent(Map<String, Object> item, Submission s) {
         if (s.getStudent() == null) return;
+        // Объект student (api-v1.md, раздел 2); student_name остаётся на переходный период.
+        item.put("student", Namesakes.view(userRepository, s.getStudent()));
         item.put("student_name", s.getStudent().displayName());
         item.put("student_group", s.getStudent().getGroupNumber());
     }
@@ -156,12 +160,37 @@ public class TeacherDashboardController {
             String teacherName = teacher.get().getFullName() != null ? teacher.get().getFullName() : "Преподаватель";
             // Комментарии из файла — прямо в сообщении: студент видит их сразу, файл понадобится при исправлении.
             List<Annotation> annotations = reviewFile.map(reviewFiles::annotationsOf).orElse(List.of());
-            bot.send(submission.getStudent().getTelegramId(), BotMessages.verdictForStudent(
-                    teacherName, submission.displayFileName(), "APPROVED".equals(verdict), comment,
-                    annotations, reviewFile.isPresent()), List.of(AppLink.work(submission.getId())));
+            byte[] marked = reviewFile.map(file -> readReviewFile(file, submission.getId())).orElse(null);
+            String text = BotMessages.verdictForStudent(teacherName, submission.displayFileName(),
+                    "APPROVED".equals(verdict), comment, annotations, reviewFile.isPresent(), marked != null);
+            Long chatId = submission.getStudent().getTelegramId();
+            List<AppLink> links = List.of(AppLink.work(submission.getId()));
+            // Файл с пометками уходит студенту документом (решение 15); не ушёл — тот же текст без файла.
+            Integer sent = marked == null ? null : bot.sendDocument(chatId, marked,
+                    ReviewController.withCommentsSuffix(WorkFileName.forDownload(submission)), text, links, null);
+            if (sent == null) {
+                if (marked != null) {
+                    System.err.println("[VERDICT] Файл с пометками работы #" + submission.getId()
+                            + " не отправлен студенту — отправлен текст без файла.");
+                }
+                bot.send(chatId, BotMessages.verdictForStudent(teacherName, submission.displayFileName(),
+                        "APPROVED".equals(verdict), comment, annotations, reviewFile.isPresent(), false), links);
+            }
         }
 
         return ResponseEntity.ok(Map.of("status", "OK", "verdict", verdict));
+    }
+
+    /** Содержимое файла с пометками или null, если его не прочитать: вердикт всё равно уходит текстом. */
+    private byte[] readReviewFile(ReviewFile file, Integer submissionId) {
+        try {
+            Path path = reviewFiles.pathOf(file);
+            return path != null && Files.isRegularFile(path) ? Files.readAllBytes(path) : null;
+        } catch (Exception e) {
+            System.err.println("[VERDICT] Не удалось прочитать файл с пометками работы #" + submissionId + ": "
+                    + e.getMessage());
+            return null;
+        }
     }
 
     @GetMapping("/history")
@@ -186,6 +215,7 @@ public class TeacherDashboardController {
             item.put("version", versionOf(s));
             putStudent(item, s);
             item.put("file_name", s.displayFileName());
+            item.put("source_format", s.getSourceFormat());
             item.put("review_annotations", reviewFiles.countAnnotations(s.getId()));
             item.put("has_review_file", reviewFiles.find(s.getId()).isPresent());
             result.add(item);

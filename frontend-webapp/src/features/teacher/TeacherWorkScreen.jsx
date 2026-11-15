@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import AppHeader from '../../components/AppHeader';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import FindingList from '../../components/FindingList';
+import ReportView from '../../components/ReportView';
 import Icon from '../../components/Icon';
 import StatusLine from '../../components/StatusLine';
-import { downloadCommented, downloadReport } from '../../api/submissions';
+import StudentName from '../../components/StudentName';
+import { downloadCommented, downloadReport, downloadSource } from '../../api/submissions';
 import { downloadSubmissionPdf } from '../../api/teacher';
 import { formatDate } from '../../lib/format';
 import { autoCheckForTeacher } from '../../lib/status';
@@ -53,10 +54,11 @@ export default function TeacherWorkScreen({ id, teacher, header, onDecided }) {
     <div className="screen-body">
       <AppHeader title="Работа" {...header} />
       <div className="work-head">
-        <p className="work-file">{s.student_name || 'Студент'}{s.student_group ? ` · ${s.student_group}` : ''}</p>
+        <p className="work-file"><StudentName submission={s} />{s.student_group ? ` · ${s.student_group}` : ''}</p>
         <p className="hint">{s.file_name}</p>
         <p className="hint">{received}</p>
         {firstVersion && <p className="hint">{firstVersion}</p>}
+        {s.source_format === 'docx' && <p className="hint">Сдана в DOCX. Проверена PDF-версия: номера страниц — по ней.</p>}
       </div>
 
       {decided ? (
@@ -70,8 +72,13 @@ export default function TeacherWorkScreen({ id, teacher, header, onDecided }) {
 
       <div className="actions">
         <button type="button" className="btn btn-secondary" onClick={() => downloadSubmissionPdf(s.id)}>
-          <Icon name="download" /><span>Скачать работу</span>
+          <Icon name="download" /><span>{s.source_format === 'docx' ? 'Скачать PDF-версию' : 'Скачать работу'}</span>
         </button>
+        {s.source_format === 'docx' && (
+          <button type="button" className="btn btn-secondary" onClick={() => downloadSource(s.id)}>
+            <Icon name="file" /><span>Исходный DOCX</span>
+          </button>
+        )}
         {!decided && (
           <>
             <button type="button" className="btn btn-secondary" onClick={() => downloadCommented(s.id)}>
@@ -86,7 +93,7 @@ export default function TeacherWorkScreen({ id, teacher, header, onDecided }) {
 
       {decided && s.teacher_comment && <blockquote className="teacher-note">{s.teacher_comment}</blockquote>}
       {decided && s.has_review_file && <TeacherComments submission={s} />}
-      {!decided && <FindingList raw={s.format_errors} forTeacher />}
+      {!decided && <ReportView submission={s} forTeacher />}
       {!decided && <ReviewFileBlock submission={s} queue={queue} />}
 
       {!decided && (

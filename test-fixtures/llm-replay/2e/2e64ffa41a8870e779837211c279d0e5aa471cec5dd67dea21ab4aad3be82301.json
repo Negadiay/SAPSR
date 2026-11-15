@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "2e64ffa41a8870e779837211c279d0e5aa471cec5dd67dea21ab4aad3be82301",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.languages\",\n      \"value\": [\"python\", \"java\"],\n      \"quote\": \"Обработчик реализован на языке Python, сервер — на языке Java.\",\n      \"block_id\": \"b-0047\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.kb_representation\",\n      \"value\": [\"config_file\"],\n      \"quote\": \"Правила и параметры проверки хранятся в конфигурационном файле YAML, который загружается при запуске обработчика.\",\n      \"block_id\": \"b-0048\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

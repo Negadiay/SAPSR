@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { shortName } from '../../lib/names';
 import AppHeader from '../../components/AppHeader';
-import ConfirmDialog from '../../components/ConfirmDialog';
 import Icon from '../../components/Icon';
 import { isTelegramClient } from '../../telegram/webApp';
+import MyData from './MyData';
 import ThemeEditor from './ThemeEditor';
 import { readabilityIssues } from './customTheme';
 import { FONT_SIZES } from './useSettings';
@@ -23,6 +23,11 @@ function ProfileCard({ profile }) {
       {profile.role === 'STUDENT' && profile.group && (
         <p className="hint">Группа {profile.group}{profile.course ? ` · ${profile.course} курс` : ''}</p>
       )}
+      {(profile.role === 'STUDENT' || profile.role === 'TEACHER') && (
+        <p className="hint">
+          Один аккаунт Telegram — один человек.{profile.role === 'STUDENT' ? ' Сменить группу может администратор.' : ''}
+        </p>
+      )}
     </section>
   );
 }
@@ -39,12 +44,11 @@ function Toggle({ label, on, off = false, onClick }) {
   );
 }
 
-export default function SettingsScreen({ settings, profile, header, onNeedProfile, onChangeRole }) {
+export default function SettingsScreen({ settings, profile, header, onNeedProfile, onProfileSaved }) {
   const {
     mode, setMode, contrast, toggleContrast, custom, toggleCustom, setCustomColor, applyPreset, fontSize, setFontSize,
   } = settings;
   const [editing, setEditing] = useState(false);
-  const [changingRole, setChangingRole] = useState(false);
   // Своя тема плохо читается — раздел темы пишется чёрным или белым, чтобы её было чем исправить.
   const unreadable = custom.enabled && custom.colors && readabilityIssues(custom.colors).length > 0;
   const modes = [['auto', isTelegramClient() ? 'Как в Telegram' : 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']];
@@ -59,6 +63,7 @@ export default function SettingsScreen({ settings, profile, header, onNeedProfil
     <div className="screen-body">
       <AppHeader title="Настройки" {...header} />
       <ProfileCard profile={profile} />
+      {profile?.role === 'STUDENT' && <MyData key={profile.full_name} profile={profile} onSaved={onProfileSaved} />}
 
       <section className={`card settings-card ${unreadable ? 'theme-safe' : ''}`}>
         <p className="settings-label">Тема</p>
@@ -100,17 +105,6 @@ export default function SettingsScreen({ settings, profile, header, onNeedProfil
         <p className="hint">{FONT_SIZE_LABELS[fontSize]}</p>
       </section>
 
-      {onChangeRole && (
-        <button type="button" className="btn btn-ghost-danger btn-block" onClick={() => setChangingRole(true)}>
-          Сменить роль
-        </button>
-      )}
-
-      {changingRole && (
-        <ConfirmDialog title="Сменить роль?" danger confirmLabel="Сменить"
-          body="Понадобится зарегистрироваться заново. Прежняя роль сохранится, пока вы не зарегистрируетесь в новой."
-          onCancel={() => setChangingRole(false)} onConfirm={() => { setChangingRole(false); onChangeRole(); }} />
-      )}
     </div>
   );
 }

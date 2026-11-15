@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "0a65b08b7c34fdfd541f8ac88ab32af5a1bb8ee7d69d377622f60dc23394d281",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"document\"],\n      \"quote\": \"Обработчик получает задание из очереди сообщений и возвращает отчёт серверу.\",\n      \"block_id\": \"b-0043\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.neural_component\",\n      \"value\": [\"layout_model\"],\n      \"quote\": \"Нейросетевая модель разметки получает строки документа с координатами и возвращает типы логических блоков, которые затем проверяют продукционные правила.\",\n      \"block_id\": \"b-0044\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"...которые затем проверяют продукционные правила.\",\n      \"block_id\": \"b-0044\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

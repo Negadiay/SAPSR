@@ -78,10 +78,28 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # Конвертер DOCX → PDF (решение 3, правка 15.11.2026): LibreOffice в отдельном контейнере.
+  # Только во внутренней сети с бэкендом: порт не публикуется, выхода в интернет нет — чужой документ
+  # не сможет ни к чему обратиться. Версия закреплена: от неё зависит вёрстка PDF-версии.
+  gotenberg:
+    image: gotenberg/gotenberg:8.21.1
+    container_name: sapsr-gotenberg
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --api-timeout=90s
+      - --chromium-disable-routes=true
+    mem_limit: 1g
+    networks:
+      - converter
+
   backend:
     build: ./backend-java
     container_name: sapsr-backend
     restart: unless-stopped
+    networks:
+      - default
+      - converter
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/sapsr_db
       # Бэкенд и так ставит себе пояс Минска при запуске (BackendApplication); строка — для журналов контейнера.
@@ -97,6 +115,7 @@ services:
       BOT_WEBAPP_URL: https://${NGROK_DOMAIN:?Укажи NGROK_DOMAIN в .env}
       # «SAPSR снова работает» всем пользователям при запуске; SAPSR_STARTUP_NOTICE=false в .env — не рассылать.
       SAPSR_BOT_STARTUPNOTICE: ${SAPSR_STARTUP_NOTICE:-true}
+      SAPSR_CONVERTER_URL: http://gotenberg:3000
     ports:
       - "8080:8080"
     volumes:
@@ -125,6 +144,11 @@ services:
     command: http --url=${NGROK_DOMAIN} frontend:80
     depends_on:
       - frontend
+
+networks:
+  # Сеть бэкенда и конвертера без выхода наружу.
+  converter:
+    internal: true
 
 volumes:
   pgdata:

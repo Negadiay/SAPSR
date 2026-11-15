@@ -9,6 +9,7 @@ import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.service.Namesakes;
 import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.storage.FileStorage;
 import org.slf4j.Logger;
@@ -129,9 +130,12 @@ public class AdminUsers {
         }
         String group = rawGroup == null ? "" : rawGroup.strip();
         if (!calendar.isPossibleGroup(group)) throw new Invalid("group", groupHint());
+        String previousKey = user.getNameKey();
+        String previousGroup = user.getGroupNumber();
         user.setFullName(name + " (гр. " + group + ")");
         UploadController.setNameParts(user, name, group);
-        users.save(user);
+        // ФИО или группа изменились — студент получает номер тёзки заново (решение 4).
+        Namesakes.saveStudent(users, user, previousKey, previousGroup);
         return person(user);
     }
 

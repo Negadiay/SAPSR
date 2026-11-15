@@ -33,6 +33,14 @@ public class Submission {
     @Column(name = "storage_key")
     private String storageKey;
 
+    // Работа сдана в DOCX (решение 3): storage_key — её PDF-версия, по которой идёт проверка,
+    // source_storage_key — исходный файл. У работ, сданных в PDF, исходника нет.
+    @Column(name = "source_storage_key")
+    private String sourceStorageKey;
+
+    @Column(name = "source_format", nullable = false)
+    private String sourceFormat = "pdf";
+
     // Исходное имя файла — только для показа людям; на диске файл лежит под ключом.
     @Column(name = "original_file_name")
     private String originalFileName;
@@ -132,6 +140,19 @@ public class Submission {
         return originalFileName == null || originalFileName.isBlank() ? DEFAULT_FILE_NAME : originalFileName;
     }
 
+    public boolean fromDocx() { return "docx".equals(sourceFormat); }
+
+    /** Имя PDF-версии работы: у сданной в DOCX расширение исходного имени заменяется на .pdf. */
+    public String pdfFileName() {
+        String name = displayFileName();
+        return fromDocx() && name.toLowerCase(java.util.Locale.ROOT).endsWith(".docx")
+                ? name.substring(0, name.length() - 5) + ".pdf" : name;
+    }
+
+    public String getSourceStorageKey() { return sourceStorageKey; }
+    public void setSourceStorageKey(String sourceStorageKey) { this.sourceStorageKey = sourceStorageKey; }
+    public String getSourceFormat() { return sourceFormat; }
+    public void setSourceFormat(String sourceFormat) { this.sourceFormat = sourceFormat == null ? "pdf" : sourceFormat; }
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
     public User getStudent() { return student; }

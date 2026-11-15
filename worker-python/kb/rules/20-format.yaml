@@ -47,6 +47,20 @@
   found: "Шрифт «{font}» на {affected} стр. ({pct:.0f} %)."
   fix: "Наберите основной текст шрифтом Times New Roman."
 
+# LaTeX без пакета cm-super вставляет растровые кириллические шрифты Type 3 (решение 15).
+# Текст таких шрифтов восстанавливается по таблице T2A (sapsr/document/t2a.py).
+- id: FMT-FONT-BITMAP
+  title: Векторные шрифты
+  category: format
+  source: { doc: "SAPSR: требования к загружаемому файлу" }
+  severity: minor
+  check: fonts.bitmap
+  params: { min_share_pct: 50 }
+  message: "Шрифты в PDF растровые: LaTeX не нашёл векторные кириллические шрифты."
+  expected: "Векторные шрифты: текст остаётся чётким при увеличении."
+  found: "Растровыми шрифтами набрано {pct:.0f} % основного текста."
+  fix: "Установите пакет cm-super (в MiKTeX — через MiKTeX Console) и соберите PDF заново. Растровый текст размыт при увеличении, и по нему не работает поиск."
+
 - id: FMT-REF-FONT
   title: Шрифт списка источников
   category: format

@@ -21,6 +21,8 @@ services:
     environment:
       SPRING_AUTOCONFIGURE_EXCLUDE: org.telegram.telegrambots.longpolling.starter.TelegramBotStarterConfiguration
       SAPSR_BOT_STARTUPNOTICE: "false"
+  gotenberg:
+    container_name: !reset null
   frontend:
     container_name: !reset null
     ports: !reset []

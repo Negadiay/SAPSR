@@ -1,46 +1,258 @@
 {
-  "_comment": "Ожидаемые результаты для документов этой папки (generate.py). Режим hybrid, ИИС — справочник с вымышленными Сидоренко С.С. и Петровым П.П. и кодом 6-05-0611-03, модель — сценарная заглушка worker-python/tests/scripted_llm.py. Сверяет worker-python/tests/test_fixtures_expected.py.",
+  "_comment": "Ожидаемые результаты для документов этой папки (generate.py). findings и passed — что выдаёт обработчик в режиме hybrid с профилем по умолчанию, справочником ИИС с вымышленными Сидоренко С.С. и Петровым П.П. и кодом 6-05-0611-03 и сценарной заглушкой модели worker-python/tests/scripted_llm.py; сверяет worker-python/tests/test_fixtures_expected.py. truth — разметка для оценки качества (worker-python/tools/evaluate.py): findings — правила, которые должны сработать; allowed — замечания, которые допустимы, но не обязательны (спорные формулировки); requirements_missing — требования семестра, которые в записке не выполнены (есть только у документов, размеченных по требованиям; у остальных замечания по требованиям в оценку не входят). profile — семестр и этап, с которыми документ проверяется при оценке и записи ответов модели (по умолчанию 7 семестр, этап 3). group — типичный, граничный или отрицательный тест.",
   "content-formats.pdf": {
     "group": "typical",
     "scenario": "Дефект 1 из записки: DOCX и PDF во введении, только PDF в требованиях",
     "passed": true,
-    "findings": ["CNT-CONSIST-002"]
+    "findings": [
+      "CNT-CONSIST-002"
+    ],
+    "truth": {
+      "findings": [
+        "CNT-CONSIST-002"
+      ]
+    }
   },
   "content-kb.pdf": {
     "group": "typical",
     "scenario": "Дефект 2: онтология во введении, конфигурационный файл в реализации",
     "passed": true,
-    "findings": ["CNT-CONSIST-001"]
+    "findings": [
+      "CNT-CONSIST-001"
+    ],
+    "truth": {
+      "findings": [
+        "CNT-CONSIST-001"
+      ]
+    }
   },
   "content-neural.pdf": {
     "group": "typical",
     "scenario": "Дефект 3: нейросетевой компонент заявлен, но не описан в проектировании и реализации",
     "passed": true,
-    "findings": ["CNT-SUPPORT-001"]
+    "findings": [
+      "CNT-SUPPORT-001"
+    ],
+    "truth": {
+      "findings": [
+        "CNT-SUPPORT-001"
+      ]
+    }
   },
   "content-clean.pdf": {
     "group": "negative",
     "scenario": "Согласованная записка — содержательных замечаний нет",
     "passed": true,
-    "findings": []
+    "findings": [],
+    "truth": {
+      "findings": []
+    }
   },
   "hidden-text.pdf": {
     "group": "negative",
     "scenario": "Белая инструкция для модели и микроскопический текст — вырезаны из входа модели, замечание преподавателю",
     "passed": true,
-    "findings": ["INT-HIDDEN-TEXT"]
+    "findings": [
+      "INT-HIDDEN-TEXT"
+    ],
+    "truth": {
+      "findings": [
+        "INT-HIDDEN-TEXT"
+      ]
+    }
   },
   "narrow-margin.pdf": {
     "group": "boundary",
     "scenario": "Левое поле 15 мм на страницах 2–8",
     "passed": true,
-    "findings": ["FMT-MARGIN-LEFT"]
+    "findings": [
+      "FMT-MARGIN-LEFT"
+    ],
+    "truth": {
+      "findings": [
+        "FMT-MARGIN-LEFT"
+      ]
+    }
   },
   "scan-no-text.pdf": {
     "group": "negative",
     "scenario": "Скан без текстового слоя",
     "passed": false,
-    "findings": ["DOC-NO-TEXT"]
+    "findings": [
+      "DOC-NO-TEXT"
+    ],
+    "truth": {
+      "findings": [
+        "DOC-NO-TEXT"
+      ]
+    }
+  },
+  "tex-type3.pdf": {
+    "group": "boundary",
+    "scenario": "Растровые шрифты Type 3 из LaTeX без cm-super: текст восстановлен по таблице T2A, одно замечание о шрифтах",
+    "passed": true,
+    "findings": [
+      "FMT-FONT-BITMAP"
+    ],
+    "truth": {
+      "findings": [
+        "FMT-FONT-BITMAP"
+      ]
+    }
+  },
+  "unreadable-text.pdf": {
+    "group": "negative",
+    "scenario": "Шрифты без расшифровки символов: текст не читается, остальные проверки не выполняются",
+    "passed": false,
+    "findings": [
+      "DOC-TEXT-UNREADABLE"
+    ],
+    "truth": {
+      "findings": [
+        "DOC-TEXT-UNREADABLE"
+      ]
+    }
+  },
+  "contradiction-three.pdf": {
+    "group": "typical",
+    "scenario": "Противоречие в трёх местах: DOCX и PDF во введении, только PDF в требованиях, DOCX, ODT и PDF в реализации",
+    "passed": true,
+    "findings": [
+      "CNT-CONSIST-002"
+    ],
+    "truth": {
+      "findings": [
+        "CNT-CONSIST-002"
+      ]
+    }
+  },
+  "ambiguous.pdf": {
+    "group": "boundary",
+    "scenario": "Неоднозначная формулировка о представлении знаний: замечание допустимо только с низкой уверенностью, на решение преподавателя",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": [],
+      "allowed": [
+        "CNT-CONSIST-001"
+      ]
+    }
+  },
+  "no-conclusion.pdf": {
+    "group": "negative",
+    "scenario": "Нет раздела «Заключение» — блокирующее замечание о структуре",
+    "passed": false,
+    "findings": [
+      "STR-CONCLUSION"
+    ],
+    "truth": {
+      "findings": [
+        "STR-CONCLUSION"
+      ]
+    }
+  },
+  "many-format-errors.pdf": {
+    "group": "negative",
+    "scenario": "Много ошибок оформления сразу: шрифт 10 пт, левое поле 15 мм, нет номеров страниц",
+    "passed": false,
+    "findings": [
+      "FMT-FONT-SIZE-MASS",
+      "FMT-MARGIN-LEFT",
+      "LAY-PAGE-NUMBERS"
+    ],
+    "truth": {
+      "findings": [
+        "FMT-FONT-SIZE-MASS",
+        "FMT-MARGIN-LEFT",
+        "LAY-PAGE-NUMBERS"
+      ]
+    }
+  },
+  "sem7-complete.pdf": {
+    "group": "typical",
+    "scenario": "Корректная записка 7 семестра: все требования к гибридной системе выполнены, замечаний быть не должно",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": [],
+      "requirements_missing": []
+    },
+    "profile": {
+      "semester": 7,
+      "stage": 3
+    }
+  },
+  "sem5-solver-ok.pdf": {
+    "group": "typical",
+    "scenario": "Записка 5 семестра (решатель задач): все требования выполнены",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": [],
+      "requirements_missing": []
+    },
+    "profile": {
+      "semester": 5,
+      "stage": 3
+    }
+  },
+  "sem5-solver-gaps.pdf": {
+    "group": "typical",
+    "scenario": "Записка 5 семестра с пробелами: правила зашиты в код, нет групп тестов и оценки эффективности",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": [],
+      "requirements_missing": [
+        "REQ5-KB-SEPARATE",
+        "REQ5-TEST-GROUPS",
+        "REQ5-EFFICIENCY"
+      ]
+    },
+    "profile": {
+      "semester": 5,
+      "stage": 3
+    }
+  },
+  "sem4-kb-gaps.pdf": {
+    "group": "typical",
+    "scenario": "Записка 4 семестра (база знаний): не указаны границы применимости, нет результатов тестирования",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": [],
+      "requirements_missing": [
+        "REQ4-APPLICABILITY",
+        "REQ4-TEST-RESULTS"
+      ]
+    },
+    "profile": {
+      "semester": 4,
+      "stage": 3
+    }
+  },
+  "sem6-interface-ok.pdf": {
+    "group": "boundary",
+    "scenario": "Записка 6 семестра (интерфейс) на 2-й опроцентовке: требование о прототипе на этом этапе не применяется",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": [],
+      "requirements_missing": []
+    },
+    "profile": {
+      "semester": 6,
+      "stage": 2
+    }
+  },
+  "personal-data.pdf": {
+    "group": "boundary",
+    "scenario": "Персональные данные в тексте разделов: ФИО, почта, телефон, группа — в облачную модель не уходят (решение 13)",
+    "passed": true,
+    "findings": [],
+    "truth": {
+      "findings": []
+    }
   },
   "encrypted.pdf": {
     "group": "negative",

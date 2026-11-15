@@ -43,7 +43,19 @@ public class User {
     @Column(name = "group_number")
     private String groupNumber;
 
+    // Тёзки (решение 4, миграция V11): ФИО для сравнения и постоянный номер среди тёзок группы.
+    @Column(name = "name_key")
+    private String nameKey;
+
+    @Column(name = "namesake_number")
+    private Integer namesakeNumber;
+
     public User() {}
+
+    public String getNameKey() { return nameKey; }
+    public void setNameKey(String nameKey) { this.nameKey = nameKey; }
+    public Integer getNamesakeNumber() { return namesakeNumber; }
+    public void setNamesakeNumber(Integer namesakeNumber) { this.namesakeNumber = namesakeNumber; }
 
     /** ФИО для показа — без «(гр. 321702)», которое регистрация дописывает студентам. */
     public String displayName() {

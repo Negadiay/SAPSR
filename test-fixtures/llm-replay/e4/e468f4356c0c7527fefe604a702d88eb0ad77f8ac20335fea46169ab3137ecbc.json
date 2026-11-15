@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "e468f4356c0c7527fefe604a702d88eb0ad77f8ac20335fea46169ab3137ecbc",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"PDF\"],\n      \"quote\": \"протокол работы содержит оба применённых правила\",\n      \"block_id\": \"b-0046\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"решатель на первом шаге применил правило о блоке питания, на втором шаге — правило о кабеле питания и вывел неисправность\",\n      \"block_id\": \"b-0046\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.languages\",\n      \"value\": [\"python\"],\n      \"quote\": \"Решатель реализован на языке Python\",\n      \"block_id\": \"b-0045\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

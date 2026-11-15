@@ -2,6 +2,13 @@
 // tone — иконка и цвет (components/Icon.jsx, StatusIcon): ok, error, warning, pending, muted.
 import { count } from './format';
 import { summarizeFindings } from './findings';
+import { STAGE_LABELS } from './report';
+
+// Подшаг текущего этапа словами (поле pipeline_stage, api-v1.md, раздел 13): «Проверяется: структура».
+const FORMAT_STAGES = ['extract', 'structure', 'format'];
+const CONTENT_STAGES = ['claims', 'reasoning', 'report'];
+const running = (s, stages) => (stages.includes(s.pipeline_stage)
+  ? `Проверяется: ${STAGE_LABELS[s.pipeline_stage]}` : 'Проверяется');
 
 // Причины сбоя (queue-v2.md, раздел 5) — студенту словами, без кодов.
 const FAILURE_TEXT = {
@@ -45,7 +52,7 @@ export function formatStep(s) {
   if (s.status === 'FAILED') {
     return { tone: 'error', text: FAILURE_TEXT[s.failure_code] || 'Не удалось проверить.' };
   }
-  if (!formatChecked(s)) return { tone: 'pending', text: s.status === 'QUEUED' ? 'В очереди' : 'Проверяется' };
+  if (!formatChecked(s)) return { tone: 'pending', text: s.status === 'QUEUED' ? 'В очереди' : running(s, FORMAT_STAGES) };
   const { formatErrors, formatWarnings } = summarizeFindings(s.format_errors);
   const warnings = formatWarnings ? `, предупреждений: ${formatWarnings}` : '';
   return s.status === 'REJECTED'
@@ -57,7 +64,7 @@ export function formatStep(s) {
 export function contentStep(s) {
   if (s.status === 'FAILED' || s.content_status === 'NONE') return { tone: 'muted', text: 'Не проверялось' };
   if (!formatChecked(s)) return { tone: 'muted', text: 'После оформления' };
-  if (s.content_status === 'PENDING') return { tone: 'pending', text: 'Проверяется' };
+  if (s.content_status === 'PENDING') return { tone: 'pending', text: running(s, CONTENT_STAGES) };
   if (s.content_status === 'LATE') return { tone: 'pending', text: 'Проверяется дольше обычного' };
   if (s.content_status === 'TIMEOUT') return { tone: 'warning', text: 'Не проверено: не хватило времени' };
   if (s.content_status === 'FAILED') return { tone: 'warning', text: 'Не проверено: сбой проверки' };

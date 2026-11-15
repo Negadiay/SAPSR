@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "73a3de57b65291d5c7e0dc9f9f7f22f84481a909c7db704ad8330c4f1f412573",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"структура данных\"],\n      \"quote\": \"признаки передаются решателю в виде структуры данных\",\n      \"block_id\": \"b-0039\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.interface_type\",\n      \"value\": [\"web\"],\n      \"quote\": \"Интерфейс связан с решателем задач и базой знаний через программный интерфейс\",\n      \"block_id\": \"b-0039\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.users\",\n      \"value\": [\"student\"],\n      \"quote\": \"учтены принципы удобства использования: понятность обеспечена едиными названиями кнопок, устойчивость к ошибкам — проверкой ввода и подтверждением удаления, обучаемость — подсказками у каждого поля\",\n      \"block_id\": \"b-0040\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

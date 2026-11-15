@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "dac7a40cf4dbcda7574b4c3a96fa21ce9fd927e9799dcfe33378af29a550c7f1",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.interface_type\",\n      \"value\": [\"web\"],\n      \"quote\": \"интерфейс системы диагностики неисправностей персонального компьютера\",\n      \"block_id\": \"b-0048\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}
