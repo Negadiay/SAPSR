@@ -142,6 +142,10 @@ public class AdminController {
         if (course < 1 || course > AcademicCalendar.MAX_COURSE) {
             return invalid("course", "Курс — число от 1 до " + AcademicCalendar.MAX_COURSE + ".");
         }
+        // Новые группы появляются только с регистрацией людей: администратор исправляет курс существующей.
+        if (!isKnownGroup(group)) {
+            return ResponseEntity.status(404).body(Map.of("code", "NOT_FOUND", "error", "Группы " + group + " нет в списке."));
+        }
         calendar.setCourse(group, course, adminId(request));
         log.info("Администратор {}: группа {} — {} курс", adminId(request), group, course);
         return ResponseEntity.ok(view());
@@ -299,6 +303,12 @@ public class AdminController {
             groups.add(row);
         }
         return groups;
+    }
+
+    private boolean isKnownGroup(String group) {
+        return !adminUsers.students(group).isEmpty() || !adminUsers.teachers(group).isEmpty()
+                || overrides.findByAcademicYear(calendar.academicYear()).stream()
+                        .anyMatch(o -> group.equals(o.getGroupNumber()));
     }
 
     private Map<String, Object> people(String group) {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { shortName } from '../../lib/names';
 import AppHeader from '../../components/AppHeader';
-import ConfirmDialog from '../../components/ConfirmDialog';
 import Icon from '../../components/Icon';
 import { isTelegramClient } from '../../telegram/webApp';
 import ThemeEditor from './ThemeEditor';
@@ -39,12 +38,11 @@ function Toggle({ label, on, off = false, onClick }) {
   );
 }
 
-export default function SettingsScreen({ settings, profile, header, onNeedProfile, onChangeRole }) {
+export default function SettingsScreen({ settings, profile, header, onNeedProfile }) {
   const {
     mode, setMode, contrast, toggleContrast, custom, toggleCustom, setCustomColor, applyPreset, fontSize, setFontSize,
   } = settings;
   const [editing, setEditing] = useState(false);
-  const [changingRole, setChangingRole] = useState(false);
   // Своя тема плохо читается — раздел темы пишется чёрным или белым, чтобы её было чем исправить.
   const unreadable = custom.enabled && custom.colors && readabilityIssues(custom.colors).length > 0;
   const modes = [['auto', isTelegramClient() ? 'Как в Telegram' : 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']];
@@ -100,17 +98,6 @@ export default function SettingsScreen({ settings, profile, header, onNeedProfil
         <p className="hint">{FONT_SIZE_LABELS[fontSize]}</p>
       </section>
 
-      {onChangeRole && (
-        <button type="button" className="btn btn-ghost-danger btn-block" onClick={() => setChangingRole(true)}>
-          Сменить роль
-        </button>
-      )}
-
-      {changingRole && (
-        <ConfirmDialog title="Сменить роль?" danger confirmLabel="Сменить"
-          body="Понадобится зарегистрироваться заново. Прежняя роль сохранится, пока вы не зарегистрируетесь в новой."
-          onCancel={() => setChangingRole(false)} onConfirm={() => { setChangingRole(false); onChangeRole(); }} />
-      )}
     </div>
   );
 }

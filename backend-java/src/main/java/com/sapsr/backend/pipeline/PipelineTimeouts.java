@@ -18,8 +18,8 @@ import java.time.Duration;
 public record PipelineTimeouts(Duration content, Duration stuck) {
 
     @Autowired
-    public PipelineTimeouts(@Value("${sapsr.pipeline.content-timeout:5m}") String content,
-                            @Value("${sapsr.pipeline.stuck-timeout:15m}") String stuck) {
+    public PipelineTimeouts(@Value("${sapsr.pipeline.content-timeout:10m}") String content,
+                            @Value("${sapsr.pipeline.stuck-timeout:45m}") String stuck) {
         this(DurationStyle.detectAndParse(content), DurationStyle.detectAndParse(stuck));
     }
 }

@@ -18,7 +18,7 @@ export function useReviewQueue({ submissions }) {
   const list = segment === 'pending' ? submissions.pending : submissions.history;
   const groups = [...new Set(list.map((s) => s.student_group).filter(Boolean))].sort();
   const filtered = list.filter((s) => (!group || s.student_group === group)
-    && matchesSearch(search, [s.student_name, s.student_group, s.file_name]));
+    && matchesSearch(search, [s.student?.full_name || s.student_name, s.student_group, s.file_name]));
 
   const setReview = (id, value) => setReviews((current) => ({ ...current, [id]: value }));
 

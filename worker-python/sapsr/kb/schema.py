@@ -69,8 +69,16 @@ class ContextParams(Strict):
     max_len: int
 
 
+class TextQualityParams(Strict):
+    # Документ короче — качество текста не оценивается.
+    min_chars: int
+    min_readable_share: float
+    max_cid_share: float
+
+
 class LayoutParams(Strict):
     hidden_text: HiddenTextParams
+    text_quality: TextQualityParams
     zones: ZoneParams
     main_font: MainFontParams
     labeler: LabelerParams

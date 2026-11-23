@@ -87,6 +87,38 @@ def test_profile_resolution(kb):
     assert kb.resolve_profile("diploma", 8, 1).warning[0] == "PROFILE_NOT_FOUND"
 
 
+@pytest.mark.parametrize("semester", [4, 5, 6, 7])
+def test_semester_profiles(kb, semester):
+    profile = kb.resolve_profile("course_project", semester, 2)
+    assert profile.id == f"sem{semester}" and profile.warning is None
+    assert profile.content.requirement_sets == [f"sem{semester}"]
+    assert profile.rule("REQ-NOT-ESTABLISHED") is not None
+
+
+@pytest.mark.boundary
+@pytest.mark.parametrize("semester", [3, 8])
+def test_semester_without_profile(kb, semester):
+    profile = kb.resolve_profile("course_project", semester, 1)
+    assert profile.id == "base" and profile.warning[0] == "PROFILE_NOT_FOUND"
+    assert not profile.content.requirement_sets
+
+
+def test_requirement_sets(kb):
+    parts = {p.id for p in kb.concepts.doc_parts}
+    assert set(kb.requirement_sets) == {"sem4", "sem5", "sem6", "sem7"}
+    seen: set[str] = set()
+    for set_id, rset in kb.requirement_sets.items():
+        assert rset.id == set_id and rset.semester == int(set_id[3:]) and not rset.draft
+        assert 6 <= len(rset.requirements) <= 12 or set_id == "sem7"
+        for req in rset.requirements:
+            assert req.id.startswith(f"REQ{rset.semester}-") and req.id not in seen
+            seen.add(req.id)
+            assert req.source.doc and req.source.clause, req.id
+            assert req.stages and set(req.stages) <= {1, 2, 3}, req.id
+            assert req.expected_in and set(req.expected_in) <= parts, req.id
+            assert req.keywords and req.sufficient, req.id
+
+
 def test_profile_override(tmp_path):
     copy = tmp_path / "kb"
     shutil.copytree(DEFAULT_KB_DIR, copy)

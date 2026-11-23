@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "69086de4222209f0ef29e5f8531b51ed03c610dc593402765291a1ecc0312cca",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"Решатель принимает на вход перечень наблюдаемых признаков и возвращает перечень возможных неисправностей с объяснением.\",\n      \"block_id\": \"b-0036\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

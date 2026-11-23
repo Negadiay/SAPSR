@@ -10,6 +10,7 @@ from __future__ import annotations
 from sapsr.checks.context import CheckContext
 from sapsr.checks.registry import Hit, NoParams, Params, check
 from sapsr.document.labeling import StructuralMatcher
+from sapsr.document.quality import text_quality
 from sapsr.report.model import Evidence
 
 
@@ -21,6 +22,12 @@ def no_pages(ctx: CheckContext, params: NoParams) -> list[Hit]:
 @check("document.text_layer")
 def no_text(ctx: CheckContext, params: NoParams) -> list[Hit]:
     return [] if ctx.raw.has_text else [Hit()]
+
+
+@check("document.text_readable")
+def unreadable_text(ctx: CheckContext, params: NoParams) -> list[Hit]:
+    """Текст есть, но не читается: шрифты сохранены без расшифровки символов (решение 15)."""
+    return [Hit()] if text_quality(ctx.raw, ctx.layout.text_quality).unreadable else []
 
 
 class RequiredPartParams(Params):

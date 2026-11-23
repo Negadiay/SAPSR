@@ -30,7 +30,7 @@ public final class BotMessages {
     private static final int MESSAGE_BUDGET = 3800;
     private static final String CONTENT_PENDING = "Содержание проверяется — итог появится в этом сообщении.";
     /** Дописывается к сообщению, если к нему приложен файл с комментариями автопроверки. */
-    public static final String COMMENTS_IN_FILE = "\n\nЗамечания — комментариями в приложенном файле.";
+    public static final String COMMENTS_IN_FILE = "\n\nЗамечания отмечены в приложенном файле.";
 
     private BotMessages() {}
 
@@ -54,8 +54,8 @@ public final class BotMessages {
             case "STUDENT" -> """
                     <b>Как сдать работу</b>
                     1. Нажмите «Сдать работу».
-                    2. Выберите преподавателя и вид работы, прикрепите PDF.
-                    3. Через несколько минут здесь появится итог проверки.
+                    2. Выберите преподавателя и прикрепите PDF или DOCX.
+                    3. Когда проверка закончится, итог появится здесь.
                     4. Решение преподавателя и его комментарии тоже придут сюда.""";
             case "TEACHER" -> """
                     <b>Как проверять</b>
@@ -77,6 +77,28 @@ public final class BotMessages {
 
     public static String startupNotice() {
         return "SAPSR снова работает.";
+    }
+
+    // ── правка профиля администратором ─────────────────────────────────────
+
+    /** Администратор исправил ФИО или группу студента: только то, что изменилось. */
+    public static String profileChanged(String oldName, String newName, String oldGroup, String newGroup) {
+        StringBuilder text = new StringBuilder("<b>Администратор изменил ваши данные</b>\n");
+        if (!Objects.equals(oldName, newName)) {
+            text.append("\nФИО: ").append(escape(oldName)).append(" → ").append(escape(newName));
+        }
+        if (!Objects.equals(oldGroup, newGroup)) {
+            text.append("\nГруппа: ").append(escape(oldGroup)).append(" → ").append(escape(newGroup));
+        }
+        return text.append("\n\nЕсли это ошибка, обратитесь к администратору.")
+                .toString();
+    }
+
+    /** Студента назначили администратором: его учебные данные удалены. */
+    public static String madeAdmin(int deletedWorks) {
+        String works = deletedWorks > 0 ? "Удалено: " + count(deletedWorks, "работа", "работы", "работ") + ". " : "";
+        return "<b>Вы назначены администратором</b>\n\n" + works
+                + "Группа убрана из профиля. Сроки, курсы групп и данные студентов — в разделе «Управление».";
     }
 
     // ── итог автоматической проверки ──────────────────────────────────────
@@ -153,7 +175,7 @@ public final class BotMessages {
             text.append("Содержание: не проверено (").append(escape(contentNote)).append(").\n");
         } else if (f.content() > 0) {
             text.append("Содержание: ").append(count(f.content(), "замечание", "замечания", "замечаний"))
-                    .append(", сдаче не мешают.\n");
+                    .append(", на сдачу не влияют.\n");
         } else if (contentChecked) {
             text.append("Содержание: без замечаний.\n");
         }
@@ -254,6 +276,12 @@ public final class BotMessages {
      */
     public static String verdictForStudent(String teacherName, String fileName, boolean approved, String comment,
                                            List<Annotation> annotations, boolean hasReviewFile) {
+        return verdictForStudent(teacherName, fileName, approved, comment, annotations, hasReviewFile, false);
+    }
+
+    /** attached — файл с пометками приложен к этому же сообщению (решение 15). */
+    public static String verdictForStudent(String teacherName, String fileName, boolean approved, String comment,
+                                           List<Annotation> annotations, boolean hasReviewFile, boolean attached) {
         StringBuilder text = new StringBuilder(approved
                 ? "✅ <b>Работа принята</b>\n"
                 : "🔄 <b>Работа возвращена на доработку</b>\n");
@@ -265,9 +293,9 @@ public final class BotMessages {
         if (annotations != null && !annotations.isEmpty()) {
             text.append("\n<b>Комментарии:</b>\n");
             appendComments(text, annotations);
-            text.append("\nФайл с пометками — в приложении.");
+            text.append(attached ? "\nФайл с пометками приложен." : "\nФайл с пометками — в приложении.");
         } else if (hasReviewFile) {
-            text.append("\nПометки — в файле, он в приложении.");
+            text.append(attached ? "\nПометки — в приложенном файле." : "\nПометки — в файле, он в приложении.");
         }
         return text.toString();
     }

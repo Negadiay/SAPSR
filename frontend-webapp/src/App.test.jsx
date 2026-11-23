@@ -88,20 +88,33 @@ describe('вход', () => {
       'GET /teachers': [], 'GET /submissions': [],
     });
     await user.click(await screen.findByRole('button', { name: /Студент/ }));
-    const field = screen.getByLabelText('ФИО и группа');
     const submit = screen.getByRole('button', { name: 'Зарегистрироваться' });
     expect(submit).toBeDisabled();
 
-    await user.type(field, 'Иванов И, 321702');
+    const lastName = screen.getByLabelText('Фамилия');
+    await user.type(lastName, 'Ivanov');
     await user.tab();
-    expect(screen.getByText('Пример: Иванов И.И., 321702')).toBeInTheDocument();
-    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Фамилия: только русские буквы, дефис и пробел.')).toBeInTheDocument();
+    expect(lastName).toHaveAttribute('aria-invalid', 'true');
+    await user.clear(lastName);
+    await user.type(lastName, 'Петров-Водкин');
+    await user.type(screen.getByLabelText('Имя'), 'Кузьма');
+    // Группа — только цифры, не длиннее шести; без отчества — отдельный переключатель.
+    const group = screen.getByLabelText('Номер группы');
+    expect(group).toHaveAttribute('inputmode', 'numeric');
+    await user.type(group, '32a17');
+    await user.tab();
+    expect(screen.getByText('Номер группы — шесть цифр.')).toBeInTheDocument();
+    await user.type(group, '02999');
+    expect(group).toHaveValue('321702');
+    expect(submit).toBeDisabled();
+    await user.click(screen.getByLabelText('Нет отчества'));
+    expect(screen.getByLabelText('Отчество')).toBeDisabled();
 
-    await user.clear(field);
-    await user.type(field, 'Иванов И.И., 321702');
     await user.click(submit);
     await waitFor(() => expect(api.find('POST', '/register')).toHaveLength(1));
-    expect(api.find('POST', '/register')[0].body).toEqual({ role: 'STUDENT', full_name: 'Иванов И.И. (гр. 321702)' });
+    expect(api.find('POST', '/register')[0].body)
+      .toEqual({ role: 'STUDENT', last_name: 'Петров-Водкин', first_name: 'Кузьма', group: '321702' });
     expect(await heading('Мои работы')).toBeInTheDocument();
     // Первый вход — обучение начинается само.
     expect(await screen.findByRole('dialog', { name: 'Это SAPSR' })).toBeInTheDocument();
@@ -116,7 +129,10 @@ describe('вход', () => {
       'POST /register': jsonResponse({ error: 'Группы 321799 нет в ИИС БГУИР. Проверьте номер.' }, 400),
     });
     await user.click(await screen.findByRole('button', { name: /Студент/ }));
-    await user.type(screen.getByLabelText('ФИО и группа'), 'Иванов И.И., 321799');
+    await user.type(screen.getByLabelText('Фамилия'), 'Иванов');
+    await user.type(screen.getByLabelText('Имя'), 'Иван');
+    await user.type(screen.getByLabelText('Отчество'), 'Иванович');
+    await user.type(screen.getByLabelText('Номер группы'), '321799');
     await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Группы 321799 нет в ИИС БГУИР');
   });
@@ -179,7 +195,7 @@ describe('студент: работы', () => {
 
     await user.click(screen.getByRole('button', { name: /Комментарии преподавателя — в версии 1/ }));
     expect(await screen.findByText('Только PDF')).toBeInTheDocument();
-    expect(screen.getByText('Вернул на доработку')).toBeInTheDocument();
+    expect(screen.getByText('Возвращена на доработку')).toBeInTheDocument();
     expect(screen.getByText('Ошибок: 1')).toBeInTheDocument();
     expect(screen.getByText('Левое поле 15 мм вместо 30.')).toBeInTheDocument();
     expect(screen.getByText('ошибка · стр. 2–8')).toBeInTheDocument();
@@ -244,8 +260,8 @@ describe('студент: сдача работы', () => {
     await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
     // Выбрав преподавателя, к «никому» не вернуться: подсказки в списке больше нет.
     expect(screen.queryByRole('option', { name: 'Выберите преподавателя' })).toBeNull();
-    await user.upload(screen.getByLabelText(/Выберите PDF/), new File(['x'], 'work.docx', { type: 'application/msword' }));
-    expect(screen.getByText('Нужен файл PDF.')).toBeInTheDocument();
+    await user.upload(screen.getByLabelText(/Выберите PDF/), new File(['x'], 'work.odt', { type: 'application/vnd.oasis.opendocument.text' }));
+    expect(screen.getByText('Нужен файл PDF или DOCX.')).toBeInTheDocument();
     expect(submit).toBeDisabled();
 
     await user.upload(screen.getByLabelText(/Выберите PDF|нажмите, чтобы заменить/), pdf());
@@ -279,6 +295,26 @@ describe('студент: сдача работы', () => {
     const { user } = start({ ...studentRoutes, 'GET /teachers': [] });
     await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
     expect(await screen.findByText(/Для группы 321702 нет преподавателей/)).toBeInTheDocument();
+  });
+
+  it('без преподавателя файл не выбрать: окно предлагает выбрать, кому отправить', async () => {
+    const { user } = start(studentRoutes);
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    await screen.findByRole('option', { name: 'Выберите преподавателя' });
+    // Слушаем на document: сюда клик доходит уже после обработчика React.
+    const picked = vi.fn();
+    const onClick = (e) => { if (e.target.id === 'file-upload' && !e.defaultPrevented) picked(); };
+    document.addEventListener('click', onClick);
+
+    await user.click(screen.getByText('Выберите PDF или DOCX'));
+    const dialog = screen.getByRole('dialog', { name: 'Преподаватель не выбран' });
+    expect(picked).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: TEACHERS[0].full_name }));
+    document.removeEventListener('click', onClick);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByLabelText('Преподаватель')).toHaveValue('7');
+    expect(picked).toHaveBeenCalledTimes(1);
   });
 
   it('новая версия — с тем же преподавателем', async () => {
@@ -329,15 +365,89 @@ describe('Telegram: родные кнопки', () => {
   });
 });
 
-describe('смена роли', () => {
-  it('после подтверждения — снова выбор роли, прежнюю можно вернуть кнопкой «Войти»', async () => {
+describe('один аккаунт — один человек', () => {
+  it('в настройках данные только для просмотра: ни правки ФИО, ни смены роли', async () => {
     const { user } = start(studentRoutes);
     await heading('Мои работы');
     await user.click(screen.getByTitle('Настройки'));
-    await user.click(screen.getByRole('button', { name: 'Сменить роль' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сменить' }));
-    expect(await heading('Выберите роль')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Войти' }));
+    expect(screen.getByText(/Группа 321702/)).toBeInTheDocument();
+    expect(screen.queryByText(/Один аккаунт/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /ФИО/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Сменить роль' })).toBeNull();
+  });
+
+  it('повторная регистрация (409): текст сервера и главный экран прежней роли', async () => {
+    const text = 'Вы уже зарегистрированы. Если в данных ошибка, обратитесь к администратору.';
+    let registered = false;
+    const { user, tg } = start({
+      ...studentRoutes,
+      'GET /me': () => (registered ? ME : { role: 'NONE' }),
+      'POST /register': () => {
+        registered = true;
+        return jsonResponse({ code: 'ALREADY_REGISTERED', message: text, error: text }, 409);
+      },
+    }, { native: true });
+    tg.showAlert = vi.fn();
+    await user.click(await screen.findByRole('button', { name: /Студент/ }));
+    await user.type(screen.getByLabelText('Фамилия'), 'Иванов');
+    await user.type(screen.getByLabelText('Имя'), 'Иван');
+    await user.type(screen.getByLabelText('Отчество'), 'Иванович');
+    await user.type(screen.getByLabelText('Номер группы'), '321799');
+    tg.MainButton.click();
     expect(await heading('Мои работы')).toBeInTheDocument();
+    expect(tg.showAlert).toHaveBeenCalledWith(text);
+  });
+});
+
+describe('студент: решение преподавателя', () => {
+  it('после вердикта решение и комментарии — выше хода проверки и замечаний', async () => {
+    const { user } = start(studentRoutes);
+    await user.click(await screen.findByRole('button', { name: /Курсовая v2\.pdf/ }));
+    await user.click(screen.getByRole('button', { name: /Комментарии преподавателя — в версии 1/ }));
+    const verdict = await screen.findByRole('region', { name: 'Решение преподавателя' });
+    expect(within(verdict).getByText('Преподаватель: на доработку')).toBeInTheDocument();
+    expect(within(verdict).getByText('1 комментарий в файле с пометками')).toBeInTheDocument();
+    expect(within(verdict).getByRole('button', { name: 'Скачать файл с пометками' })).toBeInTheDocument();
+    const comment = await screen.findByText('Только PDF');
+    const steps = screen.getByText('Возвращена на доработку');
+    const finding = screen.getByText('Левое поле 15 мм вместо 30.');
+    const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(verdict, comment)).toBe(true);
+    expect(before(comment, steps)).toBe(true);
+    expect(before(steps, finding)).toBe(true);
+    expect(screen.getAllByRole('button', { name: 'Скачать файл с пометками' })).toHaveLength(1);
+  });
+
+  it('DOCX: принимается при выборе, у работы — пометка о PDF-версии и её скачивание', async () => {
+    const works = [{ ...SUBMISSIONS[2], id: 9, file_name: 'Курсовая.docx', source_format: 'docx' }];
+    const { api, user } = start({
+      ...studentRoutes, 'GET /submissions': works, 'GET /submissions/9/pdf': new Response('pdf'),
+    });
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    await user.click(await screen.findByRole('button', { name: /Курсовая\.docx/ }));
+    expect(screen.getByText('Работа проверена в PDF, номера страниц указаны по нему.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Скачать PDF-версию' }));
+    await waitFor(() => expect(api.find('GET', '/submissions/9/pdf')).toHaveLength(1));
+
+    await user.click(screen.getByRole('button', { name: 'Назад' }));
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    expect(await screen.findByText('Выберите PDF или DOCX')).toBeInTheDocument();
+    await screen.findByRole('option', { name: TEACHERS[0].full_name });
+    await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
+    const input = document.getElementById('file-upload');
+    await user.upload(input, new File(['PK'], 'Курсовая.docx'));
+    expect(screen.getByText('Курсовая.docx')).toBeInTheDocument();
+    expect(screen.queryByText('Нужен файл PDF или DOCX.')).toBeNull();
+  });
+
+  it('предел файла берётся с сервера, причина — словами', async () => {
+    const { user } = start({ ...studentRoutes, 'GET /me': { ...ME, max_upload_mb: 1 } });
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    expect(await screen.findByText('до 1 МБ')).toBeInTheDocument();
+    await screen.findByRole('option', { name: TEACHERS[0].full_name });
+    await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
+    await user.upload(document.getElementById('file-upload'), pdf('Большая.pdf', 1024 * 1024 + 10));
+    expect(screen.getByText(/Файл больше 1 МБ\. Сожмите его/)).toBeInTheDocument();
   });
 });

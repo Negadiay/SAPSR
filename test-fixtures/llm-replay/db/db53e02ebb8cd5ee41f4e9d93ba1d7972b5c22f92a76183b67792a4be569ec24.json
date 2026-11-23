@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "db53e02ebb8cd5ee41f4e9d93ba1d7972b5c22f92a76183b67792a4be569ec24",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0044]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"Нейросетевая модель разметки получает строки документа с координатами и возвращает типы логических блоков, которые затем проверяют продукционные правила.\"\n    }\n  ]\n}"
+}

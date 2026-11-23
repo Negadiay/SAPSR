@@ -40,7 +40,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         if (allowedOrigins.length == 0) return;
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+                .allowedMethods("GET", "POST", "PUT", "DELETE")
                 .allowedHeaders("Authorization", "Content-Type");
     }
 }

@@ -5,7 +5,8 @@ import StatusLine from '../../components/StatusLine';
 import { downloadReviewFile, fetchAnnotations } from '../../api/submissions';
 
 // Комментарии преподавателя из файла с пометками: по страницам, файл можно скачать.
-export default function TeacherComments({ submission }) {
+// download — показать кнопку файла здесь; на экране работы она в карточке решения преподавателя.
+export default function TeacherComments({ submission, download = true }) {
   const [state, setState] = useState({ loading: true, annotations: null, error: '' });
 
   useEffect(() => {
@@ -26,11 +27,13 @@ export default function TeacherComments({ submission }) {
       <h3 className="section-title">Комментарии преподавателя</h3>
       {state.loading && <StatusLine tone="pending">Загрузка…</StatusLine>}
       {state.error && <StatusLine tone="error">{state.error}</StatusLine>}
-      {state.annotations?.length === 0 && <p className="hint">Пометки есть только в файле.</p>}
+      {state.annotations?.length === 0 && <p className="hint">Все пометки — в файле.</p>}
       {state.annotations?.length > 0 && <AnnotationList annotations={state.annotations} />}
-      <button type="button" className="btn btn-secondary btn-block" onClick={() => downloadReviewFile(submission.id)}>
-        <Icon name="download" /><span>Скачать файл с пометками</span>
-      </button>
+      {download && (
+        <button type="button" className="btn btn-secondary btn-block" onClick={() => downloadReviewFile(submission.id)}>
+          <Icon name="download" /><span>Скачать файл с пометками</span>
+        </button>
+      )}
     </section>
   );
 }

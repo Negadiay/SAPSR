@@ -2,18 +2,46 @@ import { useState } from 'react';
 import AppHeader from '../../components/AppHeader';
 import CheckSteps from '../../components/CheckSteps';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import FindingList from '../../components/FindingList';
+import ReportView from '../../components/ReportView';
 import Icon from '../../components/Icon';
 import PrimaryAction from '../../components/PrimaryAction';
 import StatusLine from '../../components/StatusLine';
-import { downloadCommented, downloadReport } from '../../api/submissions';
-import { formatDate } from '../../lib/format';
+import { downloadCommented, downloadPdfVersion, downloadReport, downloadReviewFile } from '../../api/submissions';
+import { count, formatDate } from '../../lib/format';
 import { chainOf } from '../../lib/submissions';
 import { contentStep, formatStep, teacherStep, workStatus } from '../../lib/status';
 import { workTypeLabel } from '../../lib/workTypes';
 import TeacherComments from './TeacherComments';
 
-// Экран одной работы: ход проверки, замечания, комментарии преподавателя, версии и действия.
+// Итог преподавателя — первым на экране (решение 15): вердикт, число комментариев, файл с пометками
+// и, если работу вернули, кнопка новой версии.
+function TeacherVerdict({ submission, canResubmit, onUploadNew }) {
+  const approved = submission.teacher_verdict === 'APPROVED';
+  const comments = submission.review_annotations || 0;
+  return (
+    <section className={`teacher-verdict teacher-verdict-${approved ? 'ok' : 'revision'}`} aria-label="Решение преподавателя">
+      <h3 className="teacher-verdict-title">
+        <Icon name={approved ? 'ok' : 'revision'} />
+        <span>Преподаватель: {approved ? 'принято' : 'на доработку'}</span>
+      </h3>
+      {comments > 0 && (
+        <p className="hint">{count(comments, 'комментарий', 'комментария', 'комментариев')} в файле с пометками</p>
+      )}
+      {submission.teacher_comment && <blockquote className="teacher-note">{submission.teacher_comment}</blockquote>}
+      {submission.has_review_file && (
+        <button type="button" className="btn btn-secondary btn-block" onClick={() => downloadReviewFile(submission.id)}>
+          <Icon name="download" /><span>Скачать файл с пометками</span>
+        </button>
+      )}
+      {canResubmit && (
+        <PrimaryAction text="Загрузить новую версию"
+          onClick={() => onUploadNew({ teacherId: submission.teacher_id })} />
+      )}
+    </section>
+  );
+}
+
+// Экран одной работы: итог преподавателя и его комментарии, ход проверки, замечания, версии и действия.
 export default function WorkScreen({ id, works, header, onSelectVersion, onUploadNew, onWithdrawn }) {
   const { submissions, loaded, withdraw, withdrawing, error } = works;
   const [confirming, setConfirming] = useState(false);
@@ -49,19 +77,30 @@ export default function WorkScreen({ id, works, header, onSelectVersion, onUploa
         {s.teacher_name && <p className="hint">Преподаватель: {s.teacher_name}</p>}
       </div>
 
+      {s.source_format === 'docx' && (
+        <div className="docx-note">
+          <p className="hint">Работа проверена в PDF, номера страниц указаны по нему.</p>
+          <button type="button" className="link-btn" onClick={() => downloadPdfVersion(s.id)}>
+            <Icon name="download" />Скачать PDF-версию
+          </button>
+        </div>
+      )}
+
+      {s.teacher_verdict && (
+        <TeacherVerdict submission={s} canResubmit={canResubmit} onUploadNew={onUploadNew} />
+      )}
+      {s.teacher_verdict && s.has_review_file && <TeacherComments submission={s} download={false} />}
+
       <CheckSteps steps={[
         { title: 'Оформление', ...formatStep(s) },
         { title: 'Содержание', ...contentStep(s) },
         { title: 'Преподаватель', ...teacherStep(s) },
       ]} />
 
-      {canResubmit && (
+      {canResubmit && !s.teacher_verdict && (
         <PrimaryAction text="Загрузить новую версию"
           onClick={() => onUploadNew({ teacherId: s.teacher_id })} />
       )}
-
-      {s.teacher_comment && <blockquote className="teacher-note">{s.teacher_comment}</blockquote>}
-      {s.has_review_file && <TeacherComments submission={s} />}
       {commentedEarlier && (
         <button type="button" className="notice" onClick={() => onSelectVersion(commentedEarlier.id)}>
           <Icon name="comment" />
@@ -70,7 +109,7 @@ export default function WorkScreen({ id, works, header, onSelectVersion, onUploa
         </button>
       )}
 
-      <FindingList raw={s.format_errors} />
+      <ReportView submission={s} />
 
       {(hasReport || canWithdraw) && (
         <div className="actions">

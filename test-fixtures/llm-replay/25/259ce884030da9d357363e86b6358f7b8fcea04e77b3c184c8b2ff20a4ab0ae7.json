@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "259ce884030da9d357363e86b6358f7b8fcea04e77b3c184c8b2ff20a4ab0ae7",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0029]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"Для анализа содержания в системе используется нейросетевая языковая модель, которая находит противоречия в тексте записки.\"\n    }\n  ]\n}"
+}

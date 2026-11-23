@@ -75,6 +75,8 @@ def normalize_person_name(value: str) -> str:
 
 def font_display_name(font_name: str) -> str:
     """Имя шрифта для людей: «AAAAAA+TimesNewRomanPSMT» → «Times New Roman», «Arial,Bold» → «Arial»."""
+    if " " in (font_name or ""):  # уже читаемое имя («TeX Type 3»)
+        return font_name
     base = (font_name or "").split("+", 1)[-1]
     base = re.split(r"[,-]", base, maxsplit=1)[0]
     base = re.sub(r"(?:PSMT|PS|MT)$", "", base)

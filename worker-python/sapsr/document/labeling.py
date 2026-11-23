@@ -105,7 +105,8 @@ def compute_stats(raw: RawDocument, params: LayoutParams) -> DocStats:
                 continue
             weight = len(line.chars)
             size_w[line.size] += weight
-            font_w[line.font] += weight
+            if line.font:  # шрифт без имени основным не считается
+                font_w[line.font] += weight
     main_size = size_w.most_common(1)[0][0] if size_w else 0.0
     for page in pages:
         for line in page.lines:

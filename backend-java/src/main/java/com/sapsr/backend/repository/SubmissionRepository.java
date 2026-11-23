@@ -36,6 +36,13 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
     Optional<Submission> findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(
             Long studentTelegramId, Long teacherTelegramId);
 
+    /** Сколько студентов группы носят это ФИО — для пометки тёзки в уведомлении преподавателю (решение 4). */
+    @Query("""
+            select count(u) from User u
+            where u.role = 'STUDENT' and u.groupNumber = :group and u.nameKey = :nameKey
+            """)
+    long countStudentsNamed(@Param("group") String group, @Param("nameKey") String nameKey);
+
     /** Есть ли у работы более новая версия. */
     boolean existsByParentId(Integer parentId);
 

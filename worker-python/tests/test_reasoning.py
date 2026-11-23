@@ -149,6 +149,6 @@ def test_semester_requirements_stage_1_not_applicable(service_factory, model):
 
 @pytest.mark.typical
 def test_profile_not_found_warning(service_factory):
-    report = final_report(service_factory(llm=None), HYBRID / "content-clean.pdf", semester=5)
+    report = final_report(service_factory(llm=None), HYBRID / "content-clean.pdf", semester=3)
     assert report.profile.is_default
     assert {w.code for w in report.pipeline.warnings} == {"PROFILE_NOT_FOUND"}

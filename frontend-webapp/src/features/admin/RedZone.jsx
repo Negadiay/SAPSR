@@ -9,6 +9,8 @@ import { count, formatDate } from '../../lib/format';
 
 const MODES = { hybrid: 'правила и модель', symbolic: 'только правила', neural: 'только модель (сравнение)' };
 
+const LLM_MODES = { replay: 'записанные ответы', off: 'выключена', stub: 'тестовая', record: 'запись ответов' };
+
 const ago = (seconds) => {
   if (seconds < 60) return 'только что';
   const minutes = Math.round(seconds / 60);
@@ -19,21 +21,21 @@ function WorkerCard({ worker }) {
   if (!worker.known) {
     return (
       <section className="card redzone-worker">
-        <StatusLine tone="muted">Обработчик ещё не сообщил о себе — он делает это раз в минуту после запуска.</StatusLine>
+        <StatusLine tone="muted">Сервис проверки ещё не подключился. Обычно это занимает около минуты.</StatusLine>
       </section>
     );
   }
   return (
     <section className="card redzone-worker">
       <StatusLine tone={worker.online ? 'ok' : 'warning'}>
-        {worker.online ? 'Обработчик на связи' : 'Обработчик не на связи или занят долгой проверкой'}
+        {worker.online ? 'Сервис проверки работает' : 'Сервис проверки не отвечает или занят длинной работой'}
         <span className="hint"> · {ago(worker.seconds_ago)}</span>
       </StatusLine>
       <dl className="redzone-facts">
         <dt>Проверка</dt><dd>{MODES[worker.mode] || worker.mode || '—'}</dd>
         <dt>Облако</dt>
-        <dd>{worker.cloud_allowed ? 'разрешено на сервере' : 'запрещено на сервере (SAPSR_LLM_ALLOW_CLOUD)'}</dd>
-        {worker.llm_mode && worker.llm_mode !== 'live' && <><dt>Модель</dt><dd>режим {worker.llm_mode}</dd></>}
+        <dd>{worker.cloud_allowed ? 'разрешено' : 'выключено'}</dd>
+        {worker.llm_mode && worker.llm_mode !== 'live' && <><dt>Модель</dt><dd>{LLM_MODES[worker.llm_mode] || worker.llm_mode}</dd></>}
       </dl>
     </section>
   );
@@ -77,7 +79,7 @@ export default function RedZone({ redZone }) {
     <>
       <div className="redzone-banner" role="note">
         <Icon name="warning" />
-        <span>Изменения действуют сразу — для всех новых проверок, без перезапуска системы.</span>
+        <span>Изменения сразу действуют на все новые проверки.</span>
       </div>
       {error && <StatusLine tone="error" className="form-status" role="alert">{error}</StatusLine>}
 
@@ -86,7 +88,7 @@ export default function RedZone({ redZone }) {
       <section className="admin-section-plain">
         <p className="settings-label">Модель проверки</p>
         {system.models.length === 0 ? (
-          <p className="hint" data-tour="redzone-models">Список моделей появится, когда обработчик сообщит о себе.</p>
+          <p className="hint" data-tour="redzone-models">Список моделей появится, когда подключится сервис проверки.</p>
         ) : (
           <ul className="redzone-models" role="radiogroup" aria-label="Модель проверки" data-tour="redzone-models">
             {system.models.map((m) => (
@@ -97,7 +99,7 @@ export default function RedZone({ redZone }) {
         )}
         {activeModel && !activeModel.available && (
           <StatusLine tone="warning">
-            Выбранная модель сейчас недоступна — работы проверит модель по умолчанию, в отчёте это будет сказано.
+            Выбранная модель недоступна. Пока работы проверяет модель по умолчанию.
           </StatusLine>
         )}
         {system.changed_at && (
@@ -115,17 +117,15 @@ export default function RedZone({ redZone }) {
       <section className="card redzone-privacy">
         <p className="redzone-privacy-title"><Icon name="lock" /><span>Если выбрана облачная модель</span></p>
         <ul>
-          <li>Облако включает только сервер (настройка в .env) — из приложения адрес модели не задать.</li>
-          <li>Титульный лист в модель не отправляется; ФИО, почта, телефоны и номера групп заменяются метками.</li>
-          <li>Только по HTTPS и без перенаправлений; ключ доступа хранится на сервере, а не в приложении.</li>
-          <li>Студент при сдаче видит, что проверяет облачная модель; в отчёте — пометка.</li>
+          <li>Титульный лист не передаётся, а ФИО, почта, телефоны и номера групп в тексте скрываются.</li>
+          <li>Студенты увидят при сдаче, что работу проверяет облачный сервис.</li>
         </ul>
       </section>
 
       {cloudModel && (
         <ConfirmDialog title="Включить облачную модель?" danger confirmLabel="Включить облако"
-          body={`Фрагменты работ будут уходить стороннему сервису (${cloudModel.model || cloudModel.title}). `
-            + 'Персональные данные из текста убираются до отправки, а студенты увидят пометку при сдаче.'}
+          body={`Фрагменты работ будут отправляться во внешний сервис (${cloudModel.model || cloudModel.title}). `
+            + 'Личные данные перед отправкой скрываются, а студенты увидят это при сдаче.'}
           onConfirm={() => { chooseModel(cloudModel.id, true); setCloudModel(null); }}
           onCancel={() => setCloudModel(null)} />
       )}

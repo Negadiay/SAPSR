@@ -204,3 +204,31 @@ def test_pipeline_metadata(service_factory):
     assert {(pr.id, pr.version) for pr in p.prompts} == {("claims", "1")}
     assert [s.stage for s in p.stages] == ["extract", "structure", "format", "claims", "reasoning", "report"]
     assert any(w.code == "DEFAULT_PROFILE" for w in p.warnings)
+
+# ── требования семестра: явный пропуск (решение 16) ─────────────────────────
+
+def _no_requirements(report) -> list[str]:
+    return [s.message for s in report.pipeline.skipped if s.reason == "NO_REQUIREMENTS"]
+
+
+@pytest.mark.boundary
+def test_semester_without_requirements_is_reported(service_factory):
+    report = final_report(service_factory(), HYBRID / "content-clean.pdf", semester=3, stage=2)
+    assert _no_requirements(report) == [("В руководстве нет требований к курсовым работам для 3 семестра, "
+                                        "поэтому проверены оформление и согласованность текста.")]
+    assert report.requirements == [] and report.summary.content_checked
+
+
+@pytest.mark.boundary
+def test_diploma_without_requirements_is_reported(service_factory):
+    report = final_report(service_factory(), HYBRID / "content-clean.pdf", work_type="diploma", semester=8)
+    assert _no_requirements(report) == [("Дипломные работы пока проверяются только по оформлению "
+                                        "и согласованности текста.")]
+
+
+@pytest.mark.typical
+@pytest.mark.parametrize("semester", [4, 5, 6, 7])
+def test_semester_requirements_are_checked(service_factory, semester):
+    report = final_report(service_factory(), HYBRID / "content-clean.pdf", semester=semester, stage=3)
+    assert not _no_requirements(report)
+    assert report.requirements and all(r.id.startswith(f"REQ{semester}-") for r in report.requirements)

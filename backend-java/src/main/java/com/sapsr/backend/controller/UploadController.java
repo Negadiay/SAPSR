@@ -13,7 +13,11 @@ import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.service.BsuirApiService;
+import com.sapsr.backend.service.DocxConverter;
+import com.sapsr.backend.storage.FileKind;
 import com.sapsr.backend.service.EmailVerificationService;
+import com.sapsr.backend.service.Namesakes;
+import com.sapsr.backend.entity.NameKey;
 import com.sapsr.backend.storage.FileStorage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,8 +27,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.springframework.http.ContentDisposition;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,9 +56,18 @@ public class UploadController {
     private final ReviewFileService reviewFiles;
     private final AcademicCalendar calendar;
     private final LlmModels llmModels;
+    private final DocxConverter docxConverter;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
+
+    /** Секрет для ключей преподавателей без идентификатора ИИС (service/TeacherKey). */
+    @Value("${telegram.bot.token:}")
+    private String keySecret = "";
+
+    /** Предел размера работы, МБ (решение 15): предел Telegram на отправку файла ботом. */
+    @Value("${sapsr.upload.max-size-mb:50}")
+    private int maxUploadMb = 50;
 
     public UploadController(RabbitTemplate rabbitTemplate,
                             SubmissionRepository submissionRepository,
@@ -61,7 +78,9 @@ public class UploadController {
                             FileStorage fileStorage,
                             ReviewFileService reviewFiles,
                             AcademicCalendar calendar,
-                            LlmModels llmModels) {
+                            LlmModels llmModels,
+                            DocxConverter docxConverter) {
+        this.docxConverter = docxConverter;
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
@@ -82,7 +101,14 @@ public class UploadController {
         }
         Optional<User> user = userRepository.findById(telegramId);
         if (user.isPresent()) {
-            User u = user.get();
+            return ResponseEntity.ok(meView(user.get()));
+        }
+        return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
+    }
+
+    /** Свои данные пользователя — ответ GET /me и поле user после регистрации (api-v1.md, раздел 5). */
+    private Map<String, Object> meView(User u) {
+        {
             // Свои данные для экрана настроек (api-v1.md, раздел 5); имя и отчество у старых аккаунтов пусты.
             Map<String, Object> me = new LinkedHashMap<>();
             me.put("telegram_id", u.getTelegramId());
@@ -91,6 +117,7 @@ public class UploadController {
             me.put("last_name", u.getLastName());
             me.put("first_name", u.getFirstName());
             me.put("middle_name", u.getMiddleName());
+            me.put("max_upload_mb", maxUploadMb);
             if ("STUDENT".equals(u.getRole())) {
                 me.put("group", u.getGroupNumber());
                 // Курс, семестр и этап определяет сервер (решение 11): студент их видит, но не выбирает.
@@ -103,10 +130,38 @@ public class UploadController {
                 me.put("course_overridden", term.courseOverridden());
                 // Проверяет облачная модель (её выбрал администратор) — студенту говорится об этом при сдаче.
                 me.put("cloud_check", llmModels.cloudActive());
+                // Номер виден, только если тёзка есть: «Среди студентов группы с таким же ФИО вы — №2».
+                me.put("namesake_number", Namesakes.hasNamesake(userRepository, u) ? u.getNamesakeNumber() : null);
             }
-            return ResponseEntity.ok(me);
+            return me;
         }
-        return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
+    }
+
+    /** Проверяет и записывает last_name, first_name, middle_name; сохраняет студента с номером тёзки. */
+    private Optional<ResponseEntity<?>> applyNameFields(User user, Map<String, ?> body) {
+        String last = NameKey.clean(text(body.get("last_name")));
+        String first = NameKey.clean(text(body.get("first_name")));
+        String rawMiddle = text(body.get("middle_name"));
+        String middle = rawMiddle == null || rawMiddle.isBlank() ? null : NameKey.clean(rawMiddle);
+        String hint = " — от 1 до 100 букв кириллицы, можно дефис и пробел.";
+        if (last == null) return Optional.of(ApiErrors.error(400, "VALIDATION_ERROR", "Фамилия" + hint, "last_name"));
+        if (first == null) return Optional.of(ApiErrors.error(400, "VALIDATION_ERROR", "Имя" + hint, "first_name"));
+        if (rawMiddle != null && !rawMiddle.isBlank() && middle == null) {
+            return Optional.of(ApiErrors.error(400, "VALIDATION_ERROR", "Отчество" + hint, "middle_name"));
+        }
+        String previousKey = user.getNameKey();
+        String previousGroup = user.getNamesakeNumber() == null ? null : user.getGroupNumber();
+        user.setLastName(last);
+        user.setFirstName(first);
+        user.setMiddleName(middle);
+        String full = last + " " + first + (middle == null ? "" : " " + middle);
+        user.setFullName(full + " (гр. " + user.getGroupNumber() + ")");
+        Namesakes.saveStudent(userRepository, user, previousKey, previousGroup);
+        return Optional.empty();
+    }
+
+    private static String text(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     @PostMapping("/register")
@@ -126,8 +181,43 @@ public class UploadController {
                     "error", "Это аккаунт администратора. Для учёбы нужен другой аккаунт Telegram."));
         }
 
+        // Один аккаунт Telegram — один человек (решение 15): повторная регистрация ничего не меняет.
+        if (current.isPresent() && ("STUDENT".equals(current.get().getRole())
+                || "TEACHER".equals(current.get().getRole()))) {
+            return ApiErrors.error(409, "ALREADY_REGISTERED", "Вы уже зарегистрированы. Если в данных ошибка, обратитесь к администратору.");
+        }
+
         if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Неизвестная роль."));
+        }
+
+        // Студент по полям (api-v1.md, раздел 4): фамилия, имя, отчество и группа по отдельности.
+        if ("STUDENT".equals(role) && body.containsKey("last_name")) {
+            String group = body.getOrDefault("group", "").trim();
+            if (!group.matches("\\d{6}")) {
+                return ApiErrors.error(400, "VALIDATION_ERROR", "Номер группы — шесть цифр.", "group");
+            }
+            try {
+                if (!bsuirApiService.groupExists(group)) {
+                    return ApiErrors.error(400, "GROUP_NOT_FOUND",
+                            "Группы " + group + " нет в ИИС БГУИР. Проверьте номер.", "group");
+                }
+            } catch (BsuirApiService.IisUnavailableException e) {
+                return ApiErrors.error(503, "IIS_UNAVAILABLE", "ИИС БГУИР не отвечает, номер группы не проверить. "
+                        + "Попробуйте позже.");
+            }
+            User user = new User();
+            user.setTelegramId(telegramId);
+            user.setRole(role);
+            user.setGroupNumber(group);
+            Optional<ResponseEntity<?>> invalid = applyNameFields(user, body);
+            if (invalid.isPresent()) return invalid.get();
+            Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("status", "OK");
+            answer.put("role", role);
+            answer.put("full_name", user.getFullName());
+            answer.put("user", meView(user));
+            return ResponseEntity.ok(answer);
         }
 
         String groupNumber = null;
@@ -137,7 +227,14 @@ public class UploadController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Пример: Иванов И.И., 321702"));
             }
             groupNumber = name.group(1);
-            if (!bsuirApiService.groupExists(groupNumber)) {
+            boolean exists;
+            try {
+                exists = bsuirApiService.groupExists(groupNumber);
+            } catch (BsuirApiService.IisUnavailableException e) {
+                return ApiErrors.error(503, "IIS_UNAVAILABLE", "ИИС БГУИР не отвечает, номер группы не проверить. "
+                        + "Попробуйте позже.");
+            }
+            if (!exists) {
                 return ResponseEntity.badRequest().body(Map.of("error",
                         "Группы " + groupNumber + " нет в ИИС БГУИР. Проверьте номер."));
             }
@@ -182,6 +279,11 @@ public class UploadController {
         user.setFullName(fullName);
         setNameParts(user, fullName, groupNumber);
         if (email != null) user.setEmail(email);
+        if ("STUDENT".equals(role)) {
+            // Старая форма «Иванов И.И. (гр. 321702)» — на переходный период; номер тёзки выдаётся так же.
+            Namesakes.saveStudent(userRepository, user, null, null);
+            return ResponseEntity.ok(Map.of("status", "OK", "role", role, "full_name", fullName));
+        }
         if (urlIdToSave != null) {
             user.setUrlId(urlIdToSave);
             // Сохраняем список групп преподавателя для быстрой фильтрации
@@ -243,7 +345,8 @@ public class UploadController {
             item.put("version", version(s.getId(), parents));
             item.put("work_type", s.getWorkType());
             if (s.getTeacher() != null) {
-                item.put("teacher_id", s.getTeacher().getTelegramId());
+                // Ключ преподавателя, как в GET /teachers, а не его Telegram ID (план Котко, К7).
+                item.put("teacher_id", com.sapsr.backend.service.TeacherKey.of(s.getTeacher(), keySecret));
                 item.put("teacher_name", s.getTeacher().displayName());
             }
             // Ход проверки (queue-v2.md, разделы 4 и 6): этап для индикатора и идёт ли ещё проверка содержания.
@@ -255,6 +358,8 @@ public class UploadController {
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
             item.put("file_name", s.displayFileName());
+            // Сдана в DOCX — проверялась PDF-версия, номера страниц в замечаниях относятся к ней (решение 3).
+            item.put("source_format", s.getSourceFormat());
             // Комментарии преподавателя в файле видны студенту только после вердикта.
             boolean reviewed = s.getTeacherVerdict() != null && !s.getTeacherVerdict().isBlank();
             item.put("review_annotations", reviewed ? reviewFiles.countAnnotations(s.getId()) : 0);
@@ -305,11 +410,55 @@ public class UploadController {
 
     // Файл удаляется вместе с записью (решение 7). Если удалить не вышло, работа всё равно считается отозванной.
     private void deleteStoredFile(Submission s) {
-        if (s.getStorageKey() == null) return;
+        for (String key : new String[] {s.getStorageKey(), s.getSourceStorageKey()}) {
+            if (key == null) continue;
+            try {
+                fileStorage.delete(key);
+            } catch (IOException | IllegalArgumentException e) {
+                System.err.println("[WITHDRAW] Не удалось удалить файл работы #" + s.getId() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /** PDF-версия работы — та, что проверялась (api-v1.md, раздел 18): автору и преподавателю работы. */
+    @GetMapping("/submissions/{id}/pdf")
+    public ResponseEntity<?> getPdf(@PathVariable Integer id, HttpServletRequest request) {
+        return download(id, request, false);
+    }
+
+    /** Исходный DOCX работы, сданной в Word (api-v1.md, раздел 18): автору и преподавателю работы. */
+    @GetMapping("/submissions/{id}/source")
+    public ResponseEntity<?> getSource(@PathVariable Integer id, HttpServletRequest request) {
+        return download(id, request, true);
+    }
+
+    private ResponseEntity<?> download(Integer id, HttpServletRequest request, boolean source) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) return ApiErrors.error(401, "UNAUTHORIZED", NOT_IN_TELEGRAM);
+        Optional<Submission> opt = submissionRepository.findById(id);
+        if (opt.isEmpty()) return ApiErrors.error(404, "NOT_FOUND", "Работа не найдена. Возможно, её отозвали.");
+        Submission s = opt.get();
+        boolean isStudent = s.getStudent() != null && s.getStudent().getTelegramId().equals(telegramId);
+        boolean isTeacher = s.getTeacher() != null && s.getTeacher().getTelegramId().equals(telegramId);
+        if (!(isStudent || isTeacher)) return ApiErrors.error(403, "FORBIDDEN", "Это не ваша работа.");
+        String key = source ? s.getSourceStorageKey() : s.getStorageKey();
+        if (key == null) {
+            return ApiErrors.error(404, "NOT_FOUND", source ? "Работа сдана в PDF — исходного DOCX нет." : "Файл не найден.");
+        }
         try {
-            fileStorage.delete(s.getStorageKey());
+            Path path = fileStorage.resolve(key);
+            if (!Files.isRegularFile(path)) return ApiErrors.error(404, "NOT_FOUND", "Файл не найден.");
+            ContentDisposition disposition = ContentDisposition.attachment()
+                    .filename(source ? s.displayFileName() : s.pdfFileName(), StandardCharsets.UTF_8).build();
+            return ResponseEntity.ok()
+                    .header("Content-Type", source
+                            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            : "application/pdf")
+                    .header("Content-Disposition", disposition.toString())
+                    .body(Files.readAllBytes(path));
         } catch (IOException | IllegalArgumentException e) {
-            System.err.println("[WITHDRAW] Не удалось удалить файл работы #" + s.getId() + ": " + e.getMessage());
+            System.err.println("[DOWNLOAD] Не удалось отдать файл работы #" + id + ": " + e.getMessage());
+            return ApiErrors.error(500, "INTERNAL", "Не удалось открыть файл. Попробуйте ещё раз.");
         }
     }
 
@@ -357,16 +506,66 @@ public class UploadController {
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
-                                        @RequestParam(value = "teacher_id", required = false) Long teacherId,
+                                        @RequestParam(value = "teacher_id", required = false) String teacherId,
                                         HttpServletRequest request) {
+        // Сдавать работы может только студент, и только преподавателю (план Котко, К7).
+        Long uploaderId = (Long) request.getAttribute("telegram_id");
+        if (uploaderId == null) return ApiErrors.error(401, "UNAUTHORIZED", NOT_IN_TELEGRAM);
+        Optional<User> uploader = userRepository.findById(uploaderId);
+        if (uploader.isEmpty() || !"STUDENT".equals(uploader.get().getRole())) {
+            return ApiErrors.error(403, "FORBIDDEN", "Сдавать работы может только студент.");
+        }
+        User chosenTeacher = null;
+        if (teacherId != null && !teacherId.isBlank()) {
+            chosenTeacher = findTeacher(teacherId.strip()).orElse(null);
+            if (chosenTeacher == null) {
+                return ApiErrors.error(400, "VALIDATION_ERROR", "Преподаватель не найден. Выберите его из списка.",
+                        "teacher_id");
+            }
+        }
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой."));
+        }
+        if (ApiErrors.tooLarge(file.getSize(), maxUploadMb)) {
+            return ApiErrors.fileTooLarge(maxUploadMb);
+        }
+
+        // Вид файла — по содержимому (решение 3): PDF проверяется как есть, DOCX сначала становится PDF.
+        byte[] original;
+        try {
+            original = file.getBytes();
+        } catch (IOException e) {
+            System.err.println("[UPLOAD] Не удалось прочитать файл: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", "Не удалось сохранить файл. Попробуйте ещё раз."));
+        }
+        FileKind kind = FileKind.of(original);
+        if (kind == FileKind.UNKNOWN) {
+            return ApiErrors.error(400, "UNSUPPORTED_FORMAT", "Нужен файл PDF или DOCX.");
+        }
+        byte[] pdf = original;
+        if (kind == FileKind.DOCX) {
+            try {
+                pdf = docxConverter.toPdf(original);
+            } catch (DocxConverter.ConversionException e) {
+                System.err.println("[UPLOAD] DOCX не преобразован в PDF: " + e.getMessage());
+                return ApiErrors.error(422, "CONVERSION_FAILED",
+                        "Не получилось преобразовать DOCX в PDF. Сохраните работу в PDF и загрузите его.");
+            }
         }
 
         // На диск файл попадает под сгенерированным ключом; имя от пользователя — только в базу.
         FileStorage.StoredFile stored;
-        try (InputStream content = file.getInputStream()) {
-            stored = fileStorage.store(content, TaskMessage.SOURCE_FORMAT_PDF);
+        String sourceKey = null;
+        try {
+            stored = fileStorage.store(new ByteArrayInputStream(pdf), TaskMessage.SOURCE_FORMAT_PDF);
+            if (kind == FileKind.DOCX) {
+                try {
+                    sourceKey = fileStorage.store(new ByteArrayInputStream(original), kind.extension()).key();
+                } catch (IOException e) {
+                    fileStorage.delete(stored.key());
+                    throw e;
+                }
+            }
         } catch (IOException e) {
             System.err.println("[UPLOAD] Не удалось сохранить файл: " + e.getMessage());
             return ResponseEntity.internalServerError().body(Map.of("error", "Не удалось сохранить файл. Попробуйте ещё раз."));
@@ -374,17 +573,15 @@ public class UploadController {
 
         Submission submission = new Submission();
         submission.setStorageKey(stored.key());
+        submission.setSourceStorageKey(sourceKey);
+        submission.setSourceFormat(kind.extension());
         submission.setFileSha256(stored.sha256());
         submission.setOriginalFileName(Submission.cleanFileName(file.getOriginalFilename()));
         submission.setTraceId(UUID.randomUUID());
         // В очереди, пока обработчик не начал: первое сообщение о ходе проверки переведёт в PROCESSING.
         submission.setStatus(PipelineState.QUEUED);
 
-        Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId != null) {
-            Optional<User> student = userRepository.findById(telegramId);
-            student.ifPresent(submission::setStudent);
-        }
+        submission.setStudent(uploader.get());
         AcademicCalendar.Term term = calendar.termFor(
                 submission.getStudent() != null ? submission.getStudent().getGroupNumber() : null);
         submission.setSemester(term.semester());
@@ -392,10 +589,7 @@ public class UploadController {
         // Курсовая работа или проект станет известна из титульного листа (PipelineState); дипломная — сразу.
         submission.setWorkType(WorkTypes.atUpload(term.semester()));
 
-        if (teacherId != null) {
-            Optional<User> teacher = userRepository.findById(teacherId);
-            teacher.ifPresent(submission::setTeacher);
-        }
+        if (chosenTeacher != null) submission.setTeacher(chosenTeacher);
         linkPreviousVersion(submission);
 
         Submission savedSubmission = submissionRepository.save(submission);
@@ -412,6 +606,16 @@ public class UploadController {
                 "message", "Работа отправлена на проверку.",
                 "db_id", savedSubmission.getId()
         ));
+    }
+
+    /**
+     * Преподаватель по ключу из GET /teachers; на переходный период принимается и Telegram ID —
+     * но только пользователя с ролью преподавателя.
+     */
+    private Optional<User> findTeacher(String key) {
+        Optional<User> byKey = com.sapsr.backend.service.TeacherKey.find(userRepository.findByRole("TEACHER"), key, keySecret);
+        if (byKey.isPresent() || !key.matches("\\d{1,18}")) return byKey;
+        return userRepository.findById(Long.parseLong(key)).filter(u -> "TEACHER".equals(u.getRole()));
     }
 
     /**

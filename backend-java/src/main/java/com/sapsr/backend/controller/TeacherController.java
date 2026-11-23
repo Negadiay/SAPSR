@@ -20,6 +20,10 @@ public class TeacherController {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** Секрет для ключей преподавателей без идентификатора ИИС (service/TeacherKey). */
+    @org.springframework.beans.factory.annotation.Value("${telegram.bot.token:}")
+    private String keySecret = "";
+
     public TeacherController(UserRepository userRepository, BsuirApiService bsuirApiService) {
         this.userRepository = userRepository;
         this.bsuirApiService = bsuirApiService;
@@ -70,8 +74,9 @@ public class TeacherController {
         if (filtered == null) filtered = allTeachers;
 
         List<Map<String, Object>> result = filtered.stream()
+                // Telegram ID преподавателя студенту не отдаётся: только ключ, по которому его найдёт POST /upload.
                 .map(t -> Map.<String, Object>of(
-                        "telegram_id", t.getTelegramId(),
+                        "id", com.sapsr.backend.service.TeacherKey.of(t, keySecret),
                         "full_name", t.getFullName() != null ? t.getFullName() : "Без имени"
                 ))
                 .toList();

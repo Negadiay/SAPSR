@@ -162,7 +162,7 @@ describe('администратор', () => {
 
     // Группа не из текущих курсов (первая цифра 9): курс по ней не задать, но люди видны.
     await user.click(screen.getByRole('button', { name: '921701' }));
-    expect(screen.getByText('Не из текущих курсов')).toBeInTheDocument();
+    expect(screen.getByText('Группа не относится к текущим курсам')).toBeInTheDocument();
     expect(screen.queryByLabelText('Курс')).toBeNull();
   });
 
@@ -240,30 +240,17 @@ describe('администратор', () => {
     expect(screen.getByText('Иванов Иван Иванович')).toBeInTheDocument();
   });
 
-  it('новая группа — в свёрнутом разделе; первая цифра — только из возможных в этом году', async () => {
-    const { api, user } = start({ ...adminRoutes, 'PUT /admin/groups/561003/course': CALENDAR });
+  it('новую группу создать нельзя; при правке студента первая цифра — только из возможных', async () => {
+    const { user } = start(adminRoutes);
     await ready();
-    expect(screen.queryByLabelText('Номер группы')).toBeNull();
-    await user.click(screen.getByRole('button', { name: /Новая группа/ }));
-    const add = screen.getByRole('button', { name: 'Добавить' });
-    const number = screen.getByLabelText('Номер группы');
-
-    await user.type(number, '0');
-    expect(number).toHaveValue('');
+    expect(screen.queryByRole('button', { name: /Новая группа/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: '321702' }));
+    await user.click(await screen.findByRole('button', { name: 'Изменить: Терешкова Ана Викторовна' }));
+    const group = screen.getByLabelText('Группа');
+    await user.clear(group);
+    await user.type(group, '0');
+    expect(group).toHaveValue('');
     expect(screen.getByText('Первая цифра — 3, 4, 5 или 6')).toBeInTheDocument();
-    await user.type(number, '45a1003');
-    expect(number).toHaveValue('451003');
-    expect(screen.queryByText('Первая цифра — 3, 4, 5 или 6')).toBeNull();
-    // Такая группа уже есть — курс ей меняют в её карточке, а не «добавлением».
-    await user.selectOptions(screen.getByLabelText('Курс новой группы'), '3');
-    expect(screen.getByText('Группа уже есть — курс меняется в ней.')).toBeInTheDocument();
-    expect(add).toBeDisabled();
-
-    await user.clear(number);
-    await user.type(number, '561003');
-    await user.click(add);
-    await waitFor(() => expect(api.find('PUT', '/admin/groups/561003/course')).toHaveLength(1));
-    expect(api.find('PUT', '/admin/groups/561003/course')[0].body).toEqual({ course: 3 });
   });
 
   it('удаляет пустую группу, добавленную вручную, после подтверждения', async () => {
@@ -342,7 +329,7 @@ describe('администратор: красная зона', () => {
   const openRedZone = async (user) => {
     await ready();
     await user.click(screen.getByRole('tab', { name: /Красная зона/ }));
-    return screen.findByText('Обработчик на связи');
+    return screen.findByText('Сервис проверки работает');
   };
 
   it('видит обработчик и модели; недоступную не выбрать; выбор действует сразу', async () => {
@@ -352,8 +339,8 @@ describe('администратор: красная зона', () => {
       'PUT /admin/system/model': ({ body }) => system(body.model),
     });
     await openRedZone(user);
-    expect(screen.getByText(/Изменения действуют сразу/)).toBeInTheDocument();
-    expect(screen.getByText('разрешено на сервере')).toBeInTheDocument();
+    expect(screen.getByText(/Изменения сразу действуют/)).toBeInTheDocument();
+    expect(screen.getByText('разрешено')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Основная/ })).toHaveAttribute('aria-checked', 'true');
     const heavy = screen.getByRole('radio', { name: /Тяжёлая/ });
     expect(heavy).toBeDisabled();
@@ -380,7 +367,7 @@ describe('администратор: красная зона', () => {
 
     await user.click(screen.getByRole('radio', { name: /Облачная/ }));
     expect(screen.getByText('Включить облачную модель?')).toBeInTheDocument();
-    expect(within(dialog()).getByText(/стороннему сервису \(yandexgpt\)/)).toBeInTheDocument();
+    expect(within(dialog()).getByText(/во внешний сервис \(yandexgpt\)/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Отмена' }));
     expect(api.find('PUT', '/admin/system/model')).toHaveLength(0);
 
@@ -397,7 +384,7 @@ describe('администратор: красная зона', () => {
     });
     await ready();
     await user.click(screen.getByRole('tab', { name: /Красная зона/ }));
-    expect(await screen.findByText(/Обработчик ещё не сообщил о себе/)).toBeInTheDocument();
+    expect(await screen.findByText(/Сервис проверки ещё не подключился/)).toBeInTheDocument();
     expect(screen.getByText(/Список моделей появится/)).toBeInTheDocument();
   });
 });

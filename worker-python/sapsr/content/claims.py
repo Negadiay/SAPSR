@@ -121,18 +121,19 @@ def extract_claims(doc: Document, fragments: list[Fragment], llm: LlmClient, pro
         except LlmSchemaError:
             stats.fragments_failed += 1
             skipped.append(SkippedCheck(id=fragment.id, stage="claims", reason="LLM_SCHEMA",
-                                        message=f"Раздел «{fragment.section_label}»: ответ модели дважды "
-                                                "не прошёл JSON-схему, раздел пропущен."))
+                                        message=f"Раздел «{fragment.section_label}» не проверен: "
+                                                "нейросеть вернула некорректный ответ."))
             continue
         except LlmTimeout:
             stats.fragments_failed += 1
             skipped.append(SkippedCheck(id=fragment.id, stage="claims", reason="TIMEOUT",
-                                        message=f"Раздел «{fragment.section_label}»: модель не ответила вовремя."))
+                                        message=f"Раздел «{fragment.section_label}» не проверен: нейросеть не ответила вовремя."))
             continue
         except LlmError as exc:
             stats.fragments_failed += 1
+            log.warning("модель недоступна", extra={"fields": {"fragment": fragment.id, "error": str(exc)}})
             skipped.append(SkippedCheck(id=fragment.id, stage="claims", reason="LLM_UNAVAILABLE",
-                                        message=f"Раздел «{fragment.section_label}»: {exc}"))
+                                        message=f"Раздел «{fragment.section_label}» не проверен: нейросеть недоступна."))
             continue
 
         for out in result.data.claims:

@@ -24,3 +24,5 @@ def test_expected(service_factory, name):
     report = final_report(service_factory(), HYBRID / name)
     assert report.summary.passed is expected["passed"]
     assert sorted(f.requirement_id for f in report.findings) == sorted(expected["findings"])
+    # Имя шрифта без названия в текст замечаний не попадает (решение 15).
+    assert not any("unknown" in f"{f.message} {f.found or ''} {f.expected or ''}".lower() for f in report.findings)

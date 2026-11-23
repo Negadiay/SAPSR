@@ -238,6 +238,21 @@ input, select, textarea { font-size: max(16px, 1em); }
 
 .field-label { font-weight: 600; font-size: 0.93em; }
 .field-error { color: var(--error); font-size: 0.87em; font-weight: 600; }
+.check-row { display: flex; align-items: center; gap: 0.5em; min-height: 2.4em; font-size: 0.93em; }
+.check-row input { width: 1.2em; height: 1.2em; }
+
+/* Тёзка в списках преподавателя: подпись словом, не цветом */
+.namesake-badge {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0 0.45em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--hint);
+  font-size: 0.75em;
+  font-weight: 600;
+  vertical-align: middle;
+}
 
 .input {
   width: 100%;
@@ -432,6 +447,25 @@ input[type="search"].input { -webkit-appearance: none; }
   border-radius: 0 var(--radius) var(--radius) 0;
   white-space: pre-line;
 }
+
+.docx-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3em 0.8em; }
+
+/* Решение преподавателя — первым на экране работы (решение 15) */
+.teacher-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.8em 0.9em;
+  border: var(--border) solid var(--line);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher-verdict-ok { border-left-color: var(--ok); }
+.teacher-verdict-title { display: flex; align-items: center; gap: 0.45em; margin: 0; font-size: 1.05em; font-weight: 700; }
+.teacher-verdict-title .icon { width: 1.2em; height: 1.2em; color: var(--warning); }
+.teacher-verdict-ok .teacher-verdict-title .icon { color: var(--ok); }
 
 .notice {
   display: flex;
@@ -636,6 +670,15 @@ input[type="search"].input { -webkit-appearance: none; }
 }
 
 .dialog-actions .btn { flex: 1 1 7em; }
+
+.dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-height: 45vh;
+  margin-top: 1em;
+  overflow-y: auto;
+}
 
 /* --- ВХОД --- */
 .entry { padding-top: 1.5em; }

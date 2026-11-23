@@ -29,7 +29,7 @@ public final class WorkFileName {
 
     /** Имя для скачивания: по форме, если её можно собрать, иначе — как загрузил студент. */
     public static String forDownload(Submission submission) {
-        return of(submission).map(name -> name + ".pdf").orElse(submission.displayFileName());
+        return of(submission).map(name -> name + ".pdf").orElse(submission.pdfFileName());
     }
 
     private static String lastName(User student) {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AppHeader from '../../components/AppHeader';
 import Icon from '../../components/Icon';
+import StudentName from '../../components/StudentName';
 import StatusLine from '../../components/StatusLine';
 import { formatDate } from '../../lib/format';
 import { autoCheckForTeacher } from '../../lib/status';
@@ -21,7 +22,7 @@ function WorkCard({ s, onOpen }) {
     <button type="button" className="card card-link" onClick={() => onOpen(s.id)}>
       <span className="card-main">
         <span className="card-title">
-          {s.student_name || 'Студент'}
+          <StudentName submission={s} />
           {s.student_group && <span className="card-title-extra"> · {s.student_group}</span>}
         </span>
         <span className="card-subtitle">{s.file_name}</span>

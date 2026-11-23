@@ -11,6 +11,7 @@ import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
+import com.sapsr.backend.service.Namesakes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ import java.util.Optional;
  * в content-timeout. В последнем случае содержание ещё проверяется (LATE): работа уходит с отчётом по оформлению
  * и пометкой «итог придёт следом», а когда содержание догонит — преподаватель получает второе сообщение с
  * итогом и файлом с комментариями. Окончательно «не успело» (TIMEOUT) — только если и за stuck-timeout с фазы
- * format итога нет: обработчик сам укладывается в 9 минут, значит, он упал.
+ * format итога нет: обработчик сам укладывается в 40 минут, значит, он упал.
  *
  * Отклонённая по оформлению работа видна у преподавателя в очереди сразу (решение 9), а уведомление приходит
  * с полным отчётом. Студент получает одно сообщение на работу: итог оформления сразу, а итог содержания бот
@@ -344,8 +345,12 @@ public class PipelineState {
         return s.getTeacherVerdict() != null && !s.getTeacherVerdict().isBlank();
     }
 
-    private static String studentName(User student) {
-        return student != null && !student.displayName().isEmpty() ? student.displayName() : "Студент";
+    /** ФИО студента для преподавателя; у тёзки — с номером: «Иванов Иван Иванович (2)» (решение 4). */
+    private String studentName(User student) {
+        if (student == null || student.displayName().isEmpty()) return "Студент";
+        boolean namesake = student.getNameKey() != null && student.getGroupNumber() != null
+                && submissions.countStudentsNamed(student.getGroupNumber(), student.getNameKey()) > 1;
+        return Namesakes.label(student.displayName(), student.getNamesakeNumber(), namesake);
     }
 
     private static void storeReport(Submission s, JsonNode report) {

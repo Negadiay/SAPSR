@@ -324,3 +324,40 @@ def test_cloud_check_in_pipeline_is_marked_and_still_finds_contradiction(kb, dir
     # Цитаты сверены с настоящим текстом — противоречие найдено, как и локальной моделью.
     assert any(f.requirement_id == "CNT-CONSIST-002" for f in report.findings)
     assert all("321702" not in call["user"] for call in model.calls)
+
+@pytest.mark.boundary
+def test_full_names_of_other_people_are_redacted():
+    redactor = Redactor()
+    text = ("Руководитель проекта — Сидоренко Семён Семёнович. Консультировала Гракова Наталья Викторовна; "
+            "отзыв Петрова Петра Ильича приложен. Модель разметки Docling и База Знаний Системы — не люди.")
+    safe = redactor.redact(text)
+    for secret in ("Сидоренко", "Семёнович", "Гракова", "Викторовна", "Ильича"):
+        assert secret not in safe, secret
+    assert "Docling" in safe and "База Знаний Системы" in safe
+    assert redactor.restore(safe) == text
+
+
+@pytest.mark.boundary
+def test_personal_data_in_sections_does_not_reach_cloud_model(kb, directory):
+    """Решение 13, задача 13.2: ФИО, почта, телефон и группа из текста разделов в облако не уходят."""
+    class CloudStub(LlmClient):
+        @property
+        def is_cloud(self):
+            return True
+
+    model = ScriptedModel()
+    cloud = CloudStub(LlmConfig(mode="stub", model="big-model", provider="openai", allow_cloud=True,
+                                base_url="https://llm.example.com/v1", api_key="k"), stub=model)
+    service = CheckService(kb, LlmRegistry.single(cloud), directory, clock=lambda: NOW)
+    pdf = HYBRID / "personal-data.pdf"
+    task = make_task(pdf, semester=7, stage=3,
+                     student={"last_name": "Иванов", "first_name": "Иван", "group": "321702"})
+    report = list(service.check(task, pdf))[-1].report
+
+    assert model.calls, "модель вызывалась"
+    sent = "\n".join(call["user"] for call in model.calls)
+    for secret in ("Сидоренко", "Семёнович", "sidorenko@example.com", "123-45-67", "321702", "Иванов Иван"):
+        assert secret not in sent, secret
+    assert "[ФИО-" in sent and "[ПОЧТА-1]" in sent and "[ТЕЛЕФОН-1]" in sent
+    assert report.pipeline.metrics["pd_redacted"] >= 4
+    assert report.summary.content_checked

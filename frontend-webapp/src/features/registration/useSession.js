@@ -56,6 +56,6 @@ export function useSession() {
 
   return {
     step, setStep, userRole, setUserRole, registeredRole,
-    currentUserId, setCurrentUserId, enter, signOut, profile, refreshProfile,
+    currentUserId, setCurrentUserId, enter, signOut, profile, setProfile, refreshProfile,
   };
 }

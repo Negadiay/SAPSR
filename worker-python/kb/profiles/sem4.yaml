@@ -1,0 +1,14 @@
+# 4-й семестр: базовые правила оформления + требования методички к базе знаний (решение 16).
+# Этапы опроцентовки — поле stages у требования (kb/requirements/sem4.yaml).
+id: sem4
+title: 4-й семестр — курсовой проект по базе знаний
+extends: base
+match:
+  semesters: [4]
+
+rules:
+  include: all
+  exclude: ["NEURAL-*"]
+
+content:
+  requirement_sets: [sem4]

@@ -30,6 +30,13 @@ public class BsuirApiService {
     private final Map<String, Set<String>> emailCache = new ConcurrentHashMap<>();
     private final Map<String, CachedTeacherInfo> teacherByEmailCache = new ConcurrentHashMap<>();
     private final Set<String> knownGroupsCache = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Группы, которые считаются существующими без запроса к ИИС, через запятую. Для изолированного сквозного
+     * прогона (scripts/e2e.ps1) и на случай, когда ИИС долго недоступна; по умолчанию пусто.
+     */
+    @org.springframework.beans.factory.annotation.Value("${sapsr.iis.known-groups:}")
+    private String knownGroupsSetting = "";
     public Set<String> getTeachersForGroup(String groupNumber) {
         return cache.computeIfAbsent(groupNumber, this::fetchFromApi);
     }
@@ -209,9 +216,16 @@ public class BsuirApiService {
         }
     }
 
+    /**
+     * Есть ли группа в ИИС. ИИС не ответила — {@link IisUnavailableException}: студенту нужно сказать
+     * «попробуйте позже», а не «такой группы нет» (api-v1.md, раздел 4, код IIS_UNAVAILABLE).
+     */
     public boolean groupExists(String groupNumber) {
         if (groupNumber == null || !groupNumber.matches("\\d{6}")) return false;
         if (knownGroupsCache.contains(groupNumber)) return true;
+        if (knownGroupsSetting != null && Arrays.asList(knownGroupsSetting.split("\\s*,\\s*")).contains(groupNumber)) {
+            return true;
+        }
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(STUDENT_GROUPS_URL))
@@ -221,19 +235,26 @@ public class BsuirApiService {
                     .build();
 
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) return false;
-
+            if (response.statusCode() != 200) {
+                throw new IisUnavailableException("ИИС ответила " + response.statusCode());
+            }
             JsonNode groups = objectMapper.readTree(response.body());
-            if (!groups.isArray()) return false;
+            if (!groups.isArray()) throw new IisUnavailableException("ИИС вернула не список групп");
 
             for (JsonNode group : groups) {
                 String name = text(group, "name");
                 if (name != null) knownGroupsCache.add(name);
             }
             return knownGroupsCache.contains(groupNumber);
+        } catch (IisUnavailableException e) {
+            System.err.println("[BSUIR API] Не удалось проверить группу " + groupNumber + ": " + e.getMessage());
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IisUnavailableException("проверка группы прервана");
         } catch (Exception e) {
             System.err.println("[BSUIR API] Не удалось проверить группу " + groupNumber + ": " + e.getMessage());
-            return false;
+            throw new IisUnavailableException(e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 

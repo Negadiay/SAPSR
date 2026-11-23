@@ -20,10 +20,17 @@ import pdfplumber
 from pdfminer.pdfdocument import PDFEncryptionError, PDFPasswordIncorrect
 from pdfplumber.utils.exceptions import PdfminerException
 
+from sapsr.document import t2a
 from sapsr.document.model import HiddenFragment
 from sapsr.document.text import clean_line, is_bold_font, is_italic_font
 from sapsr.errors import CheckFailure
 from sapsr.kb.schema import LayoutParams
+
+# Растровые шрифты TeX без ToUnicode: расшифровка по таблице T2A (см. t2a.py).
+t2a.install()
+
+# Так pdfminer называет шрифт без BaseFont и FontName; для проверок это «имени нет».
+_NO_FONT_NAME = "unknown"
 
 
 class Char(NamedTuple):
@@ -152,10 +159,14 @@ def _group_hidden(page_no: int, items: list[tuple[str, dict]]) -> list[HiddenFra
 
 # ── строки ──────────────────────────────────────────────────────────────────
 
+def _font_name(name) -> str:
+    return "" if not name or name == _NO_FONT_NAME else name
+
+
 def _to_char(obj: dict) -> Char:
     return Char(
         text=obj.get("text", ""),
-        font=obj.get("fontname") or "",
+        font=_font_name(obj.get("fontname")),
         size=float(obj.get("size", 0) or 0),
         x0=float(obj.get("x0", 0)),
         x1=float(obj.get("x1", 0)),

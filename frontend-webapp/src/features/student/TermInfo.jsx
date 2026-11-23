@@ -9,7 +9,7 @@ export default function TermInfo({ me }) {
   if (!me.semester) {
     return (
       <p className="term-info term-info-warning" data-tour="term">
-        Семестр группы {me.group || '—'} не определён: требования семестра не проверятся. Сообщите администратору.
+        Не удалось определить семестр группы {me.group || '—'}. Сообщите администратору.
       </p>
     );
   }

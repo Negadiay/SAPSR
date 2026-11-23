@@ -65,7 +65,7 @@ public record TaskMessage(
                 SCHEMA,
                 submission.getId(),
                 TYPE_CHECK,
-                new FileRef(submission.getStorageKey(), submission.getFileSha256(), SOURCE_FORMAT_PDF),
+                new FileRef(submission.getStorageKey(), submission.getFileSha256(), submission.getSourceFormat()),
                 new CheckProfile(submission.getWorkType(), submission.getSemester(), submission.getStage()),
                 student == null
                         ? new StudentInfo(null, null, null)

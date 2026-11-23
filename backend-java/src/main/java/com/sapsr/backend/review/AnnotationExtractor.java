@@ -1,5 +1,6 @@
 package com.sapsr.backend.review;
 
+import com.sapsr.backend.report.CommentedPdf;
 import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -65,6 +66,9 @@ public final class AnnotationExtractor {
                 String kind = KINDS.get(annotation.getSubtype());
                 // Отметки статуса рецензирования («Принято», «Отмечено») — служебные ответы, не комментарии.
                 if (kind == null || annotation.getCOSObject().containsKey(STATE_MODEL)) continue;
+                // Выделение и линия автопроверки без текста — оформление: сам комментарий в заметке на поле.
+                if (annotation instanceof PDAnnotationMarkup markup && CommentedPdf.AUTHOR.equals(markup.getTitlePopup())
+                        && comment(annotation) == null) continue;
                 Raw raw = new Raw(raws.size(), pageNumber, kind, annotation);
                 raws.add(raw);
                 onPage.add(raw);

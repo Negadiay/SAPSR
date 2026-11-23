@@ -258,7 +258,7 @@ function GroupPanel({ group, calendar, admin, onClose, onAppoint, onRemove }) {
           </select>
         </div>
       ) : (
-        <p className="hint">Не из текущих курсов</p>
+        <p className="hint">Группа не относится к текущим курсам</p>
       )}
       <PeopleList title="Студенты" people={loaded ? people.students : null} editable digits={calendar.group_digits}
         saving={saving} onSave={changeUser} onAppoint={onAppoint} />
@@ -320,36 +320,10 @@ function GroupsSection({ calendar, admin }) {
   );
 }
 
-// Группа, которой нет в списке, — добавить с курсом. Раздел свёрнут: нужен редко.
-function AddGroupSection({ calendar, saving, onSave }) {
-  const [number, setNumber] = useState('');
-  const [course, setCourse] = useState('');
-  const exists = calendar.groups.some((g) => g.group === number);
-  const valid = /^\d{6}$/.test(number) && course && !exists;
-  return (
-    <AdminSection id="add" title="Новая группа" defaultOpen={false}>
-      <div className="admin-add-row">
-        <GroupInput id="admin-add-group" label="Номер группы" value={number} digits={calendar.group_digits}
-          onChange={setNumber} />
-        <select aria-label="Курс новой группы" className="input" value={course}
-          onChange={(e) => setCourse(e.target.value)}>
-          <option value="">Курс</option>
-          {range(calendar.max_course).map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-      </div>
-      {exists && <p className="hint">Группа уже есть — курс меняется в ней.</p>}
-      <button type="button" className="btn btn-secondary btn-block" disabled={!valid || saving}
-        onClick={() => { onSave(number, Number(course)); setNumber(''); setCourse(''); }}>
-        Добавить
-      </button>
-    </AdminSection>
-  );
-}
-
 // Две вкладки: «Учёба» — календарь и группы; «Красная зона» — то, что меняет работу всей системы (решение 13).
 // Между вкладками на телефоне можно листать свайпом.
 export default function AdminScreen({ admin, header }) {
-  const { calendar, error, saving, changeHalf, changeSchedule, changeCourse } = admin;
+  const { calendar, error, saving, changeHalf, changeSchedule } = admin;
   const [tab, setTab] = useState(readTab);
   const [direction, setDirection] = useState(0);
   const redZone = useAdminSystem({ active: tab === 'system' });
@@ -383,7 +357,6 @@ export default function AdminScreen({ admin, header }) {
                 <HalfSection calendar={calendar} saving={saving} onChange={changeHalf} />
                 <ScheduleSection calendar={calendar} saving={saving} onChange={changeSchedule} />
                 <GroupsSection calendar={calendar} admin={admin} />
-                <AddGroupSection calendar={calendar} saving={saving} onSave={changeCourse} />
               </>
             )}
           </>

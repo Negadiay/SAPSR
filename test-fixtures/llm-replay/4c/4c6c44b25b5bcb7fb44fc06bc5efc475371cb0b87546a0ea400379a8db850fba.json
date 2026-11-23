@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "4c6c44b25b5bcb7fb44fc06bc5efc475371cb0b87546a0ea400379a8db850fba",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.interface_type\",\n      \"value\": [\"web\"],\n      \"quote\": \"Интерфейс реализован на языке JavaScript.\",\n      \"block_id\": \"b-0045\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.languages\",\n      \"value\": [\"javascript\"],\n      \"quote\": \"Интерфейс реализован на языке JavaScript.\",\n      \"block_id\": \"b-0045\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

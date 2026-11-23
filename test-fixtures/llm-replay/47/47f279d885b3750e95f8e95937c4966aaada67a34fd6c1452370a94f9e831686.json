@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "47f279d885b3750e95f8e95937c4966aaada67a34fd6c1452370a94f9e831686",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0049]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 1.0,\n      \"quote\": \"Тестовый набор включает тридцать задач с ожидаемыми результатами и разделён на три группы: типичные случаи, граничные случаи и отрицательные случаи с противоречивыми или неполными входными данными.\"\n    },\n    {\n      \"block_id\": \"[b-0050]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 1.0,\n      \"quote\": \"\"\n    },\n    {\n      \"block_id\": \"[b-0051]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 1.0,\n      \"quote\": \"\"\n    }\n  ]\n}"
+}

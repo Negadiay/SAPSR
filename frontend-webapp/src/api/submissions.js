@@ -26,4 +26,9 @@ export const fetchAnnotations = async (id) => {
   return res.ok ? res.json() : null;
 };
 
+// Работа, сданная в DOCX, проверяется по PDF-версии (api-v1.md, раздел 18): её и исходник можно скачать.
+export const downloadPdfVersion = (id) => downloadFile(`/submissions/${id}/pdf`, `submission_${id}.pdf`);
+
+export const downloadSource = (id) => downloadFile(`/submissions/${id}/source`, `submission_${id}.docx`);
+
 export const downloadReviewFile = (id) => downloadFile(`/submissions/${id}/review-file`, `review_${id}.pdf`);

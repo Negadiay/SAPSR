@@ -1,0 +1,232 @@
+document,group,mode,category,tp,fp,fn,ms,llm_blocking,hallucinated_quote_share,expected,got,extra,missed
+content-formats.pdf,typical,symbolic,format,0,0,0,117,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+content-formats.pdf,typical,symbolic,structure,0,0,0,117,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+content-formats.pdf,typical,symbolic,content,0,0,1,117,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+content-formats.pdf,typical,symbolic,requirements,0,0,0,117,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+content-formats.pdf,typical,neural,format,0,0,0,118,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-formats.pdf,typical,neural,structure,0,0,0,118,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-formats.pdf,typical,neural,content,1,2,0,118,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-formats.pdf,typical,neural,requirements,0,0,0,118,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-formats.pdf,typical,hybrid,format,0,0,0,142,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-formats.pdf,typical,hybrid,structure,0,0,0,142,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-formats.pdf,typical,hybrid,content,1,0,0,142,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-formats.pdf,typical,hybrid,requirements,0,0,0,142,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-kb.pdf,typical,symbolic,format,0,0,0,119,0,,CNT-CONSIST-001,,,CNT-CONSIST-001
+content-kb.pdf,typical,symbolic,structure,0,0,0,119,0,,CNT-CONSIST-001,,,CNT-CONSIST-001
+content-kb.pdf,typical,symbolic,content,0,0,1,119,0,,CNT-CONSIST-001,,,CNT-CONSIST-001
+content-kb.pdf,typical,symbolic,requirements,0,0,0,119,0,,CNT-CONSIST-001,,,CNT-CONSIST-001
+content-kb.pdf,typical,neural,format,0,0,0,107,0,,CNT-CONSIST-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-kb.pdf,typical,neural,structure,0,0,0,107,0,,CNT-CONSIST-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-kb.pdf,typical,neural,content,1,2,0,107,0,,CNT-CONSIST-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-kb.pdf,typical,neural,requirements,0,0,0,107,0,,CNT-CONSIST-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-kb.pdf,typical,hybrid,format,0,0,0,127,0,0.071,CNT-CONSIST-001,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-kb.pdf,typical,hybrid,structure,0,0,0,127,0,0.071,CNT-CONSIST-001,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-kb.pdf,typical,hybrid,content,1,0,0,127,0,0.071,CNT-CONSIST-001,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-kb.pdf,typical,hybrid,requirements,0,0,0,127,0,0.071,CNT-CONSIST-001,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-neural.pdf,typical,symbolic,format,0,0,0,112,0,,CNT-SUPPORT-001,,,CNT-SUPPORT-001
+content-neural.pdf,typical,symbolic,structure,0,0,0,112,0,,CNT-SUPPORT-001,,,CNT-SUPPORT-001
+content-neural.pdf,typical,symbolic,content,0,0,1,112,0,,CNT-SUPPORT-001,,,CNT-SUPPORT-001
+content-neural.pdf,typical,symbolic,requirements,0,0,0,112,0,,CNT-SUPPORT-001,,,CNT-SUPPORT-001
+content-neural.pdf,typical,neural,format,0,0,0,116,0,,CNT-SUPPORT-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-neural.pdf,typical,neural,structure,0,0,0,116,0,,CNT-SUPPORT-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-neural.pdf,typical,neural,content,1,2,0,116,0,,CNT-SUPPORT-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-neural.pdf,typical,neural,requirements,0,0,0,116,0,,CNT-SUPPORT-001,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-neural.pdf,typical,hybrid,format,0,0,0,139,0,0.059,CNT-SUPPORT-001,CNT-SUPPORT-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-NEURAL-ROLE;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-neural.pdf,typical,hybrid,structure,0,0,0,139,0,0.059,CNT-SUPPORT-001,CNT-SUPPORT-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-NEURAL-ROLE;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-neural.pdf,typical,hybrid,content,1,0,0,139,0,0.059,CNT-SUPPORT-001,CNT-SUPPORT-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-NEURAL-ROLE;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-neural.pdf,typical,hybrid,requirements,0,0,0,139,0,0.059,CNT-SUPPORT-001,CNT-SUPPORT-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-NEURAL-ROLE;REQ7-REPLACEABLE;REQ7-SYMBOLIC-EXPLAIN;REQ7-TESTING,,
+content-clean.pdf,negative,symbolic,format,0,0,0,118,0,,,,,
+content-clean.pdf,negative,symbolic,structure,0,0,0,118,0,,,,,
+content-clean.pdf,negative,symbolic,content,0,0,0,118,0,,,,,
+content-clean.pdf,negative,symbolic,requirements,0,0,0,118,0,,,,,
+content-clean.pdf,negative,neural,format,0,0,0,112,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-clean.pdf,negative,neural,structure,0,0,0,112,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-clean.pdf,negative,neural,content,0,2,0,112,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-clean.pdf,negative,neural,requirements,0,0,0,112,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+content-clean.pdf,negative,hybrid,format,0,0,0,135,0,0.067,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-clean.pdf,negative,hybrid,structure,0,0,0,135,0,0.067,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-clean.pdf,negative,hybrid,content,0,0,0,135,0,0.067,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+content-clean.pdf,negative,hybrid,requirements,0,0,0,135,0,0.067,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+hidden-text.pdf,negative,symbolic,format,1,0,0,114,0,,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT,,
+hidden-text.pdf,negative,symbolic,structure,0,0,0,114,0,,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT,,
+hidden-text.pdf,negative,symbolic,content,0,0,0,114,0,,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT,,
+hidden-text.pdf,negative,symbolic,requirements,0,0,0,114,0,,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT,,
+hidden-text.pdf,negative,neural,format,0,0,1,110,0,,INT-HIDDEN-TEXT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,INT-HIDDEN-TEXT
+hidden-text.pdf,negative,neural,structure,0,0,0,110,0,,INT-HIDDEN-TEXT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,INT-HIDDEN-TEXT
+hidden-text.pdf,negative,neural,content,0,2,0,110,0,,INT-HIDDEN-TEXT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,INT-HIDDEN-TEXT
+hidden-text.pdf,negative,neural,requirements,0,0,0,110,0,,INT-HIDDEN-TEXT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,INT-HIDDEN-TEXT
+hidden-text.pdf,negative,hybrid,format,1,0,0,129,0,0.067,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+hidden-text.pdf,negative,hybrid,structure,0,0,0,129,0,0.067,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+hidden-text.pdf,negative,hybrid,content,0,0,0,129,0,0.067,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+hidden-text.pdf,negative,hybrid,requirements,0,0,0,129,0,0.067,INT-HIDDEN-TEXT,INT-HIDDEN-TEXT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+narrow-margin.pdf,boundary,symbolic,format,1,0,0,122,0,,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT,,
+narrow-margin.pdf,boundary,symbolic,structure,0,0,0,122,0,,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT,,
+narrow-margin.pdf,boundary,symbolic,content,0,0,0,122,0,,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT,,
+narrow-margin.pdf,boundary,symbolic,requirements,0,0,0,122,0,,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT,,
+narrow-margin.pdf,boundary,neural,format,0,0,1,115,0,,FMT-MARGIN-LEFT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-MARGIN-LEFT
+narrow-margin.pdf,boundary,neural,structure,0,0,0,115,0,,FMT-MARGIN-LEFT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-MARGIN-LEFT
+narrow-margin.pdf,boundary,neural,content,0,2,0,115,0,,FMT-MARGIN-LEFT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-MARGIN-LEFT
+narrow-margin.pdf,boundary,neural,requirements,0,0,0,115,0,,FMT-MARGIN-LEFT,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-MARGIN-LEFT
+narrow-margin.pdf,boundary,hybrid,format,1,0,0,143,0,0.067,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+narrow-margin.pdf,boundary,hybrid,structure,0,0,0,143,0,0.067,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+narrow-margin.pdf,boundary,hybrid,content,0,0,0,143,0,0.067,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+narrow-margin.pdf,boundary,hybrid,requirements,0,0,0,143,0,0.067,FMT-MARGIN-LEFT,FMT-MARGIN-LEFT;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+scan-no-text.pdf,negative,symbolic,format,0,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,symbolic,structure,1,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,symbolic,content,0,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,symbolic,requirements,0,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,neural,format,0,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,neural,structure,1,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,neural,content,0,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,neural,requirements,0,0,0,2,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,hybrid,format,0,0,0,1,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,hybrid,structure,1,0,0,1,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,hybrid,content,0,0,0,1,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+scan-no-text.pdf,negative,hybrid,requirements,0,0,0,1,0,,DOC-NO-TEXT,DOC-NO-TEXT,,
+tex-type3.pdf,boundary,symbolic,format,1,0,0,101,0,,FMT-FONT-BITMAP,FMT-FONT-BITMAP,,
+tex-type3.pdf,boundary,symbolic,structure,0,0,0,101,0,,FMT-FONT-BITMAP,FMT-FONT-BITMAP,,
+tex-type3.pdf,boundary,symbolic,content,0,0,0,101,0,,FMT-FONT-BITMAP,FMT-FONT-BITMAP,,
+tex-type3.pdf,boundary,symbolic,requirements,0,0,0,101,0,,FMT-FONT-BITMAP,FMT-FONT-BITMAP,,
+tex-type3.pdf,boundary,neural,format,0,0,1,89,0,,FMT-FONT-BITMAP,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-FONT-BITMAP
+tex-type3.pdf,boundary,neural,structure,0,0,0,89,0,,FMT-FONT-BITMAP,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-FONT-BITMAP
+tex-type3.pdf,boundary,neural,content,0,2,0,89,0,,FMT-FONT-BITMAP,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-FONT-BITMAP
+tex-type3.pdf,boundary,neural,requirements,0,0,0,89,0,,FMT-FONT-BITMAP,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,FMT-FONT-BITMAP
+tex-type3.pdf,boundary,hybrid,format,1,0,0,113,0,0.067,FMT-FONT-BITMAP,FMT-FONT-BITMAP;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+tex-type3.pdf,boundary,hybrid,structure,0,0,0,113,0,0.067,FMT-FONT-BITMAP,FMT-FONT-BITMAP;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+tex-type3.pdf,boundary,hybrid,content,0,0,0,113,0,0.067,FMT-FONT-BITMAP,FMT-FONT-BITMAP;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+tex-type3.pdf,boundary,hybrid,requirements,0,0,0,113,0,0.067,FMT-FONT-BITMAP,FMT-FONT-BITMAP;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+unreadable-text.pdf,negative,symbolic,format,0,0,0,125,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,symbolic,structure,1,0,0,125,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,symbolic,content,0,0,0,125,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,symbolic,requirements,0,0,0,125,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,neural,format,0,0,0,127,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,neural,structure,1,0,0,127,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,neural,content,0,0,0,127,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,neural,requirements,0,0,0,127,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,hybrid,format,0,0,0,138,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,hybrid,structure,1,0,0,138,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,hybrid,content,0,0,0,138,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+unreadable-text.pdf,negative,hybrid,requirements,0,0,0,138,0,,DOC-TEXT-UNREADABLE,DOC-TEXT-UNREADABLE,,
+contradiction-three.pdf,typical,symbolic,format,0,0,0,116,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+contradiction-three.pdf,typical,symbolic,structure,0,0,0,116,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+contradiction-three.pdf,typical,symbolic,content,0,0,1,116,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+contradiction-three.pdf,typical,symbolic,requirements,0,0,0,116,0,,CNT-CONSIST-002,,,CNT-CONSIST-002
+contradiction-three.pdf,typical,neural,format,0,0,0,105,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+contradiction-three.pdf,typical,neural,structure,0,0,0,105,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+contradiction-three.pdf,typical,neural,content,1,2,0,105,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+contradiction-three.pdf,typical,neural,requirements,0,0,0,105,0,,CNT-CONSIST-002,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+contradiction-three.pdf,typical,hybrid,format,0,0,0,138,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+contradiction-three.pdf,typical,hybrid,structure,0,0,0,138,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+contradiction-three.pdf,typical,hybrid,content,1,0,0,138,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+contradiction-three.pdf,typical,hybrid,requirements,0,0,0,138,0,0.062,CNT-CONSIST-002,CNT-CONSIST-002;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+ambiguous.pdf,boundary,symbolic,format,0,0,0,120,0,,,,,
+ambiguous.pdf,boundary,symbolic,structure,0,0,0,120,0,,,,,
+ambiguous.pdf,boundary,symbolic,content,0,0,0,120,0,,,,,
+ambiguous.pdf,boundary,symbolic,requirements,0,0,0,120,0,,,,,
+ambiguous.pdf,boundary,neural,format,0,0,0,124,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+ambiguous.pdf,boundary,neural,structure,0,0,0,124,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+ambiguous.pdf,boundary,neural,content,0,2,0,124,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+ambiguous.pdf,boundary,neural,requirements,0,0,0,124,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+ambiguous.pdf,boundary,hybrid,format,0,0,0,140,0,0.059,,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+ambiguous.pdf,boundary,hybrid,structure,0,0,0,140,0,0.059,,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+ambiguous.pdf,boundary,hybrid,content,0,0,0,140,0,0.059,,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+ambiguous.pdf,boundary,hybrid,requirements,0,0,0,140,0,0.059,,CNT-CONSIST-001;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+no-conclusion.pdf,negative,symbolic,format,0,0,0,101,0,,STR-CONCLUSION,STR-CONCLUSION,,
+no-conclusion.pdf,negative,symbolic,structure,1,0,0,101,0,,STR-CONCLUSION,STR-CONCLUSION,,
+no-conclusion.pdf,negative,symbolic,content,0,0,0,101,0,,STR-CONCLUSION,STR-CONCLUSION,,
+no-conclusion.pdf,negative,symbolic,requirements,0,0,0,101,0,,STR-CONCLUSION,STR-CONCLUSION,,
+no-conclusion.pdf,negative,neural,format,0,0,0,108,0,,STR-CONCLUSION,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,STR-CONCLUSION
+no-conclusion.pdf,negative,neural,structure,0,0,1,108,0,,STR-CONCLUSION,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,STR-CONCLUSION
+no-conclusion.pdf,negative,neural,content,0,2,0,108,0,,STR-CONCLUSION,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,STR-CONCLUSION
+no-conclusion.pdf,negative,neural,requirements,0,0,0,108,0,,STR-CONCLUSION,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,STR-CONCLUSION
+no-conclusion.pdf,negative,hybrid,format,0,0,0,142,0,0.077,STR-CONCLUSION,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING;STR-CONCLUSION,,
+no-conclusion.pdf,negative,hybrid,structure,1,0,0,142,0,0.077,STR-CONCLUSION,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING;STR-CONCLUSION,,
+no-conclusion.pdf,negative,hybrid,content,0,0,0,142,0,0.077,STR-CONCLUSION,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING;STR-CONCLUSION,,
+no-conclusion.pdf,negative,hybrid,requirements,0,0,0,142,0,0.077,STR-CONCLUSION,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING;STR-CONCLUSION,,
+many-format-errors.pdf,negative,symbolic,format,3,0,0,143,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,,
+many-format-errors.pdf,negative,symbolic,structure,0,0,0,143,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,,
+many-format-errors.pdf,negative,symbolic,content,0,0,0,143,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,,
+many-format-errors.pdf,negative,symbolic,requirements,0,0,0,143,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,,
+many-format-errors.pdf,negative,neural,format,0,0,3,134,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS
+many-format-errors.pdf,negative,neural,structure,0,0,0,134,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS
+many-format-errors.pdf,negative,neural,content,0,3,0,134,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS
+many-format-errors.pdf,negative,neural,requirements,0,0,0,134,0,,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS
+many-format-errors.pdf,negative,hybrid,format,3,0,0,179,0,0.067,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+many-format-errors.pdf,negative,hybrid,structure,0,0,0,179,0,0.067,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+many-format-errors.pdf,negative,hybrid,content,0,0,0,179,0,0.067,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+many-format-errors.pdf,negative,hybrid,requirements,0,0,0,179,0,0.067,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS,FMT-FONT-SIZE-MASS;FMT-MARGIN-LEFT;LAY-PAGE-NUMBERS;REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+sem7-complete.pdf,typical,symbolic,format,0,0,0,204,0,,,,,
+sem7-complete.pdf,typical,symbolic,structure,0,0,0,204,0,,,,,
+sem7-complete.pdf,typical,symbolic,content,0,0,0,204,0,,,,,
+sem7-complete.pdf,typical,symbolic,requirements,0,0,0,204,0,,,,,
+sem7-complete.pdf,typical,neural,format,0,0,0,218,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели;замечание модели,
+sem7-complete.pdf,typical,neural,structure,0,0,0,218,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели;замечание модели,
+sem7-complete.pdf,typical,neural,content,0,4,0,218,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели;замечание модели,
+sem7-complete.pdf,typical,neural,requirements,0,0,0,218,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели;замечание модели,
+sem7-complete.pdf,typical,hybrid,format,0,0,0,236,0,0.0,,REQ7-MISMATCH,REQ7-MISMATCH,
+sem7-complete.pdf,typical,hybrid,structure,0,0,0,236,0,0.0,,REQ7-MISMATCH,REQ7-MISMATCH,
+sem7-complete.pdf,typical,hybrid,content,0,0,0,236,0,0.0,,REQ7-MISMATCH,REQ7-MISMATCH,
+sem7-complete.pdf,typical,hybrid,requirements,0,1,0,236,0,0.0,,REQ7-MISMATCH,REQ7-MISMATCH,
+sem5-solver-ok.pdf,typical,symbolic,format,0,0,0,168,0,,,,,
+sem5-solver-ok.pdf,typical,symbolic,structure,0,0,0,168,0,,,,,
+sem5-solver-ok.pdf,typical,symbolic,content,0,0,0,168,0,,,,,
+sem5-solver-ok.pdf,typical,symbolic,requirements,0,0,0,168,0,,,,,
+sem5-solver-ok.pdf,typical,neural,format,0,0,0,166,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,
+sem5-solver-ok.pdf,typical,neural,structure,0,0,0,166,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,
+sem5-solver-ok.pdf,typical,neural,content,0,3,0,166,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,
+sem5-solver-ok.pdf,typical,neural,requirements,0,0,0,166,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели;замечание модели,
+sem5-solver-ok.pdf,typical,hybrid,format,0,0,0,197,0,0.0,,,,
+sem5-solver-ok.pdf,typical,hybrid,structure,0,0,0,197,0,0.0,,,,
+sem5-solver-ok.pdf,typical,hybrid,content,0,0,0,197,0,0.0,,,,
+sem5-solver-ok.pdf,typical,hybrid,requirements,0,0,0,197,0,0.0,,,,
+sem5-solver-gaps.pdf,typical,symbolic,format,0,0,0,154,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,symbolic,structure,0,0,0,154,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,symbolic,content,0,0,0,154,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,symbolic,requirements,0,0,3,154,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,neural,format,0,0,0,152,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,neural,structure,0,0,0,152,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,neural,content,0,2,0,152,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,neural,requirements,0,0,3,152,0,,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS
+sem5-solver-gaps.pdf,typical,hybrid,format,0,0,0,188,0,0.0,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS;REQ5-TEST-RESULTS,REQ5-TEST-RESULTS,
+sem5-solver-gaps.pdf,typical,hybrid,structure,0,0,0,188,0,0.0,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS;REQ5-TEST-RESULTS,REQ5-TEST-RESULTS,
+sem5-solver-gaps.pdf,typical,hybrid,content,0,0,0,188,0,0.0,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS;REQ5-TEST-RESULTS,REQ5-TEST-RESULTS,
+sem5-solver-gaps.pdf,typical,hybrid,requirements,3,1,0,188,0,0.0,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS,REQ5-EFFICIENCY;REQ5-KB-SEPARATE;REQ5-TEST-GROUPS;REQ5-TEST-RESULTS,REQ5-TEST-RESULTS,
+sem4-kb-gaps.pdf,typical,symbolic,format,0,0,0,142,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,symbolic,structure,0,0,0,142,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,symbolic,content,0,0,0,142,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,symbolic,requirements,0,0,2,142,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,neural,format,0,0,0,157,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,neural,structure,0,0,0,157,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,neural,content,0,2,0,157,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,neural,requirements,0,0,2,157,0,,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,REQ4-APPLICABILITY;REQ4-TEST-RESULTS
+sem4-kb-gaps.pdf,typical,hybrid,format,0,0,0,177,0,0.0,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-TEST-RESULTS;REQ4-USAGE-DEMO,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-USAGE-DEMO,REQ4-APPLICABILITY
+sem4-kb-gaps.pdf,typical,hybrid,structure,0,0,0,177,0,0.0,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-TEST-RESULTS;REQ4-USAGE-DEMO,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-USAGE-DEMO,REQ4-APPLICABILITY
+sem4-kb-gaps.pdf,typical,hybrid,content,0,0,0,177,0,0.0,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-TEST-RESULTS;REQ4-USAGE-DEMO,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-USAGE-DEMO,REQ4-APPLICABILITY
+sem4-kb-gaps.pdf,typical,hybrid,requirements,1,3,1,177,0,0.0,REQ4-APPLICABILITY;REQ4-TEST-RESULTS,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-TEST-RESULTS;REQ4-USAGE-DEMO,REQ4-STRUCTURE;REQ4-TEST-GROUPS;REQ4-USAGE-DEMO,REQ4-APPLICABILITY
+sem6-interface-ok.pdf,boundary,symbolic,format,0,0,0,138,0,,,,,
+sem6-interface-ok.pdf,boundary,symbolic,structure,0,0,0,138,0,,,,,
+sem6-interface-ok.pdf,boundary,symbolic,content,0,0,0,138,0,,,,,
+sem6-interface-ok.pdf,boundary,symbolic,requirements,0,0,0,138,0,,,,,
+sem6-interface-ok.pdf,boundary,neural,format,0,0,0,143,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+sem6-interface-ok.pdf,boundary,neural,structure,0,0,0,143,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+sem6-interface-ok.pdf,boundary,neural,content,0,2,0,143,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+sem6-interface-ok.pdf,boundary,neural,requirements,0,0,0,143,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+sem6-interface-ok.pdf,boundary,hybrid,format,0,0,0,183,0,0.0,,CNT-SUPPORT-001;REQ6-ANALOGS,CNT-SUPPORT-001;REQ6-ANALOGS,
+sem6-interface-ok.pdf,boundary,hybrid,structure,0,0,0,183,0,0.0,,CNT-SUPPORT-001;REQ6-ANALOGS,CNT-SUPPORT-001;REQ6-ANALOGS,
+sem6-interface-ok.pdf,boundary,hybrid,content,0,1,0,183,0,0.0,,CNT-SUPPORT-001;REQ6-ANALOGS,CNT-SUPPORT-001;REQ6-ANALOGS,
+sem6-interface-ok.pdf,boundary,hybrid,requirements,0,1,0,183,0,0.0,,CNT-SUPPORT-001;REQ6-ANALOGS,CNT-SUPPORT-001;REQ6-ANALOGS,
+personal-data.pdf,boundary,symbolic,format,0,0,0,145,0,,,,,
+personal-data.pdf,boundary,symbolic,structure,0,0,0,145,0,,,,,
+personal-data.pdf,boundary,symbolic,content,0,0,0,145,0,,,,,
+personal-data.pdf,boundary,symbolic,requirements,0,0,0,145,0,,,,,
+personal-data.pdf,boundary,neural,format,0,0,0,142,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+personal-data.pdf,boundary,neural,structure,0,0,0,142,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+personal-data.pdf,boundary,neural,content,0,2,0,142,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+personal-data.pdf,boundary,neural,requirements,0,0,0,142,0,,,NEURAL-FREEFORM;NEURAL-FREEFORM,замечание модели;замечание модели,
+personal-data.pdf,boundary,hybrid,format,0,0,0,171,0,0.062,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+personal-data.pdf,boundary,hybrid,structure,0,0,0,171,0,0.062,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+personal-data.pdf,boundary,hybrid,content,0,0,0,171,0,0.062,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+personal-data.pdf,boundary,hybrid,requirements,0,0,0,171,0,0.062,,REQ7-COMBINATION;REQ7-EFFICIENCY;REQ7-HYBRID-JUSTIFIED;REQ7-INTEGRATION;REQ7-MISMATCH;REQ7-REPLACEABLE;REQ7-TESTING,,
+encrypted.pdf,negative,symbolic,failure,,,,,,,PDF_ENCRYPTED,PDF_ENCRYPTED,,
+encrypted.pdf,negative,neural,failure,,,,,,,PDF_ENCRYPTED,PDF_ENCRYPTED,,
+encrypted.pdf,negative,hybrid,failure,,,,,,,PDF_ENCRYPTED,PDF_ENCRYPTED,,

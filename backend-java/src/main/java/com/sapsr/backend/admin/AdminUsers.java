@@ -4,11 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sapsr.backend.SapsrTelegramBot;
 import com.sapsr.backend.academic.AcademicCalendar;
+import com.sapsr.backend.bot.AppLink;
+import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.controller.UploadController;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.service.BsuirApiService;
+import com.sapsr.backend.service.Namesakes;
 import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.storage.FileStorage;
 import org.slf4j.Logger;
@@ -67,15 +71,17 @@ public class AdminUsers {
     private final FileStorage fileStorage;
     private final SapsrTelegramBot bot;
     private final AcademicCalendar calendar;
+    private final BsuirApiService iis;
 
     public AdminUsers(UserRepository users, SubmissionRepository submissions, ReviewFileService reviewFiles,
-                      FileStorage fileStorage, SapsrTelegramBot bot, AcademicCalendar calendar) {
+                      FileStorage fileStorage, SapsrTelegramBot bot, AcademicCalendar calendar, BsuirApiService iis) {
         this.users = users;
         this.submissions = submissions;
         this.reviewFiles = reviewFiles;
         this.fileStorage = fileStorage;
         this.bot = bot;
         this.calendar = calendar;
+        this.iis = iis;
     }
 
     // ── кто в группе ─────────────────────────────────────────────────────────────────────────
@@ -129,10 +135,29 @@ public class AdminUsers {
         }
         String group = rawGroup == null ? "" : rawGroup.strip();
         if (!calendar.isPossibleGroup(group)) throw new Invalid("group", groupHint());
+        if (!group.equals(user.getGroupNumber())) requireExistingGroup(group);
+        String previousKey = user.getNameKey();
+        String previousGroup = user.getGroupNumber();
+        String previousName = user.displayName();
         user.setFullName(name + " (гр. " + group + ")");
         UploadController.setNameParts(user, name, group);
-        users.save(user);
+        // ФИО или группа изменились — студент получает номер тёзки заново (решение 4).
+        Namesakes.saveStudent(users, user, previousKey, previousGroup);
+        if (!name.equals(previousName) || !group.equals(previousGroup)) {
+            bot.send(id, BotMessages.profileChanged(previousName, name, previousGroup, group),
+                    AppLink.forRole(STUDENT));
+        }
         return person(user);
+    }
+
+    /** Перенос студента не должен создавать группу: номер либо уже есть в системе, либо есть в ИИС. */
+    private void requireExistingGroup(String group) {
+        if (!students(group).isEmpty() || !teachers(group).isEmpty()) return;
+        try {
+            if (!iis.groupExists(group)) throw new Invalid("group", "Группы " + group + " нет в ИИС БГУИР.");
+        } catch (BsuirApiService.IisUnavailableException e) {
+            throw new Invalid("group", "ИИС БГУИР не отвечает, поэтому номер группы не проверить. Попробуйте позже.");
+        }
     }
 
     /** Подсказка для поля группы: какие первые цифры возможны в этом учебном году. */
@@ -177,6 +202,7 @@ public class AdminUsers {
         user.setUrlId(null);
         users.save(user);
         log.info("Администратор {} назначил администратором пользователя {}; удалено работ: {}", adminId, id, works.size());
+        bot.send(id, BotMessages.madeAdmin(works.size()), AppLink.forRole(ADMIN));
         return works.size();
     }
 

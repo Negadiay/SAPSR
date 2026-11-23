@@ -54,6 +54,7 @@ class FreshDatabaseMigrationTest {
     @Autowired SubmissionRepository submissions;
     @Autowired ReviewFileRepository reviewFiles;
     @Autowired AnnotationRepository annotations;
+    @Autowired com.sapsr.backend.repository.FindingFeedbackRepository feedback;
     @Autowired GroupCourseOverrideRepository overrides;
     @Autowired ProcentovkaDateRepository procentovki;
     @Autowired AcademicSettingRepository settings;
@@ -62,7 +63,7 @@ class FreshDatabaseMigrationTest {
     void appliesAllMigrationsFromScratch() {
         List<String> applied = jdbc.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
-        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+        assertThat(applied).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
     }
 
     @Test
@@ -142,6 +143,83 @@ class FreshDatabaseMigrationTest {
             assertThat(r[0]).isEqualTo("321702");
             assertThat(((Number) r[1]).longValue()).isEqualTo(2L);
         });
+    }
+
+    @Test
+    void namesakesGetPermanentNumbers() {
+        // Решение 4: двое с одинаковым ФИО в группе — номера 1 и 2; номер не меняется, если первого удалили.
+        User first = namedStudent(8201L, "Иванов", "Иван", "Иванович");
+        User second = namedStudent(8202L, "ИВАНОВ", "иван", "Иванович");
+        User other = namedStudent(8203L, "Петров", "Пётр", null);
+        assertThat(first.getNamesakeNumber()).isEqualTo(1);
+        assertThat(second.getNamesakeNumber()).isEqualTo(2);
+        assertThat(other.getNamesakeNumber()).isEqualTo(1);
+        assertThat(com.sapsr.backend.service.Namesakes.hasNamesake(users, second)).isTrue();
+        assertThat(com.sapsr.backend.service.Namesakes.hasNamesake(users, other)).isFalse();
+
+        users.delete(first);
+        users.flush();
+        User third = namedStudent(8204L, "Иванов", "Иван", "Иванович");
+        assertThat(users.findById(8202L).orElseThrow().getNamesakeNumber()).as("номер постоянный").isEqualTo(2);
+        assertThat(third.getNamesakeNumber()).as("наибольший + 1, без переиспользования").isEqualTo(3);
+
+        // Смена ФИО — новый номер среди новых тёзок.
+        String key = other.getNameKey();
+        other.setLastName("Иванов");
+        other.setFirstName("Иван");
+        other.setMiddleName("Иванович");
+        com.sapsr.backend.service.Namesakes.saveStudent(users, other, key, "321702");
+        assertThat(other.getNamesakeNumber()).isEqualTo(4);
+
+        // Уникальный индекс не даёт двум студентам группы один номер.
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("UPDATE users SET namesake_number = 2 WHERE telegram_id = 8204"));
+    }
+
+    private User namedStudent(long id, String last, String firstName, String middle) {
+        User user = new User();
+        user.setTelegramId(id);
+        user.setRole("STUDENT");
+        user.setGroupNumber("321702");
+        user.setLastName(last);
+        user.setFirstName(firstName);
+        user.setMiddleName(middle);
+        return com.sapsr.backend.service.Namesakes.saveStudent(users, user, null, null);
+    }
+
+    @Test
+    void feedbackStatsAreCountedByOriginAndCategory() {
+        // Решение 17: отметки преподавателя; категория замечания берётся из сохранённого отчёта.
+        User teacher = user(7101L, "TEACHER");
+        Submission work = submission(user(7102L, "STUDENT"), teacher, "SUCCESS", null);
+        jdbc.update("UPDATE submissions SET report = ?::jsonb WHERE id = ?",
+                "{\"schema\":2,\"findings\":[{\"id\":\"f-001\",\"category\":\"format\"},{\"id\":\"f-002\",\"category\":\"content\"}]}",
+                work.getId());
+        for (String[] mark : new String[][] {{"f-001", "symbolic", "correct"}, {"f-002", "hybrid", "incorrect"}}) {
+            jdbc.update("INSERT INTO finding_feedback (submission_id, finding_id, requirement_id, origin, verdict, "
+                    + "teacher_telegram_id, created_at) VALUES (?, ?, ?, ?, ?, ?, now())",
+                    work.getId(), mark[0], "REQ", mark[1], mark[2], 7101L);
+        }
+
+        List<Object[]> stats = feedback.countByOriginCategoryAndVerdict();
+        assertThat(stats).extracting(r -> r[0] + "/" + r[1] + "/" + r[2] + "/" + r[3])
+                .containsExactly("hybrid/content/incorrect/1", "symbolic/format/correct/1");
+        assertThat(feedback.findBySubmissionIdAndFindingId(work.getId(), "f-002")).isPresent();
+
+        // Отметки удаляются вместе с работой.
+        Submission other = submission(user(7103L, "STUDENT"), teacher, "SUCCESS", null);
+        jdbc.update("INSERT INTO finding_feedback (submission_id, finding_id, requirement_id, origin, verdict, "
+                + "teacher_telegram_id, created_at) VALUES (?, 'f-001', 'R', 'symbolic', 'correct', 7101, now())", other.getId());
+        submissions.deleteById(other.getId());
+        submissions.flush();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM finding_feedback WHERE submission_id = ?", Integer.class,
+                other.getId())).isZero();
+
+        // Отметка — только «верно» или «неверно» (последним: после нарушения ограничения транзакция закрыта).
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("INSERT INTO finding_feedback (submission_id, finding_id, requirement_id, origin, "
+                        + "verdict, teacher_telegram_id, created_at) VALUES (?, 'f-003', 'R', 'symbolic', 'maybe', 7101, now())",
+                        work.getId()));
     }
 
     @Test

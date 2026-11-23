@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "f59129145fd1733d2c2d19a6e71e598014250a48a438bda29d78d778895266b7",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.interface_type\",\n      \"value\": [\"web\"],\n      \"quote\": \"Функциональные требования к интерфейсу: ввод признаков, запуск диагностики, просмотр результата и объяснения.\",\n      \"block_id\": \"b-0035\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}
