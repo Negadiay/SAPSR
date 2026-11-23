@@ -671,6 +671,15 @@ input[type="search"].input { -webkit-appearance: none; }
 
 .dialog-actions .btn { flex: 1 1 7em; }
 
+.dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-height: 45vh;
+  margin-top: 1em;
+  overflow-y: auto;
+}
+
 /* --- ВХОД --- */
 .entry { padding-top: 1.5em; }
 

@@ -28,8 +28,7 @@ public final class ApiErrors {
 
     /** Файл больше предела (решение 15): предел — это предел Telegram на отправку файла ботом. */
     public static ResponseEntity<Map<String, Object>> fileTooLarge(int maxMb) {
-        return error(413, "FILE_TOO_LARGE", "Файл больше " + maxMb + " МБ — Telegram не даст переслать его "
-                + "преподавателю. Сожмите PDF (картинки) и загрузите снова.");
+        return error(413, "FILE_TOO_LARGE", "Файл больше " + maxMb + " МБ. Сожмите его и загрузите снова.");
     }
 
     public static boolean tooLarge(long sizeBytes, int maxMb) {

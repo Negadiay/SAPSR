@@ -58,7 +58,7 @@ export default function TeacherWorkScreen({ id, teacher, header, onDecided }) {
         <p className="hint">{s.file_name}</p>
         <p className="hint">{received}</p>
         {firstVersion && <p className="hint">{firstVersion}</p>}
-        {s.source_format === 'docx' && <p className="hint">Сдана в DOCX. Проверена PDF-версия: номера страниц — по ней.</p>}
+        {s.source_format === 'docx' && <p className="hint">Сдана в DOCX и проверена в PDF, номера страниц указаны по нему.</p>}
       </div>
 
       {decided ? (

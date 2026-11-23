@@ -195,7 +195,7 @@ describe('студент: работы', () => {
 
     await user.click(screen.getByRole('button', { name: /Комментарии преподавателя — в версии 1/ }));
     expect(await screen.findByText('Только PDF')).toBeInTheDocument();
-    expect(screen.getByText('Вернул на доработку')).toBeInTheDocument();
+    expect(screen.getByText('Возвращена на доработку')).toBeInTheDocument();
     expect(screen.getByText('Ошибок: 1')).toBeInTheDocument();
     expect(screen.getByText('Левое поле 15 мм вместо 30.')).toBeInTheDocument();
     expect(screen.getByText('ошибка · стр. 2–8')).toBeInTheDocument();
@@ -297,6 +297,26 @@ describe('студент: сдача работы', () => {
     expect(await screen.findByText(/Для группы 321702 нет преподавателей/)).toBeInTheDocument();
   });
 
+  it('без преподавателя файл не выбрать: окно предлагает выбрать, кому отправить', async () => {
+    const { user } = start(studentRoutes);
+    await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
+    await screen.findByRole('option', { name: 'Выберите преподавателя' });
+    // Слушаем на document: сюда клик доходит уже после обработчика React.
+    const picked = vi.fn();
+    const onClick = (e) => { if (e.target.id === 'file-upload' && !e.defaultPrevented) picked(); };
+    document.addEventListener('click', onClick);
+
+    await user.click(screen.getByText('Выберите PDF или DOCX'));
+    const dialog = screen.getByRole('dialog', { name: 'Преподаватель не выбран' });
+    expect(picked).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: TEACHERS[0].full_name }));
+    document.removeEventListener('click', onClick);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByLabelText('Преподаватель')).toHaveValue('7');
+    expect(picked).toHaveBeenCalledTimes(1);
+  });
+
   it('новая версия — с тем же преподавателем', async () => {
     const { user } = start({ ...studentRoutes, 'GET /submissions': [SUBMISSIONS[1]] });
     await user.click(await screen.findByRole('button', { name: /Курсовая\.pdf/ }));
@@ -346,17 +366,18 @@ describe('Telegram: родные кнопки', () => {
 });
 
 describe('один аккаунт — один человек', () => {
-  it('в настройках сказано, что группу меняет администратор; смены роли нет', async () => {
+  it('в настройках данные только для просмотра: ни правки ФИО, ни смены роли', async () => {
     const { user } = start(studentRoutes);
     await heading('Мои работы');
     await user.click(screen.getByTitle('Настройки'));
-    expect(screen.getByText('Один аккаунт Telegram — один человек. Сменить группу может администратор.'))
-      .toBeInTheDocument();
+    expect(screen.getByText(/Группа 321702/)).toBeInTheDocument();
+    expect(screen.queryByText(/Один аккаунт/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /ФИО/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Сменить роль' })).toBeNull();
   });
 
   it('повторная регистрация (409): текст сервера и главный экран прежней роли', async () => {
-    const text = 'Этот аккаунт Telegram уже зарегистрирован. Исправить ФИО можно в настройках, сменить группу — у администратора.';
+    const text = 'Вы уже зарегистрированы. Если в данных ошибка, обратитесь к администратору.';
     let registered = false;
     const { user, tg } = start({
       ...studentRoutes,
@@ -388,7 +409,7 @@ describe('студент: решение преподавателя', () => {
     expect(within(verdict).getByText('1 комментарий в файле с пометками')).toBeInTheDocument();
     expect(within(verdict).getByRole('button', { name: 'Скачать файл с пометками' })).toBeInTheDocument();
     const comment = await screen.findByText('Только PDF');
-    const steps = screen.getByText('Вернул на доработку');
+    const steps = screen.getByText('Возвращена на доработку');
     const finding = screen.getByText('Левое поле 15 мм вместо 30.');
     const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
     expect(before(verdict, comment)).toBe(true);
@@ -405,13 +426,15 @@ describe('студент: решение преподавателя', () => {
     URL.createObjectURL = vi.fn(() => 'blob:x');
     URL.revokeObjectURL = vi.fn();
     await user.click(await screen.findByRole('button', { name: /Курсовая\.docx/ }));
-    expect(screen.getByText('Проверена PDF-версия: номера страниц — по ней.')).toBeInTheDocument();
+    expect(screen.getByText('Работа проверена в PDF, номера страниц указаны по нему.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Скачать PDF-версию' }));
     await waitFor(() => expect(api.find('GET', '/submissions/9/pdf')).toHaveLength(1));
 
     await user.click(screen.getByRole('button', { name: 'Назад' }));
     await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
     expect(await screen.findByText('Выберите PDF или DOCX')).toBeInTheDocument();
+    await screen.findByRole('option', { name: TEACHERS[0].full_name });
+    await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
     const input = document.getElementById('file-upload');
     await user.upload(input, new File(['PK'], 'Курсовая.docx'));
     expect(screen.getByText('Курсовая.docx')).toBeInTheDocument();
@@ -421,8 +444,10 @@ describe('студент: решение преподавателя', () => {
   it('предел файла берётся с сервера, причина — словами', async () => {
     const { user } = start({ ...studentRoutes, 'GET /me': { ...ME, max_upload_mb: 1 } });
     await user.click(await screen.findByRole('button', { name: 'Сдать работу' }));
-    expect(await screen.findByText('до 1 МБ — больше Telegram не перешлёт преподавателю')).toBeInTheDocument();
+    expect(await screen.findByText('до 1 МБ')).toBeInTheDocument();
+    await screen.findByRole('option', { name: TEACHERS[0].full_name });
+    await user.selectOptions(screen.getByLabelText('Преподаватель'), '7');
     await user.upload(document.getElementById('file-upload'), pdf('Большая.pdf', 1024 * 1024 + 10));
-    expect(screen.getByText(/Файл больше 1 МБ — Telegram не даст переслать его преподавателю/)).toBeInTheDocument();
+    expect(screen.getByText(/Файл больше 1 МБ\. Сожмите его/)).toBeInTheDocument();
   });
 });

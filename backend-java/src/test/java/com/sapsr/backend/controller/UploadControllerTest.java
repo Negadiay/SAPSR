@@ -283,7 +283,7 @@ class UploadControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(413);
         assertThat(body(response)).containsEntry("code", "FILE_TOO_LARGE");
-        assertThat((String) body(response).get("message")).contains("Telegram не даст переслать");
+        assertThat((String) body(response).get("message")).contains("Сожмите его");
         assertThat(storedFiles()).isEmpty();
         verify(submissions, never()).save(any());
     }
@@ -381,7 +381,7 @@ class UploadControllerTest {
         assertThat(user.getNamesakeNumber()).as("наибольший номер тёзки + 1").isEqualTo(2);
         @SuppressWarnings("unchecked")
         Map<String, Object> me = (Map<String, Object>) body(response).get("user");
-        assertThat(me).containsEntry("namesake_number", 2).containsEntry("profile_incomplete", false)
+        assertThat(me).containsEntry("namesake_number", 2)
                 .containsEntry("group", "321702");
     }
 
@@ -423,44 +423,9 @@ class UploadControllerTest {
     }
 
     @Test
-    void studentFixesNameAndKeepsGroup() {
-        User student = users.findById(STUDENT_ID).orElseThrow();
-        student.setFullName("Иванов И.И. (гр. 321702)");
-        student.setNameKey("иванов и.и.");
-        student.setNamesakeNumber(1);
-        when(users.maxNamesakeNumber("321702", "иванов иван иванович")).thenReturn(2);
-
-        ResponseEntity<?> response = controller.patchMe(Map.of("last_name", "Иванов", "first_name", "Иван",
-                "middle_name", "Иванович"), request());
-
-        assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(student.getFirstName()).isEqualTo("Иван");
-        assertThat(student.getNamesakeNumber()).as("ФИО изменилось — номер тёзки новый").isEqualTo(3);
-        assertThat(student.getGroupNumber()).isEqualTo("321702");
-        assertThat(body(response)).containsEntry("profile_incomplete", false).containsEntry("first_name", "Иван");
-
-        // Те же данные ещё раз — номер не меняется.
-        controller.patchMe(Map.of("last_name", "ИВАНОВ", "first_name", "иван", "middle_name", "Иванович"), request());
-        assertThat(student.getNamesakeNumber()).isEqualTo(3);
-    }
-
-    @Test
-    void groupCannotBeChangedByStudent() {
-        ResponseEntity<?> response = controller.patchMe(Map.of("last_name", "Иванов", "first_name", "Иван",
-                "group", "421702"), request());
-
-        assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(body(response)).containsEntry("code", "VALIDATION_ERROR").containsEntry("field", "group")
-                .containsEntry("message", "Группу меняет администратор.");
-        assertThat(controller.patchMe(Map.of("last_name", "Иванов", "first_name", "Иван"), requestAs(TEACHER_ID))
-                .getStatusCode().value()).isEqualTo(403);
-        verify(users, never()).saveAndFlush(any());
-    }
-
-    @Test
-    void meMarksOldAccountAsIncomplete() {
-        assertThat(body(controller.getMe(request()))).containsEntry("profile_incomplete", true)
-                .containsEntry("namesake_number", null);
+    void studentHasNoWayToEditOwnName() {
+        assertThat(java.util.Arrays.stream(UploadController.class.getMethods()))
+                .noneMatch(m -> m.isAnnotationPresent(org.springframework.web.bind.annotation.PatchMapping.class));
     }
 
     @Test

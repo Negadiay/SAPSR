@@ -184,7 +184,7 @@ describe('работа и решение', () => {
     });
     await openWork(user, 'Иванов');
     await user.upload(await screen.findByLabelText('Загрузить файл'), new File(['%PDF'], 'r.pdf', { type: 'application/pdf' }));
-    expect(await screen.findByText('Комментариев нет — сохраните файл не через «Печать в PDF».')).toBeInTheDocument();
+    expect(await screen.findByText('В файле нет комментариев. Сохраните его обычным способом, а не через «Печать в PDF».')).toBeInTheDocument();
     expect(screen.getByText('Похоже, это файл другой работы.')).toBeInTheDocument();
     expect(screen.getByText('Загружено: 0 комментариев')).toBeInTheDocument();
   });

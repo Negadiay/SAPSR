@@ -27,7 +27,7 @@ export default function TeacherComments({ submission, download = true }) {
       <h3 className="section-title">Комментарии преподавателя</h3>
       {state.loading && <StatusLine tone="pending">Загрузка…</StatusLine>}
       {state.error && <StatusLine tone="error">{state.error}</StatusLine>}
-      {state.annotations?.length === 0 && <p className="hint">Пометки есть только в файле.</p>}
+      {state.annotations?.length === 0 && <p className="hint">Все пометки — в файле.</p>}
       {state.annotations?.length > 0 && <AnnotationList annotations={state.annotations} />}
       {download && (
         <button type="button" className="btn btn-secondary btn-block" onClick={() => downloadReviewFile(submission.id)}>

@@ -51,7 +51,8 @@ class Settings:
     # symbolic — только правила; hybrid — правила + модель (целевой); neural — только модель (для сравнения).
     mode: str = "hybrid"
     max_pages: int = 300
-    task_timeout_s: float = 540.0
+    # Меньше consumer_timeout RabbitMQ (60 мин, docker-compose.yml): иначе брокер закроет канал посреди проверки.
+    task_timeout_s: float = 2400.0
     iis_mode: str = "http"
     log_format: str = "json"
     log_level: str = "INFO"
@@ -69,7 +70,8 @@ class Settings:
             model=get("SAPSR_LLM_MODEL", "qwen3.5:4b"),
             temperature=float(get("SAPSR_LLM_TEMPERATURE", "0")),
             seed=int(get("SAPSR_LLM_SEED", "42")),
-            timeout_s=float(get("SAPSR_LLM_TIMEOUT_S", "120")),
+            # Самый длинный фрагмент (6000 символов) на RTX A500 — около 5 минут на один ответ (замер 22.11.2026).
+            timeout_s=float(get("SAPSR_LLM_TIMEOUT_S", "420")),
             num_ctx=int(get("SAPSR_LLM_NUM_CTX", "8192")),
             allow_cloud=_bool(get("SAPSR_LLM_ALLOW_CLOUD"), False),
             api_key=get("SAPSR_LLM_API_KEY") or None,
@@ -91,7 +93,7 @@ class Settings:
             kb_dir=_path(get("SAPSR_KB_DIR")) or DEFAULT_KB_DIR,
             mode=get("SAPSR_MODE", "hybrid"),
             max_pages=int(get("SAPSR_MAX_PAGES", "300")),
-            task_timeout_s=float(get("SAPSR_TASK_TIMEOUT_S", "540")),
+            task_timeout_s=float(get("SAPSR_TASK_TIMEOUT_S", "2400")),
             iis_mode=get("SAPSR_IIS_MODE", "http"),
             log_format=get("SAPSR_LOG_FORMAT", "json"),
             log_level=get("SAPSR_LOG_LEVEL", "INFO"),

@@ -132,14 +132,14 @@ SAPSR_LLM_MODE=replay SAPSR_LLM_REPLAY_DIR=../test-fixtures/llm-replay python an
 | `SAPSR_STORAGE_ROOT` | `/app/storage` в Docker, иначе `../storage` | корень хранилища файлов работ |
 | `SAPSR_MODE` | `hybrid` | `symbolic` — только правила; `hybrid` — правила + модель; `neural` — только модель (для сравнения) |
 | `SAPSR_MAX_PAGES` | `300` | больше — сбой `TOO_LARGE` |
-| `SAPSR_TASK_TIMEOUT_S` | `540` | общий тайм-аут проверки; содержательная часть по нему обрывается с пометкой в отчёте |
+| `SAPSR_TASK_TIMEOUT_S` | `2400` | общий тайм-аут проверки; содержательная часть по нему обрывается с пометкой в отчёте. Держать меньше `sapsr.pipeline.stuck-timeout` бэкенда (45 мин) и `consumer_timeout` RabbitMQ (60 мин, `docker-compose.yml`) |
 | `SAPSR_IIS_MODE` | `http` | `http` — справочники из ИИС (с тайм-аутом и паузой после сбоя); `off` — без ИИС |
 | `SAPSR_LLM_MODE` | `live` | `live`, `record`, `replay`, `stub`, `off` |
 | `SAPSR_LLM_PROVIDER` | `ollama` | `ollama` или `openai` (любой OpenAI-совместимый сервер) |
 | `SAPSR_LLM_BASE_URL` | `http://localhost:11434` | адрес модели |
 | `SAPSR_LLM_MODEL` | `qwen3.5:4b` | модель |
 | `SAPSR_LLM_TEMPERATURE`, `SAPSR_LLM_SEED` | `0`, `42` | воспроизводимость |
-| `SAPSR_LLM_TIMEOUT_S`, `SAPSR_LLM_NUM_CTX` | `120`, `8192` | тайм-аут вызова, окно контекста |
+| `SAPSR_LLM_TIMEOUT_S`, `SAPSR_LLM_NUM_CTX` | `420`, `8192` | тайм-аут одного вызова модели, окно контекста |
 | `SAPSR_LLM_ALLOW_CLOUD` | выключено | нелокальный адрес модели разрешается только так (решения 2 и 13) |
 | `SAPSR_LLM_API_KEY` | — | ключ OpenAI-совместимого сервиса для основной модели |
 | `SAPSR_LLM_MODELS_FILE` | `worker-python/llm-models.yaml` | каталог моделей; нет файла — одна модель из `SAPSR_LLM_*` |

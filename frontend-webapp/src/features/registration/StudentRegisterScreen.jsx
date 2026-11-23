@@ -26,7 +26,7 @@ export default function StudentRegisterScreen({ registration }) {
             onBlur={() => setGroupTouched(true)}
             aria-invalid={Boolean(groupError)} aria-describedby="student-group-hint" />
           <p id="student-group-hint" className={groupError ? 'field-error' : 'hint'}>
-            {groupError || 'Шесть цифр. По группе определяются курс и семестр; сменить её потом сможет только администратор.'}
+            {groupError || 'Проверьте номер: изменить его потом сможет только администратор.'}
           </p>
         </div>
         {regError && <p className="field-error" role="alert">{regError}</p>}

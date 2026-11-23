@@ -4,11 +4,11 @@ import { count } from './format';
 import { summarizeFindings } from './findings';
 import { STAGE_LABELS } from './report';
 
-// Подшаг текущего этапа словами (поле pipeline_stage, api-v1.md, раздел 13): «Проверяется: структура».
+// Подшаг текущего этапа словами (поле pipeline_stage, api-v1.md, раздел 13): «Идёт проверка структуры».
 const FORMAT_STAGES = ['extract', 'structure', 'format'];
 const CONTENT_STAGES = ['claims', 'reasoning', 'report'];
 const running = (s, stages) => (stages.includes(s.pipeline_stage)
-  ? `Проверяется: ${STAGE_LABELS[s.pipeline_stage]}` : 'Проверяется');
+  ? `Идёт ${STAGE_LABELS[s.pipeline_stage]}` : 'Проверяется');
 
 // Причины сбоя (queue-v2.md, раздел 5) — студенту словами, без кодов.
 const FAILURE_TEXT = {
@@ -27,7 +27,7 @@ const remarks = (n) => count(n, 'замечание', 'замечания', 'з�
 const formatChecked = (s) => s.status === 'SUCCESS' || s.status === 'REJECTED'
   || (s.status === 'PROCESSING' && s.content_status === 'PENDING');
 
-// LATE — содержание проверяется дольше 5 минут: работа уже у преподавателя, итог придёт следом (queue-v2.md, раздел 6).
+// LATE — содержание проверяется дольше 10 минут: работа уже у преподавателя, итог придёт следом (queue-v2.md, раздел 6).
 const contentRunning = (s) => s.content_status === 'PENDING' || s.content_status === 'LATE';
 
 export const isInProgress = (s) => s.status === 'QUEUED' || s.status === 'PROCESSING' || contentRunning(s);
@@ -63,11 +63,11 @@ export function formatStep(s) {
 /** Содержание: строка для экрана работы и карточки преподавателя. */
 export function contentStep(s) {
   if (s.status === 'FAILED' || s.content_status === 'NONE') return { tone: 'muted', text: 'Не проверялось' };
-  if (!formatChecked(s)) return { tone: 'muted', text: 'После оформления' };
+  if (!formatChecked(s)) return { tone: 'muted', text: 'Начнётся после оформления' };
   if (s.content_status === 'PENDING') return { tone: 'pending', text: running(s, CONTENT_STAGES) };
   if (s.content_status === 'LATE') return { tone: 'pending', text: 'Проверяется дольше обычного' };
   if (s.content_status === 'TIMEOUT') return { tone: 'warning', text: 'Не проверено: не хватило времени' };
-  if (s.content_status === 'FAILED') return { tone: 'warning', text: 'Не проверено: сбой проверки' };
+  if (s.content_status === 'FAILED') return { tone: 'warning', text: 'Не проверено из-за сбоя' };
   const { content, needsReview } = summarizeFindings(s.format_errors);
   if (!content.length) return { tone: 'ok', text: 'Без замечаний' };
   const review = needsReview ? `, на решение преподавателя: ${needsReview}` : '';
@@ -76,11 +76,11 @@ export function contentStep(s) {
 
 /** Преподаватель: строка для экрана работы студента. */
 export function teacherStep(s) {
-  if (s.teacher_verdict === 'APPROVED') return { tone: 'ok', text: 'Принял работу' };
-  if (s.teacher_verdict === 'REVISION') return { tone: 'warning', text: 'Вернул на доработку' };
+  if (s.teacher_verdict === 'APPROVED') return { tone: 'ok', text: 'Работа принята' };
+  if (s.teacher_verdict === 'REVISION') return { tone: 'warning', text: 'Возвращена на доработку' };
   if (s.status === 'SUCCESS' || s.status === 'REJECTED') return { tone: 'pending', text: 'Ждёт решения' };
   if (s.status === 'FAILED') return { tone: 'muted', text: 'Работа не отправлена' };
-  return { tone: 'muted', text: 'Получит работу после проверки' };
+  return { tone: 'muted', text: 'Работа придёт после проверки' };
 }
 
 /** Итог автоматической проверки для преподавателя: оформление и содержание. */
@@ -95,7 +95,7 @@ export function autoCheckForTeacher(s) {
     contentLine = { tone: 'pending', text: 'Содержание ещё проверяется — итог придёт отдельным сообщением' };
   }
   else if (s.content_status === 'TIMEOUT') contentLine = { tone: 'warning', text: 'Содержание не проверено: не хватило времени' };
-  else if (s.content_status === 'FAILED') contentLine = { tone: 'warning', text: 'Содержание не проверено: сбой' };
+  else if (s.content_status === 'FAILED') contentLine = { tone: 'warning', text: 'Содержание не проверено из-за сбоя' };
   else if (content.length) {
     contentLine = { tone: 'warning', text: `Содержание: ${remarks(content.length)}${needsReview ? `, на ваше решение: ${needsReview}` : ''}` };
   } else contentLine = null;

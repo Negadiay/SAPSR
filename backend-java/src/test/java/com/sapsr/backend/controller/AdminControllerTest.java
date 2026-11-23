@@ -12,6 +12,7 @@ import com.sapsr.backend.repository.ProcentovkaDateRepository;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.review.ReviewFileService;
+import com.sapsr.backend.service.BsuirApiService;
 import com.sapsr.backend.storage.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -43,6 +44,7 @@ class AdminControllerTest {
     private final ProcentovkaDateRepository procentovki = mock(ProcentovkaDateRepository.class);
     private final UserRepository users = mock(UserRepository.class);
     private final SubmissionRepository submissions = mock(SubmissionRepository.class);
+    private final BsuirApiService iis = mock(BsuirApiService.class);
     private AdminController controller;
     private User student;
 
@@ -52,7 +54,7 @@ class AdminControllerTest {
         Clock clock = Clock.fixed(minskNoon.atZone(AcademicCalendar.ZONE).toInstant(), AcademicCalendar.ZONE);
         AcademicCalendar calendar = new AcademicCalendar(settings, overrides, procentovki, clock);
         AdminUsers adminUsers = new AdminUsers(users, submissions, mock(ReviewFileService.class), mock(FileStorage.class),
-                mock(SapsrTelegramBot.class), calendar);
+                mock(SapsrTelegramBot.class), calendar, iis);
         controller = new AdminController(calendar, users, overrides, adminUsers);
         when(users.findById(ADMIN_ID)).thenReturn(Optional.of(user(ADMIN_ID, "ADMIN")));
         student = user(STUDENT_ID, "STUDENT");
@@ -143,6 +145,7 @@ class AdminControllerTest {
     @Test
     @Tag("typical")
     void setsCourseForCurrentAcademicYear() {
+        when(users.findByRoleAndGroupNumber("STUDENT", "451003")).thenReturn(List.of(student));
         ResponseEntity<?> response = controller.setCourse("451003", Map.of("course", 2), as(ADMIN_ID));
 
         assertThat(status(response)).isEqualTo(200);
@@ -154,6 +157,13 @@ class AdminControllerTest {
 
         assertThat(status(controller.resetCourse("451003", as(ADMIN_ID)))).isEqualTo(200);
         verify(overrides).deleteById(new GroupCourseOverride.Key("451003", 2026));
+    }
+
+    @Test
+    @Tag("negative")
+    void newGroupCannotBeCreated() {
+        assertThat(status(controller.setCourse("561003", Map.of("course", 2), as(ADMIN_ID)))).isEqualTo(404);
+        verify(overrides, never()).save(any());
     }
 
     @Test
@@ -226,6 +236,7 @@ class AdminControllerTest {
         assertThat((List<AdminUsers.Person>) people.get("teachers"))
                 .containsExactly(new AdminUsers.Person(2002L, "Гракова Наталья Викторовна", null));
 
+        when(iis.groupExists("321703")).thenReturn(true);
         ResponseEntity<?> fixed = controller.updateUser(STUDENT_ID,
                 Map.of("name", "  Терешкова   Анна Вячеславовна ", "group", "321703"), as(ADMIN_ID));
 

@@ -102,11 +102,6 @@
   padding: 0.6em 0;
 }
 
-.admin-add-row {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 0.5em;
-}
 
 /* --- КРАСНАЯ ЗОНА (решение 13) --- */
 .segment-danger { color: var(--error); }

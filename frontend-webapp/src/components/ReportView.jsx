@@ -195,7 +195,7 @@ function Requirements({ requirements, open }) {
 function CheckInfo({ report }) {
   const pipeline = report.pipeline || {};
   const models = (pipeline.models || []).map((m) => [
-    m.role === 'llm' ? 'Языковая модель' : 'Разметка документа',
+    m.role === 'llm' ? 'Нейросеть' : 'Разметка документа',
     [m.name, m.version ? `версия ${m.version}` : '', m.quantization, m.cloud ? 'облачная' : ''].filter(Boolean).join(', '),
   ]);
   const stages = (pipeline.stages || []).filter((s) => typeof s.ms === 'number');
@@ -284,7 +284,7 @@ export default function ReportView({ submission, forTeacher = false }) {
       <Group title="Оформление и структура" findings={format} forTeacher={forTeacher}
         marks={marks} onMark={canMark ? onMark : null} />
       <Group title="Содержание" findings={content} forTeacher={forTeacher} marks={marks} onMark={canMark ? onMark : null}
-        note={forTeacher ? 'Сдачу не блокируют. Найдены с участием нейросети — проверьте.' : 'Сдаче не мешают; решение — за преподавателем.'} />
+        note={forTeacher ? 'На сдачу не влияют. Их нашла нейросеть, поэтому лучше проверить.' : 'На сдачу не влияют. Решение примет преподаватель.'} />
       {markError && <StatusLine tone="error">{markError}</StatusLine>}
 
       <Requirements requirements={report.requirements} open={forTeacher} />
@@ -298,7 +298,7 @@ export default function ReportView({ submission, forTeacher = false }) {
         </section>
       )}
 
-      <CheckInfo report={report} />
+      {forTeacher && <CheckInfo report={report} />}
     </div>
   );
 }

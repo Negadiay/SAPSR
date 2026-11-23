@@ -12,7 +12,7 @@ export const DEFAULT_MAX_UPLOAD_MB = 50;
 
 // 50 МБ — предел Telegram на отправку файла ботом: работа уходит преподавателю документом в чат.
 export const tooLargeText = (maxMb) =>
-  `Файл больше ${maxMb} МБ — Telegram не даст переслать его преподавателю. Сожмите PDF (картинки) и загрузите снова.`;
+  `Файл больше ${maxMb} МБ. Сожмите его и загрузите снова.`;
 
 const readStorage = (key) => {
   try { return localStorage.getItem(key); } catch { return null; }

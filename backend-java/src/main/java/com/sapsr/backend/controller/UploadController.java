@@ -106,7 +106,7 @@ public class UploadController {
         return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
     }
 
-    /** Свои данные пользователя — ответ GET /me, PATCH /me и поле user после регистрации (api-v1.md, раздел 5). */
+    /** Свои данные пользователя — ответ GET /me и поле user после регистрации (api-v1.md, раздел 5). */
     private Map<String, Object> meView(User u) {
         {
             // Свои данные для экрана настроек (api-v1.md, раздел 5); имя и отчество у старых аккаунтов пусты.
@@ -132,32 +132,9 @@ public class UploadController {
                 me.put("cloud_check", llmModels.cloudActive());
                 // Номер виден, только если тёзка есть: «Среди студентов группы с таким же ФИО вы — №2».
                 me.put("namesake_number", Namesakes.hasNamesake(userRepository, u) ? u.getNamesakeNumber() : null);
-                // Аккаунт по старой форме — известны только фамилия и инициалы: интерфейс предложит дополнить ФИО.
-                me.put("profile_incomplete", u.getFirstName() == null || u.getFirstName().isBlank());
             }
             return me;
         }
-    }
-
-    /**
-     * Исправление ФИО студентом (api-v1.md, раздел 5). Группу и роль меняет только администратор (решение 15).
-     * ФИО изменилось — студент получает номер тёзки заново.
-     */
-    @PatchMapping("/me")
-    public ResponseEntity<?> patchMe(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return ApiErrors.error(401, "UNAUTHORIZED", NOT_IN_TELEGRAM);
-        Optional<User> current = userRepository.findById(telegramId);
-        if (current.isEmpty() || !"STUDENT".equals(current.get().getRole())) {
-            return ApiErrors.error(403, "FORBIDDEN", "Изменить ФИО может только студент.");
-        }
-        if (body.containsKey("group")) {
-            return ApiErrors.error(400, "VALIDATION_ERROR", "Группу меняет администратор.", "group");
-        }
-        User user = current.get();
-        Optional<ResponseEntity<?>> invalid = applyNameFields(user, body);
-        if (invalid.isPresent()) return invalid.get();
-        return ResponseEntity.ok(meView(user));
     }
 
     /** Проверяет и записывает last_name, first_name, middle_name; сохраняет студента с номером тёзки. */
@@ -207,8 +184,7 @@ public class UploadController {
         // Один аккаунт Telegram — один человек (решение 15): повторная регистрация ничего не меняет.
         if (current.isPresent() && ("STUDENT".equals(current.get().getRole())
                 || "TEACHER".equals(current.get().getRole()))) {
-            return ApiErrors.error(409, "ALREADY_REGISTERED", "Этот аккаунт Telegram уже зарегистрирован. "
-                    + "Исправить ФИО можно в настройках, сменить группу — у администратора.");
+            return ApiErrors.error(409, "ALREADY_REGISTERED", "Вы уже зарегистрированы. Если в данных ошибка, обратитесь к администратору.");
         }
 
         if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {

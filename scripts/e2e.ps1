@@ -196,7 +196,7 @@ try {
     $msg = @($rep.report.pipeline.skipped | Where-Object { $_.reason -eq 'NO_REQUIREMENTS' })[0].message
     $sem = (Sql "select coalesce(semester::text, 'нет') from submissions where id=$id8").Trim()
     Row 'E2E-08' 'граничный' 'Студент первого курса: для семестра нет набора требований' 'работа проверена, в «Не проверено» — NO_REQUIREMENTS с номером семестра' `
-        "$st; семестр $sem; сообщение: $msg" (($st -match '^SUCCESS\|DONE') -and ($msg -match 'семестра пока не заданы'))
+        "$st; семестр $sem; сообщение: $msg" (($st -match '^SUCCESS\|DONE') -and ($msg -match 'нет требований к курсовым работам'))
 
     # ── E2E-03: отклонена → преподаватель → пометки → новая версия со сравнением ─────────────────
     $u = Upload $S2 (Join-Path $Fix 'hybrid\no-conclusion.pdf') $key

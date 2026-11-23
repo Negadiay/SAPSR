@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Literal, Optional
@@ -31,6 +32,8 @@ from sapsr.kb.schema import SemesterRequirement
 from sapsr.llm.client import LlmClient, LlmError, LlmSchemaError, LlmTimeout
 from sapsr.report.model import Evidence, Finding, RequirementStatus, SkippedCheck, SourceRef
 from sapsr.task import Task
+
+log = logging.getLogger("sapsr.requirements")
 
 STATUS_PRIORITY = ("disputed", "violated", "not_established", "satisfied", "not_applicable")
 STATUS_RULE = {"violated": "REQ-VIOLATED", "disputed": "REQ-DISPUTED", "not_established": "REQ-NOT-ESTABLISHED"}
@@ -111,9 +114,9 @@ def check_requirements(doc: Document, kb: KnowledgeBase, profile: ResolvedProfil
         if not applicable or not chosen:
             continue
         if not llm_ok:
-            unevaluated[req.id] = "Не оценивалось: языковая модель недоступна."
+            unevaluated[req.id] = "Не оценивалось: нейросеть недоступна."
             skipped.append(SkippedCheck(id=req.id, stage="reasoning", reason="LLM_UNAVAILABLE",
-                                        message=f"Требование «{req.title}» не оценивалось: языковая модель недоступна."))
+                                        message=f"Требование «{req.title}» не оценивалось: нейросеть недоступна."))
             continue
         if deadline.expired:
             unevaluated[req.id] = "Не оценивалось: истекло время проверки."
@@ -127,9 +130,10 @@ def check_requirements(doc: Document, kb: KnowledgeBase, profile: ResolvedProfil
         except (LlmSchemaError, LlmTimeout, LlmError) as exc:
             reason = ("LLM_SCHEMA" if isinstance(exc, LlmSchemaError)
                       else "TIMEOUT" if isinstance(exc, LlmTimeout) else "LLM_UNAVAILABLE")
-            unevaluated[req.id] = "Не оценивалось: ответ модели не получен."
+            unevaluated[req.id] = "Не оценивалось: нейросеть не ответила."
+            log.warning("требование не оценено", extra={"fields": {"requirement": req.id, "reason": reason, "error": str(exc)}})
             skipped.append(SkippedCheck(id=req.id, stage="reasoning", reason=reason,
-                                        message=f"Требование «{req.title}» не оценивалось: {exc}"))
+                                        message=f"Требование «{req.title}» не оценивалось: нейросеть не ответила."))
             continue
         metrics["requirements_checked"] += 1
         by_id = {b.id: b for b in chosen}
@@ -202,9 +206,9 @@ def check_requirements(doc: Document, kb: KnowledgeBase, profile: ResolvedProfil
 def _note(reason: str) -> Optional[str]:
     return {
         "stage": "Не применимо на этом этапе опроцентовки.",
-        "low-confidence": "Модель высказалась неуверенно — требует проверки преподавателем.",
+        "low-confidence": "Нейросеть не уверена, решит преподаватель.",
         "no-evidence": "Подходящих фрагментов не найдено.",
-        "structure": "Раздела, где ожидается свидетельство, нет, но подтверждение найдено в другом месте.",
+        "structure": "Нужного раздела нет, но подтверждение нашлось в другом месте.",
     }.get(reason)
 
 

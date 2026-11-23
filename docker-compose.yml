@@ -27,6 +27,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-rmq_user}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
+      # Сообщение подтверждается после проверки, а она идёт до 40 мин; по умолчанию брокер ждёт только 30.
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit consumer_timeout 3600000"
     # Очередь и панель управления — только с этого компьютера.
     ports:
       - "127.0.0.1:5672:5672"

@@ -26,7 +26,7 @@ const show = (answer, props = {}) => {
 
 describe('ReportView', () => {
   it('противоречие: фрагменты разных разделов рядом, происхождение поясняется по нажатию', async () => {
-    const { user } = show({ report: example('contradiction'), comparison: null });
+    const { user } = show({ report: example('contradiction'), comparison: null }, { forTeacher: true });
     expect(await screen.findByText(/перечни в разных разделах не совпадают/)).toBeInTheDocument();
     expect(screen.getByText('Оформление: 0 · Структура: 0 · Содержание: 1')).toBeInTheDocument();
 
@@ -36,8 +36,8 @@ describe('ReportView', () => {
     expect(within(quotes).getByText('раздел «1.2», стр. 4')).toBeInTheDocument();
 
     expect(screen.getByText(/уверенность высокая/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'правило + модель' }));
-    expect(screen.getByText(/цитаты сверены с текстом, вывод сделало правило/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'нейросеть и правила' }));
+    expect(screen.getByText(/система сверила цитаты и сделала вывод/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Подробнее' }));
     expect(screen.getByText('Одинаковый перечень во всех разделах.')).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe('ReportView', () => {
     expect(screen.getByText('Требования к системе, 7 семестр')).toBeInTheDocument();
 
     await user.click(screen.getByText('Сведения о проверке'));
-    expect(screen.getByText('правила и языковая модель')).toBeInTheDocument();
+    expect(screen.getByText('правила и нейросеть')).toBeInTheDocument();
     expect(screen.getByText('qwen3.5:4b, Q4_K_M')).toBeInTheDocument();
     expect(screen.getByText('2026.10.18+e9f1e8f4')).toBeInTheDocument();
   });
@@ -56,20 +56,22 @@ describe('ReportView', () => {
     expect(await screen.findByText('Замечаний нет')).toBeInTheDocument();
     expect(screen.getByText('Оформление: 0 · Структура: 0 · Содержание: 0')).toBeInTheDocument();
     expect(screen.queryByText('Не проверено')).toBeNull();
+    // Технические сведения — только преподавателю.
+    expect(screen.queryByText('Сведения о проверке')).toBeNull();
   });
 
   it('только «не проверено»: причины пропуска словами, без повторов', async () => {
     const base = example('format');
     const skipped = [
       { id: 'requirements', stage: 'claims', reason: 'NO_REQUIREMENTS',
-        message: 'Требования к содержанию для 3 семестра пока не заданы — проверены оформление и согласованность текста.' },
+        message: 'В руководстве нет требований к курсовым работам для 3 семестра, поэтому проверены оформление и согласованность текста.' },
       { id: '*', stage: 'claims', reason: 'LLM_UNAVAILABLE', message: 'Языковая модель не отвечает. Содержательная проверка не выполнялась.' },
       { id: 'REQ7-TESTING', stage: 'reasoning', reason: 'LLM_UNAVAILABLE', message: 'Языковая модель не отвечает. Содержательная проверка не выполнялась.' },
     ];
     show({ report: { ...base, findings: [], pipeline: { ...base.pipeline, skipped } }, comparison: null });
     const block = (await screen.findByRole('heading', { name: 'Не проверено' })).closest('section');
     expect(within(block).getAllByRole('listitem')).toHaveLength(2);
-    expect(within(block).getByText(/для 3 семестра пока не заданы/)).toBeInTheDocument();
+    expect(within(block).getByText(/для 3 семестра/)).toBeInTheDocument();
   });
 
   it('старый формат: отчёта v2 нет — замечания прежним списком', async () => {
@@ -151,12 +153,12 @@ describe('ReportView', () => {
 
 describe('ход проверки', () => {
   it('подшаг текущего этапа — словами', () => {
-    expect(formatStep({ status: 'PROCESSING', pipeline_stage: 'structure' }).text).toBe('Проверяется: структура');
-    expect(formatStep({ status: 'PROCESSING', pipeline_stage: 'extract' }).text).toBe('Проверяется: извлечение текста');
+    expect(formatStep({ status: 'PROCESSING', pipeline_stage: 'structure' }).text).toBe('Идёт проверка структуры');
+    expect(formatStep({ status: 'PROCESSING', pipeline_stage: 'extract' }).text).toBe('Идёт чтение файла');
     expect(formatStep({ status: 'PROCESSING' }).text).toBe('Проверяется');
     const content = { status: 'PROCESSING', content_status: 'PENDING', format_errors: '[]' };
-    expect(contentStep({ ...content, pipeline_stage: 'claims' }).text).toBe('Проверяется: содержание: модель');
-    expect(contentStep({ ...content, pipeline_stage: 'reasoning' }).text).toBe('Проверяется: правила');
+    expect(contentStep({ ...content, pipeline_stage: 'claims' }).text).toBe('Идёт проверка содержания');
+    expect(contentStep({ ...content, pipeline_stage: 'reasoning' }).text).toBe('Идёт сверка с требованиями');
     expect(contentStep({ ...content, pipeline_stage: 'format' }).text).toBe('Проверяется');
   });
 

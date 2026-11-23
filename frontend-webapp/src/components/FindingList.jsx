@@ -68,7 +68,7 @@ export default function FindingList({ raw, forTeacher = false }) {
     <div className="findings">
       <Group title="Оформление" findings={format} forTeacher={forTeacher} />
       <Group title="Содержание" findings={content} forTeacher={forTeacher}
-        note={forTeacher ? 'Сдачу не блокируют. Найдены нейросетью — проверьте.' : 'Сдаче не мешают; решение — за преподавателем.'} />
+        note={forTeacher ? 'На сдачу не влияют. Их нашла нейросеть, поэтому лучше проверить.' : 'На сдачу не влияют. Решение примет преподаватель.'} />
     </div>
   );
 }

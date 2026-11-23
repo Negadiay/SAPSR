@@ -79,7 +79,7 @@ export default function WorkScreen({ id, works, header, onSelectVersion, onUploa
 
       {s.source_format === 'docx' && (
         <div className="docx-note">
-          <p className="hint">Проверена PDF-версия: номера страниц — по ней.</p>
+          <p className="hint">Работа проверена в PDF, номера страниц указаны по нему.</p>
           <button type="button" className="link-btn" onClick={() => downloadPdfVersion(s.id)}>
             <Icon name="download" />Скачать PDF-версию
           </button>

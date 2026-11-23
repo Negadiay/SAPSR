@@ -30,12 +30,7 @@ export const namePartProblem = (value, label) => {
   return NAME_PART.test(text) ? '' : `${label}: только русские буквы, дефис и пробел.`;
 };
 
-// Поля формы ФИО из данных GET /me и обратно — в тело запроса регистрации и PATCH /me.
-export const nameFormOf = (me) => ({
-  lastName: me?.last_name || '', firstName: me?.first_name || '', middleName: me?.middle_name || '',
-  noMiddle: Boolean(me?.first_name) && !me?.middle_name,
-});
-
+// Поля формы ФИО — в тело запроса регистрации.
 export const nameFormProblem = (form) => namePartProblem(form.lastName, 'Фамилия')
   || namePartProblem(form.firstName, 'Имя')
   || (form.noMiddle ? '' : namePartProblem(form.middleName, 'Отчество'));

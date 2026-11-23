@@ -105,8 +105,7 @@ function App() {
         return <AdminScreen admin={admin} header={header(rootActions)} />;
       case 'settings':
         return <SettingsScreen settings={settings} profile={session.profile} header={header()}
-          onNeedProfile={session.refreshProfile}
-          onProfileSaved={(me) => (me ? session.setProfile(me) : session.refreshProfile())} />;
+          onNeedProfile={session.refreshProfile} />;
       default:
         return null;
     }

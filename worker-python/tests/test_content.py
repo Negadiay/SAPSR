@@ -214,8 +214,8 @@ def _no_requirements(report) -> list[str]:
 @pytest.mark.boundary
 def test_semester_without_requirements_is_reported(service_factory):
     report = final_report(service_factory(), HYBRID / "content-clean.pdf", semester=3, stage=2)
-    assert _no_requirements(report) == [("Требования к содержанию для 3 семестра пока не заданы — "
-                                        "проверены оформление и согласованность текста.")]
+    assert _no_requirements(report) == [("В руководстве нет требований к курсовым работам для 3 семестра, "
+                                        "поэтому проверены оформление и согласованность текста.")]
     assert report.requirements == [] and report.summary.content_checked
 
 

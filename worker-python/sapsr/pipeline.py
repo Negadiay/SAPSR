@@ -99,7 +99,7 @@ class _Run:
 
 class CheckService:
     def __init__(self, kb: KnowledgeBase, llm: LlmClient | LlmRegistry | None, directory: Directory, *,
-                 mode: str = "hybrid", max_pages: int = 300, task_timeout_s: Optional[float] = 540,
+                 mode: str = "hybrid", max_pages: int = 300, task_timeout_s: Optional[float] = 2400,
                  labeler: Optional[Labeler] = None, clock: Callable[[], datetime] = minsk_now):
         self.kb = kb
         # Одна модель (тесты, командная строка) — каталог из одной модели.
@@ -135,7 +135,7 @@ class CheckService:
         if task.file.source_format == "docx":
             run.warnings.append(PipelineWarning(
                 code="CONVERTED_FROM_DOCX",
-                message="Работа сдана в DOCX и проверена PDF-версия; номера страниц относятся к ней."))
+                message="Работа сдана в DOCX и проверена в PDF, номера страниц указаны по нему."))
 
         notify("extract", 1)
         with self._stage(run, "extract"):
@@ -175,8 +175,8 @@ class CheckService:
             run.metrics.update({"content_fragments": len(fragments), "content_chars_dropped": dropped})
             if dropped:
                 run.skipped.append(SkippedCheck(id="*", stage="claims", reason="BUDGET",
-                                                message=f"В модель не поместилось {dropped} символов текста; "
-                                                        "проверены разделы с наибольшим приоритетом."))
+                                                message="Работа слишком длинная: проверены самые важные разделы, "
+                                                        f"остальной текст ({dropped} символов) — нет."))
             if not fragments:
                 run.skipped.append(SkippedCheck(id="*", stage="claims", reason="NO_SECTIONS",
                                                 message="Не найдены разделы для содержательной проверки."))
@@ -299,8 +299,8 @@ class CheckService:
         if task_profile.work_type == "diploma":
             message = "Дипломные работы пока проверяются только по оформлению и согласованности текста."
         elif task_profile.semester is not None:
-            message = (f"Требования к содержанию для {task_profile.semester} семестра пока не заданы — "
-                       "проверены оформление и согласованность текста.")
+            message = (f"В руководстве нет требований к курсовым работам для {task_profile.semester} семестра, "
+                       "поэтому проверены оформление и согласованность текста.")
         else:
             return  # семестр не указан: об этом уже говорит предупреждение DEFAULT_PROFILE
         run.skipped.append(SkippedCheck(id="requirements", stage="claims", reason="NO_REQUIREMENTS",

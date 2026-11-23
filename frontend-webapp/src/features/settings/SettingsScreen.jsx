@@ -3,7 +3,6 @@ import { shortName } from '../../lib/names';
 import AppHeader from '../../components/AppHeader';
 import Icon from '../../components/Icon';
 import { isTelegramClient } from '../../telegram/webApp';
-import MyData from './MyData';
 import ThemeEditor from './ThemeEditor';
 import { readabilityIssues } from './customTheme';
 import { FONT_SIZES } from './useSettings';
@@ -23,11 +22,6 @@ function ProfileCard({ profile }) {
       {profile.role === 'STUDENT' && profile.group && (
         <p className="hint">Группа {profile.group}{profile.course ? ` · ${profile.course} курс` : ''}</p>
       )}
-      {(profile.role === 'STUDENT' || profile.role === 'TEACHER') && (
-        <p className="hint">
-          Один аккаунт Telegram — один человек.{profile.role === 'STUDENT' ? ' Сменить группу может администратор.' : ''}
-        </p>
-      )}
     </section>
   );
 }
@@ -44,7 +38,7 @@ function Toggle({ label, on, off = false, onClick }) {
   );
 }
 
-export default function SettingsScreen({ settings, profile, header, onNeedProfile, onProfileSaved }) {
+export default function SettingsScreen({ settings, profile, header, onNeedProfile }) {
   const {
     mode, setMode, contrast, toggleContrast, custom, toggleCustom, setCustomColor, applyPreset, fontSize, setFontSize,
   } = settings;
@@ -63,7 +57,6 @@ export default function SettingsScreen({ settings, profile, header, onNeedProfil
     <div className="screen-body">
       <AppHeader title="Настройки" {...header} />
       <ProfileCard profile={profile} />
-      {profile?.role === 'STUDENT' && <MyData key={profile.full_name} profile={profile} onSaved={onProfileSaved} />}
 
       <section className={`card settings-card ${unreadable ? 'theme-safe' : ''}`}>
         <p className="settings-label">Тема</p>

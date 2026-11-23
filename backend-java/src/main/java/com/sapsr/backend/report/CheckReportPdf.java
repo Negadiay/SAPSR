@@ -106,7 +106,7 @@ public final class CheckReportPdf {
         }
         if (!content.isEmpty()) {
             doc.add(sectionTitle("Содержание", section));
-            Paragraph note = new Paragraph("Замечания по содержанию сдаче не мешают; решение принимает преподаватель.", small);
+            Paragraph note = new Paragraph("Замечания по содержанию на сдачу не влияют. Решение примет преподаватель.", small);
             note.setSpacingAfter(4);
             doc.add(note);
             for (JsonNode f : content) addFinding(doc, ++number, f, heading, normal, label, small, bf);

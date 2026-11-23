@@ -230,7 +230,7 @@ class ResultListenerServiceTest {
         listener.handleResult(CONTENT_REJECTED);
 
         assertThat(work.getStatus()).isEqualTo("REJECTED");
-        assertThat(edited(STUDENT_ID)).contains("Содержание: 1 замечание, сдаче не мешают.");
+        assertThat(edited(STUDENT_ID)).contains("Содержание: 1 замечание, на сдачу не влияют.");
         assertThat(sent(TEACHER_ID)).contains("Оформление: ошибок — 1")
                 .contains("Содержание: 1 замечание, 1 — на ваше решение");
     }
@@ -367,7 +367,7 @@ class ResultListenerServiceTest {
         ArgumentCaptor<String> caption = ArgumentCaptor.forClass(String.class);
         verify(bot).sendDocument(eq(TEACHER_ID), eq(new byte[]{1, 2}), eq("КР7 — комментарии.pdf"), caption.capture(),
                 any(), eq(null));
-        assertThat(caption.getValue()).startsWith("📥 <b>Новая работа</b>").endsWith("комментариями в приложенном файле.");
+        assertThat(caption.getValue()).startsWith("📥 <b>Новая работа</b>").endsWith("Замечания отмечены в приложенном файле.");
         verify(bot, never()).send(eq(TEACHER_ID), anyString(), any());
         verify(submissions).setTeacherMessageId(153, 888);
     }
