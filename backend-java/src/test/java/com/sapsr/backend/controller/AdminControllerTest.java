@@ -7,6 +7,7 @@ import com.sapsr.backend.entity.GroupCourseOverride;
 import com.sapsr.backend.entity.ProcentovkaDate;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.AcademicSettingRepository;
+import com.sapsr.backend.repository.FindingFeedbackRepository;
 import com.sapsr.backend.repository.GroupCourseOverrideRepository;
 import com.sapsr.backend.repository.ProcentovkaDateRepository;
 import com.sapsr.backend.repository.SubmissionRepository;
@@ -53,7 +54,8 @@ class AdminControllerTest {
         LocalDateTime minskNoon = LocalDateTime.of(2026, 10, 23, 12, 0);
         Clock clock = Clock.fixed(minskNoon.atZone(AcademicCalendar.ZONE).toInstant(), AcademicCalendar.ZONE);
         AcademicCalendar calendar = new AcademicCalendar(settings, overrides, procentovki, clock);
-        AdminUsers adminUsers = new AdminUsers(users, submissions, mock(ReviewFileService.class), mock(FileStorage.class),
+        AdminUsers adminUsers = new AdminUsers(users, submissions, mock(FindingFeedbackRepository.class),
+                mock(ReviewFileService.class), mock(FileStorage.class),
                 mock(SapsrTelegramBot.class), calendar, iis);
         controller = new AdminController(calendar, users, overrides, adminUsers);
         when(users.findById(ADMIN_ID)).thenReturn(Optional.of(user(ADMIN_ID, "ADMIN")));
@@ -279,6 +281,27 @@ class AdminControllerTest {
         assertThat(status(controller.makeAdmin(ADMIN_ID, as(ADMIN_ID)))).isEqualTo(409);
         assertThat(status(controller.makeAdmin(424242L, as(ADMIN_ID)))).isEqualTo(404);
         verify(users, never()).save(any());
+    }
+
+    @Test
+    @Tag("typical")
+    void deletesStudentAndTeacherButNotAdminOrSelf() {
+        User teacher = user(2002L, "TEACHER");
+        User otherAdmin = user(9002L, "ADMIN");
+        when(users.findById(2002L)).thenReturn(Optional.of(teacher));
+        when(users.findById(9002L)).thenReturn(Optional.of(otherAdmin));
+
+        assertThat(status(controller.deleteUser(STUDENT_ID, as(STUDENT_ID)))).isEqualTo(403);
+        assertThat(status(controller.deleteUser(STUDENT_ID, as(ADMIN_ID)))).isEqualTo(200);
+        verify(users).deleteById(STUDENT_ID);
+
+        assertThat(status(controller.deleteUser(2002L, as(ADMIN_ID)))).isEqualTo(200);
+        verify(users).deleteById(2002L);
+
+        assertThat(status(controller.deleteUser(ADMIN_ID, as(ADMIN_ID)))).isEqualTo(409);
+        assertThat(status(controller.deleteUser(9002L, as(ADMIN_ID)))).isEqualTo(409);
+        assertThat(status(controller.deleteUser(424242L, as(ADMIN_ID)))).isEqualTo(404);
+        verify(users, never()).deleteById(9002L);
     }
 
     private static User user(long id, String role) {

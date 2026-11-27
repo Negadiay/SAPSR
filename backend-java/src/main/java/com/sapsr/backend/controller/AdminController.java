@@ -229,6 +229,21 @@ public class AdminController {
         return ResponseEntity.ok(view());
     }
 
+    /** Удалить студента или преподавателя, чтобы пользователь мог зарегистрироваться заново. */
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<?> deleteUser(@PathVariable long id, HttpServletRequest request) {
+        Optional<ResponseEntity<?>> denied = deny(request);
+        if (denied.isPresent()) return denied.get();
+        try {
+            adminUsers.deleteUser(id, adminId(request));
+        } catch (AdminUsers.CannotDelete e) {
+            return ResponseEntity.status(409).body(Map.of("code", "CANNOT_DELETE_ADMIN", "error", e.getMessage()));
+        } catch (AdminUsers.NotFound e) {
+            return ResponseEntity.status(404).body(Map.of("code", "NOT_FOUND", "error", e.getMessage()));
+        }
+        return ResponseEntity.ok(view());
+    }
+
     // ── ответ ─────────────────────────────────────────────────────────────────────────────────
 
     /** Всё, что показывает экран администратора; после изменения возвращается он же. */

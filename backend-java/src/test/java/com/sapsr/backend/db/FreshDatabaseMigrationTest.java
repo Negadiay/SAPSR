@@ -223,6 +223,27 @@ class FreshDatabaseMigrationTest {
     }
 
     @Test
+    void teacherDeletionClearsWorkReferencesAndFeedback() {
+        User teacher = user(7201L, "TEACHER");
+        User student = user(7202L, "STUDENT");
+        Submission work = submission(student, teacher, "SUCCESS", null);
+        jdbc.update("INSERT INTO finding_feedback (submission_id, finding_id, requirement_id, origin, verdict, "
+                + "teacher_telegram_id, created_at) VALUES (?, 'f-001', 'R', 'symbolic', 'correct', 7201, now())",
+                work.getId());
+
+        feedback.deleteByTeacherTelegramId(7201L);
+        submissions.clearTeacher(7201L);
+        users.deleteById(7201L);
+        users.flush();
+
+        assertThat(users.findById(7201L)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT teacher_telegram_id FROM submissions WHERE id = ?", Long.class, work.getId()))
+                .isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM finding_feedback WHERE teacher_telegram_id = 7201", Integer.class))
+                .isZero();
+    }
+
+    @Test
     void reviewFileAndCommentsAreDeletedWithWork() {
         Submission work = submission(user(7002L, "STUDENT"), user(7001L, "TEACHER"), "SUCCESS", null);
         ReviewFile file = new ReviewFile();

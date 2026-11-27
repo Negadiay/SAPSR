@@ -24,6 +24,8 @@ export const saveUser = (id, data) => putJson(`/admin/users/${id}`, data);
 
 export const makeAdmin = (id) => postJson(`/admin/users/${id}/admin`, {});
 
+export const deleteUser = (id) => apiFetch(`/admin/users/${id}`, { method: 'DELETE' });
+
 // «Красная зона» (api-v1.md, раздел 16): состояние обработчика и модель проверки.
 export const fetchSystem = () => apiFetch('/admin/system');
 

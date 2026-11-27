@@ -9,6 +9,7 @@ import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.controller.UploadController;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.repository.FindingFeedbackRepository;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
 import com.sapsr.backend.service.BsuirApiService;
@@ -18,6 +19,7 @@ import com.sapsr.backend.storage.FileStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -65,18 +67,26 @@ public class AdminUsers {
         public NotAStudent(String message) { super(message); }
     }
 
+    /** Администратора и самого себя удалить нельзя. */
+    public static class CannotDelete extends RuntimeException {
+        public CannotDelete(String message) { super(message); }
+    }
+
     private final UserRepository users;
     private final SubmissionRepository submissions;
+    private final FindingFeedbackRepository findingFeedback;
     private final ReviewFileService reviewFiles;
     private final FileStorage fileStorage;
     private final SapsrTelegramBot bot;
     private final AcademicCalendar calendar;
     private final BsuirApiService iis;
 
-    public AdminUsers(UserRepository users, SubmissionRepository submissions, ReviewFileService reviewFiles,
-                      FileStorage fileStorage, SapsrTelegramBot bot, AcademicCalendar calendar, BsuirApiService iis) {
+    public AdminUsers(UserRepository users, SubmissionRepository submissions, FindingFeedbackRepository findingFeedback,
+                      ReviewFileService reviewFiles, FileStorage fileStorage, SapsrTelegramBot bot,
+                      AcademicCalendar calendar, BsuirApiService iis) {
         this.users = users;
         this.submissions = submissions;
+        this.findingFeedback = findingFeedback;
         this.reviewFiles = reviewFiles;
         this.fileStorage = fileStorage;
         this.bot = bot;
@@ -183,15 +193,7 @@ public class AdminUsers {
         User user = users.findById(id).orElseThrow(NotFound::new);
         if (!STUDENT.equals(user.getRole())) throw new NotAStudent("Администратором можно сделать только студента.");
 
-        List<Submission> works = submissions.findByStudent_TelegramIdOrderByCreatedAtDesc(id);
-        for (Submission s : works) {
-            if (s.getTeacher() != null && s.getTeacherMessageId() != null) {
-                bot.deleteMessage(s.getTeacher().getTelegramId(), s.getTeacherMessageId());
-            }
-            reviewFiles.deleteFor(s.getId());
-            submissions.deleteById(s.getId());
-            deleteStoredFile(s);
-        }
+        int deletedWorks = deleteStudentSubmissions(id);
 
         String name = user.displayName();
         user.setRole(ADMIN);
@@ -201,18 +203,57 @@ public class AdminUsers {
         user.setEmail(null);
         user.setUrlId(null);
         users.save(user);
-        log.info("Администратор {} назначил администратором пользователя {}; удалено работ: {}", adminId, id, works.size());
-        bot.send(id, BotMessages.madeAdmin(works.size()), AppLink.forRole(ADMIN));
+        log.info("Администратор {} назначил администратором пользователя {}; удалено работ: {}", adminId, id, deletedWorks);
+        bot.send(id, BotMessages.madeAdmin(deletedWorks), AppLink.forRole(ADMIN));
+        return deletedWorks;
+    }
+
+    /**
+     * Удаляет студента или преподавателя, чтобы пользователь мог зарегистрироваться заново.
+     * Работы студента и их файлы удаляются; у работ преподавателя преподаватель сбрасывается.
+     */
+    @Transactional
+    public void deleteUser(long id, long adminId) {
+        if (id == adminId) throw new CannotDelete("Себя удалить нельзя.");
+        User user = users.findById(id).orElseThrow(NotFound::new);
+        String role = user.getRole();
+        if (ADMIN.equals(role)) throw new CannotDelete("Администратора удалить нельзя.");
+
+        if (STUDENT.equals(role)) {
+            deleteStudentSubmissions(id);
+            submissions.flush();
+        } else if (TEACHER.equals(role)) {
+            findingFeedback.deleteByTeacherTelegramId(id);
+            submissions.clearTeacher(id);
+        }
+
+        users.deleteById(id);
+        users.flush();
+        log.info("Администратор {} удалил пользователя {} (роль {})", adminId, id, role);
+        bot.send(id, BotMessages.accountDeleted(), AppLink.forRole(null));
+    }
+
+    private int deleteStudentSubmissions(long studentId) {
+        List<Submission> works = submissions.findByStudent_TelegramIdOrderByCreatedAtDesc(studentId);
+        for (Submission s : works) {
+            if (s.getTeacher() != null && s.getTeacherMessageId() != null) {
+                bot.deleteMessage(s.getTeacher().getTelegramId(), s.getTeacherMessageId());
+            }
+            reviewFiles.deleteFor(s.getId());
+            submissions.deleteById(s.getId());
+            deleteStoredFile(s);
+        }
         return works.size();
     }
 
     private void deleteStoredFile(Submission s) {
-        Optional.ofNullable(s.getStorageKey()).ifPresent(key -> {
+        for (String key : new String[] {s.getStorageKey(), s.getSourceStorageKey()}) {
+            if (key == null) continue;
             try {
                 fileStorage.delete(key);
             } catch (IOException | IllegalArgumentException e) {
                 log.warn("Не удалось удалить файл работы #{}: {}", s.getId(), e.getMessage());
             }
-        });
+        }
     }
 }

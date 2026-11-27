@@ -7,6 +7,7 @@ import com.sapsr.backend.bot.BotMessages;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
 import com.sapsr.backend.repository.AcademicSettingRepository;
+import com.sapsr.backend.repository.FindingFeedbackRepository;
 import com.sapsr.backend.repository.GroupCourseOverrideRepository;
 import com.sapsr.backend.repository.ProcentovkaDateRepository;
 import com.sapsr.backend.repository.SubmissionRepository;
@@ -37,12 +38,13 @@ class AdminUsersTest {
 
     private final UserRepository users = mock(UserRepository.class);
     private final SubmissionRepository submissions = mock(SubmissionRepository.class);
+    private final FindingFeedbackRepository findingFeedback = mock(FindingFeedbackRepository.class);
     private final ReviewFileService reviewFiles = mock(ReviewFileService.class);
     private final FileStorage fileStorage = mock(FileStorage.class);
     private final SapsrTelegramBot bot = mock(SapsrTelegramBot.class);
     private final BsuirApiService iis = mock(BsuirApiService.class);
-    private final AdminUsers adminUsers = new AdminUsers(users, submissions, reviewFiles, fileStorage, bot,
-            new AcademicCalendar(mock(AcademicSettingRepository.class), mock(GroupCourseOverrideRepository.class),
+    private final AdminUsers adminUsers = new AdminUsers(users, submissions, findingFeedback, reviewFiles, fileStorage,
+            bot, new AcademicCalendar(mock(AcademicSettingRepository.class), mock(GroupCourseOverrideRepository.class),
                     mock(ProcentovkaDateRepository.class),
                     Clock.fixed(LocalDateTime.of(2026, 10, 24, 12, 0).atZone(AcademicCalendar.ZONE).toInstant(),
                             AcademicCalendar.ZONE)), iis);
@@ -179,5 +181,66 @@ class AdminUsersTest {
         assertThat(u.displayName()).isEqualTo("Терешкова А.В.");
         u.setFullName("Гракова Наталья Викторовна");
         assertThat(u.displayName()).isEqualTo("Гракова Наталья Викторовна");
+    }
+
+    @Test
+    @Tag("typical")
+    void deleteStudentRemovesWorksFilesTeacherMessagesAndSendsNotice() throws IOException {
+        User student = studentIvanov();
+        User teacher = new User();
+        teacher.setTelegramId(2002L);
+        Submission work = new Submission();
+        work.setId(155);
+        work.setStorageKey("2026/10/b.pdf");
+        work.setSourceStorageKey("2026/10/b.docx");
+        work.setTeacher(teacher);
+        work.setTeacherMessageId(777);
+        when(submissions.findByStudent_TelegramIdOrderByCreatedAtDesc(1001L)).thenReturn(List.of(work));
+
+        adminUsers.deleteUser(1001L, 9001L);
+
+        verify(bot).deleteMessage(2002L, 777);
+        verify(reviewFiles).deleteFor(155);
+        verify(submissions).deleteById(155);
+        verify(submissions).flush();
+        verify(fileStorage).delete("2026/10/b.pdf");
+        verify(fileStorage).delete("2026/10/b.docx");
+        verify(users).deleteById(1001L);
+        verify(users).flush();
+        verify(bot).send(eq(1001L), contains("удалён администратором"), eq(AppLink.forRole(null)));
+    }
+
+    @Test
+    @Tag("typical")
+    void deleteTeacherClearsWorksAndFeedbackAndSendsNotice() {
+        User teacher = new User();
+        teacher.setTelegramId(2002L);
+        teacher.setRole("TEACHER");
+        when(users.findById(2002L)).thenReturn(Optional.of(teacher));
+
+        adminUsers.deleteUser(2002L, 9001L);
+
+        verify(findingFeedback).deleteByTeacherTelegramId(2002L);
+        verify(submissions).clearTeacher(2002L);
+        verify(users).deleteById(2002L);
+        verify(users).flush();
+        verify(bot).send(eq(2002L), contains("удалён администратором"), eq(AppLink.forRole(null)));
+    }
+
+    @Test
+    @Tag("negative")
+    void cannotDeleteAdminOrSelf() {
+        User otherAdmin = new User();
+        otherAdmin.setTelegramId(9002L);
+        otherAdmin.setRole("ADMIN");
+        when(users.findById(9002L)).thenReturn(Optional.of(otherAdmin));
+
+        assertThatThrownBy(() -> adminUsers.deleteUser(9001L, 9001L))
+                .isInstanceOf(AdminUsers.CannotDelete.class);
+        assertThatThrownBy(() -> adminUsers.deleteUser(9002L, 9001L))
+                .isInstanceOf(AdminUsers.CannotDelete.class);
+        assertThatThrownBy(() -> adminUsers.deleteUser(424242L, 9001L))
+                .isInstanceOf(AdminUsers.NotFound.class);
+        verify(users, never()).deleteById(any());
     }
 }
