@@ -3,16 +3,20 @@ services:
     image: postgres:16-alpine
     container_name: sapsr-postgres
     environment:
-      POSTGRES_USER: sapsr_user
-      POSTGRES_PASSWORD: sapsr_password
+      POSTGRES_USER: ${POSTGRES_USER:-sapsr_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       POSTGRES_DB: sapsr_db
+      # Время — по Минску, даже если машина (с VPN для ngrok) считает себя в другом поясе.
+      TZ: Europe/Minsk
+    # Только с этого компьютера: снаружи база не видна. Сервисы внутри Compose ходят по имени postgres-db.
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
+    # Схему создаёт бэкенд миграциями Flyway (backend-java/src/main/resources/db/migration).
+    # Тестовые данные для разработки — свой dev-seed.sql (не в git, образец — dev-seed.example.sql), загружается вручную.
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sapsr_user -d sapsr_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d sapsr_db"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -21,11 +25,14 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: sapsr-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: rmq_user
-      RABBITMQ_DEFAULT_PASS: rmq_password
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-rmq_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
+      # Сообщение подтверждается после проверки, а она идёт до 40 мин; по умолчанию брокер ждёт только 30.
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit consumer_timeout 3600000"
+    # Очередь и панель управления — только с этого компьютера.
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -38,23 +45,79 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
+      TZ: Europe/Minsk
+      RABBITMQ_USER: ${RABBITMQ_USER:-rmq_user}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
+      # Файлы работ по ключу storage_key (queue-v2.md, раздел 3).
+      SAPSR_STORAGE_ROOT: /app/storage
+      # 2 — ход проверки и результат в две фазы: оформление сразу, содержание вторым сообщением (задача 5.2).
+      # Бэкенд принимает и 1 — результат одним сообщением; это откат одной строкой в .env.
+      SAPSR_QUEUE_PROTOCOL: ${SAPSR_QUEUE_PROTOCOL:-2}
+      # Ollama на ноутбуке (решение 8); без неё проверяется только оформление.
+      SAPSR_LLM_BASE_URL: ${SAPSR_LLM_BASE_URL:-http://host.docker.internal:11434}
+      SAPSR_LLM_MODEL: ${SAPSR_LLM_MODEL:-qwen3.5:4b}
+      # Каталог моделей (worker-python/llm-models.yaml, решение 13): какую из них применять, выбирает администратор.
+      SAPSR_LLM_LIGHT_MODEL: ${SAPSR_LLM_LIGHT_MODEL:-qwen3.5:2b}
+      SAPSR_LLM_HEAVY_MODEL: ${SAPSR_LLM_HEAVY_MODEL:-qwen3.5:9b}
+      # Облачная — только если всё это задано в .env; по умолчанию запрещена.
+      SAPSR_LLM_ALLOW_CLOUD: ${SAPSR_LLM_ALLOW_CLOUD:-0}
+      SAPSR_LLM_CLOUD_BASE_URL: ${SAPSR_LLM_CLOUD_BASE_URL:-}
+      SAPSR_LLM_CLOUD_MODEL: ${SAPSR_LLM_CLOUD_MODEL:-}
+      SAPSR_LLM_CLOUD_API_KEY: ${SAPSR_LLM_CLOUD_API_KEY:-}
+      SAPSR_LLM_CLOUD_HEADERS: ${SAPSR_LLM_CLOUD_HEADERS:-}
+      SAPSR_LLM_CLOUD_EXTRA_BODY: ${SAPSR_LLM_CLOUD_EXTRA_BODY:-}
+      # live — настоящая модель; replay — записанные ответы модели из test-fixtures/llm-replay, без Ollama:
+      # запасной показ, если модель на машине не поднимется (README, «Показ без модели»).
+      SAPSR_LLM_MODE: ${SAPSR_LLM_MODE:-live}
+      SAPSR_LLM_REPLAY_DIR: /app/llm-replay
+    # На Docker Desktop имя host.docker.internal есть и так; строка нужна для Docker в Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - storage:/app/storage
+      - ./test-fixtures/llm-replay:/app/llm-replay:ro
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  # Конвертер DOCX → PDF (решение 3, правка 15.11.2026): LibreOffice в отдельном контейнере.
+  # Только во внутренней сети с бэкендом: порт не публикуется, выхода в интернет нет — чужой документ
+  # не сможет ни к чему обратиться. Версия закреплена: от неё зависит вёрстка PDF-версии.
+  gotenberg:
+    image: gotenberg/gotenberg:8.21.1
+    container_name: sapsr-gotenberg
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --api-timeout=90s
+      - --chromium-disable-routes=true
+    mem_limit: 1g
+    networks:
+      - converter
 
   backend:
     build: ./backend-java
     container_name: sapsr-backend
     restart: unless-stopped
+    networks:
+      - default
+      - converter
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/sapsr_db
+      # Бэкенд и так ставит себе пояс Минска при запуске (BackendApplication); строка — для журналов контейнера.
+      TZ: Europe/Minsk
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-sapsr_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Укажи POSTGRES_PASSWORD в .env}
       SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-rmq_user}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Укажи RABBITMQ_PASSWORD в .env}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Укажи TELEGRAM_BOT_TOKEN в файле .env}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-YOUR_GMAIL@gmail.com}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-YOUR_APP_PASSWORD}
       BOT_WEBAPP_URL: https://${NGROK_DOMAIN:?Укажи NGROK_DOMAIN в .env}
+      # «SAPSR снова работает» всем пользователям при запуске; SAPSR_STARTUP_NOTICE=false в .env — не рассылать.
+      SAPSR_BOT_STARTUPNOTICE: ${SAPSR_STARTUP_NOTICE:-true}
+      SAPSR_CONVERTER_URL: http://gotenberg:3000
     ports:
       - "8080:8080"
     volumes:
@@ -83,6 +146,11 @@ services:
     command: http --url=${NGROK_DOMAIN} frontend:80
     depends_on:
       - frontend
+
+networks:
+  # Сеть бэкенда и конвертера без выхода наружу.
+  converter:
+    internal: true
 
 volumes:
   pgdata:

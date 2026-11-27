@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "a3f433797293a66dc18aff34b53e4edc45f117ec14bb6c25d11b5fc02687f1f6",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0046]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 0.95,\n      \"quote\": \"Протокол работы содержит оба применённых правила.\"\n    },\n    {\n      \"block_id\": \"[b-0049]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 0.9,\n      \"quote\": \"Результаты тестирования сведены в таблицу с идентификатором теста, ожидаемым и фактическим результатом и отметкой о прохождении.\"\n    }\n  ]\n}"
+}

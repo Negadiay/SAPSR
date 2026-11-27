@@ -2,9 +2,14 @@ package com.sapsr.backend.entity;
 
 import jakarta.persistence.*;
 
+import java.util.regex.Pattern;
+
 @Entity
 @Table(name = "users")
 public class User {
+
+    /** Хвост «(гр. 321702)», который регистрация дописывает к ФИО студента. */
+    private static final Pattern GROUP_SUFFIX = Pattern.compile("\\s*\\(гр\\.\\s*\\d{6}\\)\\s*$");
 
     @Id
     @Column(name = "telegram_id")
@@ -25,7 +30,40 @@ public class User {
     @Column(name = "teacher_groups")
     private String teacherGroups; // JSON-массив номеров групп: '["321701","321702"]'
 
+    // ФИО и группа по отдельности (решение 4). У старых студентов first_name пуст: известны только инициалы.
+    @Column(name = "last_name")
+    private String lastName;
+
+    @Column(name = "first_name")
+    private String firstName;
+
+    @Column(name = "middle_name")
+    private String middleName;
+
+    @Column(name = "group_number")
+    private String groupNumber;
+
+    // Тёзки (решение 4, миграция V11): ФИО для сравнения и постоянный номер среди тёзок группы.
+    @Column(name = "name_key")
+    private String nameKey;
+
+    @Column(name = "namesake_number")
+    private Integer namesakeNumber;
+
     public User() {}
+
+    public String getNameKey() { return nameKey; }
+    public void setNameKey(String nameKey) { this.nameKey = nameKey; }
+    public Integer getNamesakeNumber() { return namesakeNumber; }
+    public void setNamesakeNumber(Integer namesakeNumber) { this.namesakeNumber = namesakeNumber; }
+
+    /** ФИО для показа — без «(гр. 321702)», которое регистрация дописывает студентам. */
+    public String displayName() {
+        String full = fullName == null ? "" : fullName;
+        String name = GROUP_SUFFIX.matcher(full).replaceFirst("").strip();
+        if (name.isEmpty() && lastName != null) name = lastName;
+        return name;
+    }
 
     public Long getTelegramId() { return telegramId; }
     public void setTelegramId(Long telegramId) { this.telegramId = telegramId; }
@@ -39,4 +77,12 @@ public class User {
     public void setUrlId(String urlId) { this.urlId = urlId; }
     public String getTeacherGroups() { return teacherGroups; }
     public void setTeacherGroups(String teacherGroups) { this.teacherGroups = teacherGroups; }
+    public String getLastName() { return lastName; }
+    public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getFirstName() { return firstName; }
+    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public String getMiddleName() { return middleName; }
+    public void setMiddleName(String middleName) { this.middleName = middleName; }
+    public String getGroupNumber() { return groupNumber; }
+    public void setGroupNumber(String groupNumber) { this.groupNumber = groupNumber; }
 }

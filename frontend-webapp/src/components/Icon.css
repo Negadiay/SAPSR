@@ -1,0 +1,26 @@
+/* --- ИКОНКИ (components/Icon.jsx) --- */
+.icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+
+.status-icon { width: 1.1em; height: 1.1em; }
+.status-ok      { color: var(--ok); }
+.status-error   { color: var(--error); }
+.status-warning { color: var(--warning); }
+.status-pending,
+.status-muted   { color: var(--hint); }
+
+/* Ожидание — вращающаяся дуга */
+.icon-loading { animation: icon-spin 1s linear infinite; }
+
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-loading { animation: none; }
+}
+
+/* В контрастном режиме цвет состояния не единственный признак: рядом всегда текст */
+.app-contrast .status-icon { stroke-width: 2.5; }

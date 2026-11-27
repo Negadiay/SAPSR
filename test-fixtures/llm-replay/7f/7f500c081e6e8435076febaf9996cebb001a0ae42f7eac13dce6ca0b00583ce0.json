@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "7f500c081e6e8435076febaf9996cebb001a0ae42f7eac13dce6ca0b00583ce0",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0044]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"Проверка выполняется правилами, параметры которых задаются в базе знаний.\"\n    }\n  ]\n}"
+}

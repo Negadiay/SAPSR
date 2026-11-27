@@ -1,0 +1,14 @@
+# Переопределения для scripts/e2e.ps1 поверх scripts/check.compose.yml: проект sapsr-e2e.
+# Языковая модель — записанные ответы qwen3.5:4b (test-fixtures/llm-replay), Ollama не нужна;
+# E2E_LLM_MODE=live с недоступным адресом — сценарий «модель недоступна».
+# ИИС у обработчика выключена: титульные листы тестовых записок — с вымышленными сотрудниками.
+services:
+  backend:
+    environment:
+      # ИИС из изолированного состава недоступна или не нужна: группы тестовых студентов известны заранее.
+      SAPSR_IIS_KNOWNGROUPS: "321702,621701"
+  worker:
+    environment:
+      SAPSR_LLM_MODE: ${E2E_LLM_MODE:-replay}
+      SAPSR_LLM_BASE_URL: http://127.0.0.1:9
+      SAPSR_IIS_MODE: "off"

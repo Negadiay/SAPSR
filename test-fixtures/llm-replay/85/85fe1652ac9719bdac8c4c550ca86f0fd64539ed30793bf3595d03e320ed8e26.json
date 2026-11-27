@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "85fe1652ac9719bdac8c4c550ca86f0fd64539ed30793bf3595d03e320ed8e26",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.input_formats\",\n      \"value\": [\"JSON\"],\n      \"quote\": \"возвращает утверждения в формате JSON\",\n      \"block_id\": \"b-0045\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.kb_representation\",\n      \"value\": [\"production_rules\"],\n      \"quote\": \"База знаний представлена продукционными правилами\",\n      \"block_id\": \"b-0046\",\n      \"exhaustive\": true\n    },\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"которые выполняет механизм вывода CLIPS\",\n      \"block_id\": \"b-0046\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.neural_component\",\n      \"value\": [\"llm\"],\n      \"quote\": \"Языковая модель запускается локально\",\n      \"block_id\": \"b-0045\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.languages\",\n      \"value\": [\"python\", \"java\"],\n      \"quote\": \"Обработчик реализован на языке Python, сервер — на языке Java\",\n      \"block_id\": \"b-0045\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

@@ -1,0 +1,11 @@
+{
+  "comment": "Общий пример подписи данных запуска Telegram для тестов Python и Java. Токен фальшивый. Поле hash посчитано по алгоритму из TelegramInitDataInterceptor; если реализации разойдутся, упадут оба теста.",
+  "bot_token": "123456789:AAtest-token-for-sapsr-tests-only000",
+  "fields": {
+    "auth_date": "1760000000",
+    "query_id": "AAHtest",
+    "user": "{\"id\":100500,\"first_name\":\"Тест\",\"last_name\":\"Тестов\"}"
+  },
+  "telegram_id": 100500,
+  "hash": "5cba357908ace243aeec058fb49d20bad6a0895384251a1ddd49df5fa6fc9b5d"
+}

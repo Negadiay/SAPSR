@@ -1,0 +1,45 @@
+/* --- КОММЕНТАРИИ ПРЕПОДАВАТЕЛЯ ИЗ PDF --- */
+.annotation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.annotation-page-title {
+  margin-bottom: 0.2em;
+  color: var(--hint);
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+.annotation-item {
+  margin-bottom: 0.3em;
+  padding: 0.4em 0.7em;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 0.5em 0.5em 0;
+}
+
+.annotation-reply {
+  margin-left: 1em;
+  border-left-style: dashed;
+}
+
+.annotation-kind {
+  color: var(--hint);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+.annotation-quote {
+  margin: 0.15em 0;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.annotation-comment {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.annotation-muted { color: var(--hint); }

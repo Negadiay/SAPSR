@@ -10,10 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1")
 public class TeacherController {
@@ -21,8 +18,11 @@ public class TeacherController {
     private final UserRepository userRepository;
     private final BsuirApiService bsuirApiService;
 
-    private static final Pattern GROUP_PATTERN = Pattern.compile("\\(гр\\.\\s*(\\d{6})\\)");
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /** Секрет для ключей преподавателей без идентификатора ИИС (service/TeacherKey). */
+    @org.springframework.beans.factory.annotation.Value("${telegram.bot.token:}")
+    private String keySecret = "";
 
     public TeacherController(UserRepository userRepository, BsuirApiService bsuirApiService) {
         this.userRepository = userRepository;
@@ -33,7 +33,6 @@ public class TeacherController {
     public ResponseEntity<List<Map<String, Object>>> getTeachers(HttpServletRequest request) {
         List<User> allTeachers = userRepository.findByRole("TEACHER");
 
-        // Пытаемся получить группу студента из его fullName: "Иванов И.И. (гр. 321702)"
         String groupNumber = extractGroupNumber(request);
 
         List<User> filtered = null;
@@ -75,8 +74,9 @@ public class TeacherController {
         if (filtered == null) filtered = allTeachers;
 
         List<Map<String, Object>> result = filtered.stream()
+                // Telegram ID преподавателя студенту не отдаётся: только ключ, по которому его найдёт POST /upload.
                 .map(t -> Map.<String, Object>of(
-                        "telegram_id", t.getTelegramId(),
+                        "id", com.sapsr.backend.service.TeacherKey.of(t, keySecret),
                         "full_name", t.getFullName() != null ? t.getFullName() : "Без имени"
                 ))
                 .toList();
@@ -97,13 +97,8 @@ public class TeacherController {
         try {
             Long telegramId = (Long) request.getAttribute("telegram_id");
             if (telegramId == null) return null;
-            return userRepository.findById(telegramId)
-                    .map(u -> {
-                        if (u.getFullName() == null) return null;
-                        Matcher m = GROUP_PATTERN.matcher(u.getFullName());
-                        return m.find() ? m.group(1) : null;
-                    })
-                    .orElse(null);
+            // Группа — из своего поля: его заполняют регистрация, правка администратора и миграция V2.
+            return userRepository.findById(telegramId).map(User::getGroupNumber).orElse(null);
         } catch (Exception e) {
             return null;
         }

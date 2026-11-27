@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "6e3fab82b70f3aada8819fe3e674f5707ce0be66e777139a121e5953a6f1dc60",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.kb_representation\",\n      \"value\": [\"production_rules\"],\n      \"quote\": \"по запросу с признаком «компьютер не включается» применяются правило о блоке питания и правило о кабеле питания\",\n      \"block_id\": \"b-0044\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"применяются правило о блоке питания и правило о кабеле питания, и возвращается неисправность\",\n      \"block_id\": \"b-0044\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

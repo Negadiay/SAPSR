@@ -1,0 +1,30 @@
+# Переопределения для scripts/check.ps1: отдельный проект sapsr-check рядом с рабочим составом.
+# Свои тома и имена контейнеров, база и очередь наружу не публикуются, API — только на 127.0.0.1:18080,
+# фальшивый токен бота и выключенный длинный опрос Telegram — ни одно сообщение никуда не уходит.
+services:
+  postgres-db:
+    container_name: !reset null
+    ports: !reset []
+  rabbitmq:
+    container_name: !reset null
+    ports: !reset []
+  worker:
+    container_name: !reset null
+    environment:
+      # Модель выключена: проверка не зависит от Ollama на машине и укладывается в тайм-ауты ожидания.
+      # Содержательную часть проверяют pytest (заглушка модели) и прогоны на живой модели.
+      SAPSR_LLM_MODE: "off"
+  backend:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1:18080:8080"
+    environment:
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.telegram.telegrambots.longpolling.starter.TelegramBotStarterConfiguration
+      SAPSR_BOT_STARTUPNOTICE: "false"
+  gotenberg:
+    container_name: !reset null
+  frontend:
+    container_name: !reset null
+    ports: !reset []
+  ngrok:
+    container_name: !reset null

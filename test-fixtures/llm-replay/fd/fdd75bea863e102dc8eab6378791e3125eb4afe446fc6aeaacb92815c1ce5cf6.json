@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "fdd75bea863e102dc8eab6378791e3125eb4afe446fc6aeaacb92815c1ce5cf6",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0046]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 1.0,\n      \"quote\": \"Пример решения задачи: по признакам «компьютер не включается» и «индикатор питания не горит» решатель на первом шаге применил правило о блоке питания, на втором шаге — правило о кабеле питания и вывел неисправность «неисправен блок питания»; протокол работы содержит оба применённых правила.\"\n    },\n    {\n      \"block_id\": \"[b-0049]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"\"\n    },\n    {\n      \"block_id\": \"[b-0050]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"\"\n    }\n  ]\n}"
+}

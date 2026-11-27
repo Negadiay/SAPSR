@@ -1,16 +1,99 @@
-# React + Vite
+# SAPSR — интерфейс
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Telegram Mini App для студентов, преподавателей и администратора: студент сдаёт работу и следит за проверкой, преподаватель смотрит итог автоматической проверки и выносит решение, администратор правит учебный календарь и группы. Общее описание системы и запуск остальных сервисов — в [корневом README](../README.md).
 
-Currently, two official plugins are available:
+Стек: React 19, Vite 8, Vitest + Testing Library. Чистый JavaScript, без TypeScript, без роутера и библиотек состояния.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Запуск
 
-## React Compiler
+Нужен Node.js 20+.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Dev-сервер поднимается на `http://localhost:5173` и проксирует `/api` на бэкенд `http://localhost:8080` (см. [vite.config.js](vite.config.js)). Без запущенного бэкенда приложение откроется, но остановится на выборе роли.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Команда | Что делает |
+|---------|-----------|
+| `npm run dev` | Dev-сервер с HMR |
+| `npm run build` | Сборка в `dist/` |
+| `npm run preview` | Локальный просмотр собранной версии |
+| `npm test` | Один прогон тестов |
+| `npm run test:watch` | Тесты в режиме наблюдения |
+| `npm run lint` | ESLint |
+| `npm run deploy` | Сборка и публикация `dist/` в ветку `gh-pages` (GitHub Pages; без `VITE_API_BASE` там работает только экран входа) |
+
+Адрес API по умолчанию — `/api/v1` того же хоста; другой задаётся переменной `VITE_API_BASE` при сборке или запуске.
+
+Вне Telegram приложение открывается, но бэкенд без подписанных данных запуска запросы не примет: для полноценной проверки — запуск из Telegram через ngrok (`docker-compose.yml`).
+
+## Как устроено
+
+**Экраны, а не вкладки** (решение 12). У роли один главный экран — студент: «Мои работы», преподаватель: «Работы» («На проверке» и «Проверено»), администратор: «Управление». Остальное открывается поверх и закрывается «Назад»: экран работы, сдача работы, заметки, настройки. Стек экранов — [navigation/useNavigator.js](src/navigation/useNavigator.js); [App.jsx](src/App.jsx) по верхнему экрану решает, что показать.
+
+**Кнопки Telegram** — [telegram/useTelegramButtons.js](src/telegram/useTelegramButtons.js): «Назад» в шапке, главная кнопка внизу для основного действия экрана (`components/PrimaryAction.jsx`), «Настройки» в меню. Если клиент их не поддерживает или приложение открыто в браузере, на тех же местах — свои кнопки.
+
+**Ссылки из бота.** Кнопки под сообщениями открывают приложение с `?open=…`: `work-153` — экран работы, `upload`, `works`, `queue`, `admin`. Срабатывает один раз при входе.
+
+**Состояние** — в хуках кабинетов (`useStudentWorkspace`, `useTeacherWorkspace`, `useAdminCalendar`) выше экранов, поэтому поиск и загруженный файл с пометками не теряются при переходах. Списки обновляются сами: чаще, пока что-то проверяется.
+
+**Время** — по Минску ([lib/format.js](src/lib/format.js)): сервер присылает время без пояса, оно показывается как есть, без перевода в пояс телефона.
+
+**Тексты состояний** — в одном месте, [lib/status.js](src/lib/status.js): одна строка для списка, шаги для экрана работы, итог проверки для преподавателя. Замечания — [lib/findings.js](src/lib/findings.js) и [components/FindingList.jsx](src/components/FindingList.jsx).
+
+**Тема.** Палитра — переменные CSS на `.App` ([features/settings/customTheme.js](src/features/settings/customTheme.js)): светлая, тёмная, две контрастные и своя. По умолчанию — как в Telegram. Стили берут цвета только из переменных, размеры — в `em` от размера текста приложения, поэтому всё растёт вместе с настройкой «Размер текста».
+
+```
+src/
+├── App.jsx            # Каркас: тема, вход, стек экранов роли
+├── api/               # Запросы к бэкенду
+├── components/        # Общие: заголовок, кнопка действия, строка состояния, шаги, замечания, диалог, иконки
+├── features/
+│   ├── registration/  # Выбор роли, регистрация студента и преподавателя, код из письма
+│   ├── student/       # Мои работы, экран работы, сдача работы
+│   ├── teacher/       # Работы, экран работы с решением, файл с пометками, заметки
+│   ├── admin/         # Управление
+│   ├── settings/      # Профиль, тема, своя тема, размер текста, смена роли
+│   └── help/          # Справка «?»
+├── lib/               # Без React: даты, статусы, замечания, версии, поиск, цвета
+├── navigation/        # Стек экранов
+├── telegram/          # Обёртка над Telegram.WebApp и его кнопки
+├── styles/            # Основа оформления
+└── test/              # Настройка тестов, заглушки API и Telegram
+```
+
+**Что хранится на устройстве** (`localStorage`):
+
+| Ключ | Содержимое |
+|------|-----------|
+| `sapsr_theme_mode`, `sapsr_contrast`, `sapsr_fontsize`, `sapsr_custom_theme` | оформление |
+| `sapsr_last_teacher_id`, `sapsr_last_profile` | прошлый выбор при сдаче работы |
+| `sapsr_onboarded_<роль>` | справка уже показана |
+| `sapsr_notes_<id>` | заметки преподавателя |
+| `sapsr_admin_sections` | свёрнутые разделы «Управления» |
+
+## Тесты
+
+```bash
+npm test
+```
+
+Тесты лежат рядом с кодом, запускаются в jsdom. Сеть и Telegram не нужны — они подменяются заглушками из [src/test/mockApi.js](src/test/mockApi.js):
+
+- `mockApi(routes)` подменяет `fetch`; маршруты — `'МЕТОД /путь'` без префикса `/api/v1`, значение — данные, готовый `Response` или функция от тела запроса. Возвращает журнал вызовов;
+- `stubTelegram({ userId, native, colorScheme })` изображает приложение в Telegram; `native: true` — клиент с родными кнопками, у них есть `click()`.
+
+| Файл | Что проверяет |
+|------|--------------|
+| [src/App.test.jsx](src/App.test.jsx) | Вход и регистрация, работы студента, экран работы, сдача, отзыв, ссылка из бота, кнопки Telegram, смена роли |
+| [src/Review.test.jsx](src/Review.test.jsx) | Кабинет преподавателя: очередь, поиск и группы, файл с пометками, решение с подтверждением, заметки |
+| [src/features/admin/Admin.test.jsx](src/features/admin/Admin.test.jsx) | Управление: семестр, сроки, группы, люди, администраторы |
+| [src/features/settings/Settings.test.jsx](src/features/settings/Settings.test.jsx) | Тема как в Telegram, контраст, размер текста, своя тема, цветовой круг |
+| [src/lib/lib.test.js](src/lib/lib.test.js) | Даты по Минску, склонение, версии, статусы, замечания, поиск |
+| [src/features/teacher/teacher.test.js](src/features/teacher/teacher.test.js) | Заметки и поиск по заметке |
+
+## Сборка
+
+[Dockerfile](Dockerfile) собирает приложение и отдаёт его через nginx; [nginx.conf](nginx.conf) проксирует `/api/` на контейнер `backend:8080`. В `vite.config.js` задано `base: './'`, поэтому сборка работает из любой подпапки.

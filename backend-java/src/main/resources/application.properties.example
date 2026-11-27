@@ -1,25 +1,65 @@
 spring.application.name=backend
 server.port=8080
 
+# Пароли — те же, что POSTGRES_PASSWORD и RABBITMQ_PASSWORD в .env. В Docker они приходят из .env переменными окружения.
 spring.datasource.url=jdbc:postgresql://localhost:5433/sapsr_db
 spring.datasource.username=sapsr_user
-spring.datasource.password=sapsr_password
+spring.datasource.password=ПАРОЛЬ_ИЗ_ENV
 
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+# Схему меняют только миграции Flyway (src/main/resources/db/migration); Hibernate её лишь сверяет.
 spring.jpa.hibernate.ddl-auto=validate
-spring.jpa.show-sql=true
+spring.jpa.show-sql=false
+
+# Базы, созданные до Flyway старым init.sql, принимаются как версия 1 — см. config/FlywayConfig.java.
+
+# Корень хранилища файлов работ. В Docker рабочая папка бэкенда /app/backend, так что это /app/storage —
+# общий том с обработчиком. Файлы лежат под ключами вида 2026/10/<UUID>.pdf (docs/contracts/queue-v2.md).
+sapsr.storage.root=../storage
+
+# Предел размера работы и размеченного файла, МБ (решение 15). 50 МБ — предел Telegram на отправку файла
+# ботом: работа уходит преподавателю документом в чат. От этой настройки считаются пределы Spring
+# (config/UploadConfig.java), проверки при загрузке и поле max_upload_mb в GET /me для интерфейса.
+sapsr.upload.max-size-mb=50
+
+# Конвертер DOCX → PDF (решение 3): Gotenberg во внутренней сети Docker, без выхода в интернет.
+# При запуске бэкенда вне Docker — адрес опубликованного порта конвертера или оставить как есть:
+# тогда DOCX будет отклоняться с понятным текстом, PDF принимаются.
+sapsr.converter.url=http://gotenberg:3000
+sapsr.converter.timeout=90s
+
+# Группы, которые считаются существующими без запроса к ИИС, через запятую (по умолчанию пусто).
+# Нужно изолированному сквозному прогону и на случай, когда ИИС долго недоступна.
+sapsr.iis.known-groups=
+
+# Тайм-аут содержательной проверки (решение 5): работа уходит преподавателю после фазы content
+# либо через это время после фазы format, с отчётом по оформлению; итог содержания придёт следом.
+sapsr.pipeline.content-timeout=10m
+# Сторож: проверка началась, а фазы format нет дольше этого — работа получает FAILED (queue-v2.md, раздел 6).
+# Больше общего лимита обработчика (SAPSR_TASK_TIMEOUT_S, 40 мин), иначе идущая проверка будет закрыта как зависшая.
+sapsr.pipeline.stuck-timeout=45m
+
+# Данные запуска Telegram старше этого не принимаются: перехваченная строка не действует вечно (Ж5, пункт 3).
+sapsr.telegram.init-data-max-age=24h
+# Адреса, с которых интерфейс ходит в API с другого источника, через запятую (Ж5, пункт 9).
+# Мини-приложение открывается с того же адреса, что и API, поэтому по умолчанию — пусто.
+sapsr.cors.allowed-origins=
 
 # Telegram Bot
 telegram.bot.token=ВАШ_ТОКЕН
+# Сообщение «SAPSR снова работает» всем пользователям при каждом запуске; false — не рассылать (отладка).
+sapsr.bot.startup-notice=true
 bot.webapp.url=https://ВАШ_ПОЛЬЗОВАТЕЛЬ.github.io/SAPSR/
 
 # RabbitMQ
 spring.rabbitmq.host=localhost
 spring.rabbitmq.port=5672
 spring.rabbitmq.username=rmq_user
-spring.rabbitmq.password=rmq_password
+spring.rabbitmq.password=ПАРОЛЬ_ИЗ_ENV
 sapsr.rabbitmq.tasks-queue=pdf_tasks_queue
 sapsr.rabbitmq.results-queue=pdf_results_queue
+sapsr.rabbitmq.progress-queue=pdf_progress_queue
+sapsr.rabbitmq.status-queue=worker_status_queue
 
 # Email (Gmail SMTP для верификации преподавателей)
 # Используй App Password: Google Account -> Security -> 2FA -> App passwords

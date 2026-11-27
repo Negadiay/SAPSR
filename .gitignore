@@ -1,7 +1,27 @@
 .idea/
 .vscode/
+.claude/*
+# Навыки и агенты проекта — общие для команды; личные настройки Claude Code (settings.local.json и т. п.) — нет.
+!.claude/skills/
+!.claude/agents/
 application.properties
 test.pdf
-Buzychkov_6sem
-docs/
+docs/plan-7sem/llm-bench
 .env
+Отчёт/
+# Тестовые данные с настоящими Telegram ID и почтами — у каждого свои; образец — dev-seed.example.sql
+dev-seed.sql
+# Обработчик: виртуальное окружение, кэш ответов модели, кэши тестов
+worker-python/.venv/
+worker-python/.cache/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+# Исполняемые файлы (cloudflared, ngrok и т. п.) ставятся при развёртывании, не хранятся в git
+*.exe
+memory-*.txt
+check-result.log
+e2e-result.log
+
+# Файлы, присланные для разбора ошибок (могут содержать персональные данные)
+test-fixtures/curator/

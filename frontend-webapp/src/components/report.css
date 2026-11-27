@@ -1,0 +1,120 @@
+/* Отчёт v2: сводка, цитаты, отметки преподавателя, сравнение версий, карта требований */
+.report-summary {
+  padding: 0.6em 0.9em;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.report-summary .hint { font-weight: 400; }
+
+.origin-btn {
+  padding: 0;
+  border: none;
+  border-bottom: 1px dashed currentColor;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.origin-note { margin-top: 0.3em; }
+
+.evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin-top: 0.5em;
+}
+
+/* Противоречие: фрагменты рядом; на узком экране — друг под другом */
+@media (min-width: 34em) {
+  .evidence-compare { flex-direction: row; }
+  .evidence-compare .evidence-item { flex: 1 1 0; min-width: 0; }
+}
+
+.evidence-item { margin: 0; }
+.evidence-item figcaption { color: var(--hint); font-size: 0.85em; font-weight: 600; }
+
+.evidence-item blockquote {
+  margin: 0.2em 0 0;
+  padding: 0.4em 0.7em;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--field);
+  font-size: 0.93em;
+  overflow-wrap: anywhere;
+}
+
+.finding-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  margin-top: 0.5em;
+}
+
+.finding-marks { display: flex; gap: 0.4em; margin-left: auto; }
+
+.mark-btn {
+  min-height: 2.4em;
+  padding: 0.3em 0.9em;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9em;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mark-btn-correct { border-color: var(--ok); background: var(--ok-tint); color: var(--ok); }
+.mark-btn-incorrect { border-color: var(--error); background: var(--error-tint); color: var(--error); }
+
+.finding-dismissed { border-left-color: var(--line); }
+.finding-dismissed .finding-message { color: var(--hint); font-weight: 400; text-decoration: line-through; }
+
+.comparison {
+  padding: 0.6em 0.9em;
+  border: var(--border) solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-tint);
+}
+
+.comparison-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.comparison-list h4 { margin: 0.6em 0 0.2em; font-size: 0.93em; }
+.comparison-list ul, .skipped-list { margin: 0; padding-left: 1.2em; font-size: 0.93em; }
+.skipped-list { color: var(--hint); }
+
+.report-details summary { color: var(--accent); font-weight: 600; cursor: pointer; }
+
+.requirement-list {
+  list-style: none;
+  margin: 0.5em 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.requirement { padding-bottom: 0.6em; border-bottom: 1px solid var(--line); }
+.requirement:last-child { border-bottom: none; }
+.requirement-title { font-weight: 600; overflow-wrap: anywhere; }

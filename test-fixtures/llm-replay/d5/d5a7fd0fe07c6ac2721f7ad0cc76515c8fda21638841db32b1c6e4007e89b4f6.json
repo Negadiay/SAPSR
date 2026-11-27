@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "d5a7fd0fe07c6ac2721f7ad0cc76515c8fda21638841db32b1c6e4007e89b4f6",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0048]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"База знаний представлена продукционными правилами, которые выполняет механизм вывода CLIPS.\"\n    }\n  ]\n}"
+}

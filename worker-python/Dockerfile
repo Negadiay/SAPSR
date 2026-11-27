@@ -3,6 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app/worker
 RUN mkdir -p /app/backend /app/storage
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Повторы и тайм-аут — на случай медленной сети при первой сборке
+RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
 COPY . .
 CMD ["python", "-u", "main.py"]

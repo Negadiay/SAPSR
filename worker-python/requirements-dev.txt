@@ -1,0 +1,5 @@
+# Тесты обработчика: pip install -r requirements-dev.txt; python -m pytest
+-r requirements.txt
+pytest==9.1.1
+jsonschema==4.26.0
+ruff==0.17.1

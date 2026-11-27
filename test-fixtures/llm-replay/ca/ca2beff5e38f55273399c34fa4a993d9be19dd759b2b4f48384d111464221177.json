@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "ca2beff5e38f55273399c34fa4a993d9be19dd759b2b4f48384d111464221177",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.languages\",\n      \"value\": [\"python\", \"java\"],\n      \"quote\": \"Обработчик реализован на языке Python, сервер — на языке Java.\",\n      \"block_id\": \"b-0047\",\n      \"exhaustive\": false\n    },\n    {\n      \"attribute\": \"system.kb_representation\",\n      \"value\": [\"relational_db\"],\n      \"quote\": \"параметры которых читаются из базы знаний\",\n      \"block_id\": \"b-0048\",\n      \"exhaustive\": false\n    }\n  ]\n}"
+}

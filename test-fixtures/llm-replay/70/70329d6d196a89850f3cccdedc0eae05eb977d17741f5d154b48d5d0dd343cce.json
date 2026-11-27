@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "70329d6d196a89850f3cccdedc0eae05eb977d17741f5d154b48d5d0dd343cce",
+ "response": "{\n  \"claims\": []\n}"
+}

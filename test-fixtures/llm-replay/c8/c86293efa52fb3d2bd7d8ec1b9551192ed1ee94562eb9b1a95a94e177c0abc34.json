@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "claims.v1",
+ "key": "c86293efa52fb3d2bd7d8ec1b9551192ed1ee94562eb9b1a95a94e177c0abc34",
+ "response": "{\n  \"claims\": [\n    {\n      \"attribute\": \"system.solver_type\",\n      \"value\": [\"production_inference\"],\n      \"quote\": \"Для решения выбран прямой логический вывод по продукционным правилам.\",\n      \"block_id\": \"b-0034\"\n    }\n  ]\n}"
+}

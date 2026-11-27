@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "cc8db5b74e94b7f8ca9eafb79c6ecb01a9a55d71d22cb2ffe106ad6b04e11736",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0029]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"База знаний системы представлена онтологией предметной области нормоконтроля.\"\n    }\n  ]\n}"
+}

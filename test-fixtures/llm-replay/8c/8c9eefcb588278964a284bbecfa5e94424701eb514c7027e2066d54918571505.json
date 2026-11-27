@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "8c9eefcb588278964a284bbecfa5e94424701eb514c7027e2066d54918571505",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0044]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 0.9,\n      \"quote\": \"Нейросетевая модель разметки получает строки документа с координатами и возвращает типы логических блоков, которые затем проверяют продукционные правила.\"\n    },\n    {\n      \"block_id\": \"[b-0047]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 0.85,\n      \"quote\": \"Языковая модель запускается локально и возвращает утверждения в формате JSON.\"\n    },\n    {\n      \"block_id\": \"[b-0048]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.6,\n      \"quote\": \"\"\n    }\n  ]\n}"
+}

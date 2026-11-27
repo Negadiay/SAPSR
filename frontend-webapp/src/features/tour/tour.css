@@ -1,0 +1,99 @@
+/* --- ОБУЧЕНИЕ --- */
+/* Слой поверх экрана: нажатия мимо карточки не доходят до приложения. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+}
+
+/* Без подсвеченного элемента затемняет сам слой, с элементом — тень «окна» вокруг него. */
+.tour-dim { background: rgba(0, 0, 0, 0.55); animation: tour-fade 0.2s ease-out; }
+
+.tour-spot {
+  position: fixed;
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  pointer-events: none;
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+/* Пульсация — мягкое свечение вокруг рамки, а не расширение самой рамки: меняется только прозрачность
+   (плавно на любом телефоне, без рывков по пикселям), свет выходит за рамку всего на пару пикселей. */
+.tour-spot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 0 6px 1px var(--accent);
+  opacity: 0;
+  animation: tour-glow 2.6s ease-in-out infinite;
+}
+
+.tour-card {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  max-width: 24em;
+  margin: 0 auto;
+  padding: 1em 1.1em 0.9em;
+  border-radius: 1.1em;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: tour-card-in 0.2s ease-out;
+}
+
+.app-contrast .tour-card { border: var(--border) solid var(--text); }
+
+.tour-progress { display: flex; gap: 0.3em; margin-bottom: 0.6em; }
+
+.tour-dot {
+  flex: 1;
+  height: 0.22em;
+  border-radius: 1em;
+  background: var(--line);
+}
+
+.tour-dot-done { background: var(--accent-tint); }
+.tour-dot-active { background: var(--accent); }
+
+.tour-count { color: var(--hint); font-size: 0.8em; font-weight: 600; }
+.tour-title { margin-top: 0.15em; font-size: 1.1em; font-weight: 700; }
+.tour-text { margin-top: 0.35em; color: var(--hint); }
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.9em;
+}
+
+.tour-actions .btn { min-height: 2.5em; padding: 0.4em 0.9em; }
+.tour-skip { margin-right: auto; align-self: center; color: var(--hint); }
+
+/* Родная кнопка Telegram — под приложением: подсветить нельзя, показываем стрелкой вниз. */
+.tour-arrow {
+  position: absolute;
+  left: 50%;
+  bottom: -1.6em;
+  width: 1.6em;
+  height: 1.6em;
+  margin-left: -0.8em;
+  color: #fff;
+  animation: tour-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes tour-fade { from { opacity: 0; } }
+@keyframes tour-card-in { from { opacity: 0; transform: translateY(0.4em); } }
+@keyframes tour-glow { 50% { opacity: 0.55; } }
+@keyframes tour-bounce { 50% { transform: translateY(0.3em); } }
+
+/* Центрированная карточка сдвинута transform — у неё своё появление, без сдвига. */
+.tour-card[style*="translateY(-50%)"] { animation-name: tour-fade; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-dim, .tour-card, .tour-spot::after, .tour-arrow { animation: none; }
+  .tour-spot { transition: none; }
+}

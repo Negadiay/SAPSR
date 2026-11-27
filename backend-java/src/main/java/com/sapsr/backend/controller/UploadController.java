@@ -1,24 +1,24 @@
 package com.sapsr.backend.controller;
 
-import com.lowagie.text.Chunk;
-import com.lowagie.text.Document;
-import com.lowagie.text.Font;
-import com.lowagie.text.PageSize;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.Phrase;
-import com.lowagie.text.Rectangle;
-import com.lowagie.text.pdf.BaseFont;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
 import com.sapsr.backend.SapsrTelegramBot;
+import com.sapsr.backend.academic.AcademicCalendar;
+import com.sapsr.backend.academic.WorkTypes;
 import com.sapsr.backend.entity.Submission;
 import com.sapsr.backend.entity.User;
+import com.sapsr.backend.llm.LlmModels;
+import com.sapsr.backend.messaging.TaskMessage;
+import com.sapsr.backend.pipeline.PipelineState;
+import com.sapsr.backend.report.CheckReportPdf;
 import com.sapsr.backend.repository.SubmissionRepository;
 import com.sapsr.backend.repository.UserRepository;
+import com.sapsr.backend.review.ReviewFileService;
 import com.sapsr.backend.service.BsuirApiService;
+import com.sapsr.backend.service.DocxConverter;
+import com.sapsr.backend.storage.FileKind;
 import com.sapsr.backend.service.EmailVerificationService;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.sapsr.backend.service.Namesakes;
+import com.sapsr.backend.entity.NameKey;
+import com.sapsr.backend.storage.FileStorage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -27,23 +27,24 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.awt.Color;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import org.springframework.http.ContentDisposition;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1")
 public class UploadController {
 
-    private final String UPLOAD_DIR = "../storage/";
+    static final String NOT_IN_TELEGRAM = "Откройте приложение из Telegram.";
+
+    /** Студент старой формы: «Иванов И.И. (гр. 321702)». */
+    private static final Pattern STUDENT_NAME = Pattern.compile("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ]\\.[А-ЯЁ]\\. \\(гр\\. (\\d{6})\\)$");
 
     private final RabbitTemplate rabbitTemplate;
     private final SubmissionRepository submissionRepository;
@@ -51,72 +52,191 @@ public class UploadController {
     private final EmailVerificationService emailVerificationService;
     private final BsuirApiService bsuirApiService;
     private final SapsrTelegramBot bot;
+    private final FileStorage fileStorage;
+    private final ReviewFileService reviewFiles;
+    private final AcademicCalendar calendar;
+    private final LlmModels llmModels;
+    private final DocxConverter docxConverter;
 
     @Value("${sapsr.rabbitmq.tasks-queue}")
     private String tasksQueue;
+
+    /** Секрет для ключей преподавателей без идентификатора ИИС (service/TeacherKey). */
+    @Value("${telegram.bot.token:}")
+    private String keySecret = "";
+
+    /** Предел размера работы, МБ (решение 15): предел Telegram на отправку файла ботом. */
+    @Value("${sapsr.upload.max-size-mb:50}")
+    private int maxUploadMb = 50;
 
     public UploadController(RabbitTemplate rabbitTemplate,
                             SubmissionRepository submissionRepository,
                             UserRepository userRepository,
                             EmailVerificationService emailVerificationService,
                             BsuirApiService bsuirApiService,
-                            SapsrTelegramBot bot) {
+                            SapsrTelegramBot bot,
+                            FileStorage fileStorage,
+                            ReviewFileService reviewFiles,
+                            AcademicCalendar calendar,
+                            LlmModels llmModels,
+                            DocxConverter docxConverter) {
+        this.docxConverter = docxConverter;
         this.rabbitTemplate = rabbitTemplate;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.emailVerificationService = emailVerificationService;
         this.bsuirApiService = bsuirApiService;
         this.bot = bot;
+        this.fileStorage = fileStorage;
+        this.reviewFiles = reviewFiles;
+        this.calendar = calendar;
+        this.llmModels = llmModels;
     }
 
     @GetMapping("/me")
     public ResponseEntity<?> getMe(HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+            return ResponseEntity.status(401).body(Map.of("error", NOT_IN_TELEGRAM));
         }
         Optional<User> user = userRepository.findById(telegramId);
         if (user.isPresent()) {
-            User u = user.get();
-            return ResponseEntity.ok(Map.of(
-                    "telegram_id", u.getTelegramId(),
-                    "role", u.getRole(),
-                    "full_name", u.getFullName() != null ? u.getFullName() : ""
-            ));
+            return ResponseEntity.ok(meView(user.get()));
         }
         return ResponseEntity.ok(Map.of("telegram_id", telegramId, "role", "NONE"));
+    }
+
+    /** Свои данные пользователя — ответ GET /me и поле user после регистрации (api-v1.md, раздел 5). */
+    private Map<String, Object> meView(User u) {
+        {
+            // Свои данные для экрана настроек (api-v1.md, раздел 5); имя и отчество у старых аккаунтов пусты.
+            Map<String, Object> me = new LinkedHashMap<>();
+            me.put("telegram_id", u.getTelegramId());
+            me.put("role", u.getRole());
+            me.put("full_name", u.getFullName() != null ? u.getFullName() : "");
+            me.put("last_name", u.getLastName());
+            me.put("first_name", u.getFirstName());
+            me.put("middle_name", u.getMiddleName());
+            me.put("max_upload_mb", maxUploadMb);
+            if ("STUDENT".equals(u.getRole())) {
+                me.put("group", u.getGroupNumber());
+                // Курс, семестр и этап определяет сервер (решение 11): студент их видит, но не выбирает.
+                AcademicCalendar.Term term = calendar.termFor(u.getGroupNumber());
+                me.put("course", term.course());
+                me.put("semester", term.semester());
+                me.put("stage", term.stage());
+                // Срок сдачи работы — у каждого курса свой (у 3 курса весной год короче из-за практики).
+                me.put("deadline", term.deadline() == null ? null : term.deadline().toString());
+                me.put("course_overridden", term.courseOverridden());
+                // Проверяет облачная модель (её выбрал администратор) — студенту говорится об этом при сдаче.
+                me.put("cloud_check", llmModels.cloudActive());
+                // Номер виден, только если тёзка есть: «Среди студентов группы с таким же ФИО вы — №2».
+                me.put("namesake_number", Namesakes.hasNamesake(userRepository, u) ? u.getNamesakeNumber() : null);
+            }
+            return me;
+        }
+    }
+
+    /** Проверяет и записывает last_name, first_name, middle_name; сохраняет студента с номером тёзки. */
+    private Optional<ResponseEntity<?>> applyNameFields(User user, Map<String, ?> body) {
+        String last = NameKey.clean(text(body.get("last_name")));
+        String first = NameKey.clean(text(body.get("first_name")));
+        String rawMiddle = text(body.get("middle_name"));
+        String middle = rawMiddle == null || rawMiddle.isBlank() ? null : NameKey.clean(rawMiddle);
+        String hint = " — от 1 до 100 букв кириллицы, можно дефис и пробел.";
+        if (last == null) return Optional.of(ApiErrors.error(400, "VALIDATION_ERROR", "Фамилия" + hint, "last_name"));
+        if (first == null) return Optional.of(ApiErrors.error(400, "VALIDATION_ERROR", "Имя" + hint, "first_name"));
+        if (rawMiddle != null && !rawMiddle.isBlank() && middle == null) {
+            return Optional.of(ApiErrors.error(400, "VALIDATION_ERROR", "Отчество" + hint, "middle_name"));
+        }
+        String previousKey = user.getNameKey();
+        String previousGroup = user.getNamesakeNumber() == null ? null : user.getGroupNumber();
+        user.setLastName(last);
+        user.setFirstName(first);
+        user.setMiddleName(middle);
+        String full = last + " " + first + (middle == null ? "" : " " + middle);
+        user.setFullName(full + " (гр. " + user.getGroupNumber() + ")");
+        Namesakes.saveStudent(userRepository, user, previousKey, previousGroup);
+        return Optional.empty();
+    }
+
+    private static String text(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> body, HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+            return ResponseEntity.status(401).body(Map.of("error", NOT_IN_TELEGRAM));
         }
 
         String role = body.getOrDefault("role", "").toUpperCase();
         String fullName = body.getOrDefault("full_name", "").trim();
 
+        // Роль администратора задаётся только в базе (решение 11): регистрацией её не получить и не потерять.
+        Optional<User> current = userRepository.findById(telegramId);
+        if (current.isPresent() && AdminController.ROLE.equals(current.get().getRole())) {
+            return ResponseEntity.status(403).body(Map.of("code", "ADMIN_ACCOUNT",
+                    "error", "Это аккаунт администратора. Для учёбы нужен другой аккаунт Telegram."));
+        }
+
+        // Один аккаунт Telegram — один человек (решение 15): повторная регистрация ничего не меняет.
+        if (current.isPresent() && ("STUDENT".equals(current.get().getRole())
+                || "TEACHER".equals(current.get().getRole()))) {
+            return ApiErrors.error(409, "ALREADY_REGISTERED", "Вы уже зарегистрированы. Если в данных ошибка, обратитесь к администратору.");
+        }
+
         if (!"STUDENT".equals(role) && !"TEACHER".equals(role)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Роль должна быть STUDENT или TEACHER"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Неизвестная роль."));
         }
 
-        // Для студента имя обязательно (для преподавателя подтягивается из IIS)
-        if ("STUDENT".equals(role) && fullName.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Заполните ФИО / данные"));
+        // Студент по полям (api-v1.md, раздел 4): фамилия, имя, отчество и группа по отдельности.
+        if ("STUDENT".equals(role) && body.containsKey("last_name")) {
+            String group = body.getOrDefault("group", "").trim();
+            if (!group.matches("\\d{6}")) {
+                return ApiErrors.error(400, "VALIDATION_ERROR", "Номер группы — шесть цифр.", "group");
+            }
+            try {
+                if (!bsuirApiService.groupExists(group)) {
+                    return ApiErrors.error(400, "GROUP_NOT_FOUND",
+                            "Группы " + group + " нет в ИИС БГУИР. Проверьте номер.", "group");
+                }
+            } catch (BsuirApiService.IisUnavailableException e) {
+                return ApiErrors.error(503, "IIS_UNAVAILABLE", "ИИС БГУИР не отвечает, номер группы не проверить. "
+                        + "Попробуйте позже.");
+            }
+            User user = new User();
+            user.setTelegramId(telegramId);
+            user.setRole(role);
+            user.setGroupNumber(group);
+            Optional<ResponseEntity<?>> invalid = applyNameFields(user, body);
+            if (invalid.isPresent()) return invalid.get();
+            Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("status", "OK");
+            answer.put("role", role);
+            answer.put("full_name", user.getFullName());
+            answer.put("user", meView(user));
+            return ResponseEntity.ok(answer);
         }
 
+        String groupNumber = null;
         if ("STUDENT".equals(role)) {
-            if (!fullName.matches("^[А-ЯЁ][а-яё]+\\s[А-ЯЁ]\\.[А-ЯЁ]\\. \\(гр\\. \\d{6}\\)$")) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Укажите ФИО и группу в формате: Иванов И.И., 123456"));
+            Matcher name = STUDENT_NAME.matcher(fullName);
+            if (!name.matches()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Пример: Иванов И.И., 321702"));
             }
-            Matcher groupMatcher = Pattern.compile("\\(гр\\.\\s*(\\d{6})\\)").matcher(fullName);
-            if (!groupMatcher.find()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Укажите номер группы в формате: Иванов И.И., 123456"));
+            groupNumber = name.group(1);
+            boolean exists;
+            try {
+                exists = bsuirApiService.groupExists(groupNumber);
+            } catch (BsuirApiService.IisUnavailableException e) {
+                return ApiErrors.error(503, "IIS_UNAVAILABLE", "ИИС БГУИР не отвечает, номер группы не проверить. "
+                        + "Попробуйте позже.");
             }
-            String groupNumber = groupMatcher.group(1);
-            if (!bsuirApiService.groupExists(groupNumber)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Группа " + groupNumber + " не найдена в IIS БГУИР"));
+            if (!exists) {
+                return ResponseEntity.badRequest().body(Map.of("error",
+                        "Группы " + groupNumber + " нет в ИИС БГУИР. Проверьте номер."));
             }
         }
 
@@ -127,39 +247,43 @@ public class UploadController {
             String code = body.getOrDefault("code", "").trim();
 
             if (email.isEmpty() || code.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Для преподавателя требуются email и код подтверждения"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Введите почту и код."));
             }
             if (!emailVerificationService.isAllowedDomain(email)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Требуется корпоративная почта @bsuir.by"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Нужна почта @bsuir.by."));
             }
             Optional<User> byEmail = userRepository.findByEmail(email);
             if (byEmail.isPresent()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована в системе"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Эта почта уже зарегистрирована."));
             }
             if (!emailVerificationService.verifyCode(email, code)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Неверный или просроченный код подтверждения"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Неверный или устаревший код. Запросите новый."));
             }
 
             // Поиск преподавателя в IIS и автозаполнение ФИО + urlId
             try {
                 Optional<BsuirApiService.TeacherInfo> info = bsuirApiService.findTeacherByEmail(email);
                 if (info.isEmpty()) {
-                    return ResponseEntity.badRequest().body(Map.of("error", "Почта не обнаружена в ИИС БГУИР"));
+                    return ResponseEntity.badRequest().body(Map.of("error", "Такой почты нет в ИИС БГУИР."));
                 }
                 fullName   = info.get().fio();
                 urlIdToSave = info.get().urlId();
             } catch (BsuirApiService.IisUnavailableException e) {
-                return ResponseEntity.status(503).body(Map.of("error",
-                        "Сервис IIS БГУИР временно недоступен. Попробуйте позже."));
+                return ResponseEntity.status(503).body(Map.of("error", "ИИС БГУИР не отвечает. Попробуйте позже."));
             }
         }
 
-        Optional<User> existing = userRepository.findById(telegramId);
-        User user = existing.orElseGet(User::new);
+        User user = current.orElseGet(User::new);
         user.setTelegramId(telegramId);
         user.setRole(role);
         user.setFullName(fullName);
+        setNameParts(user, fullName, groupNumber);
         if (email != null) user.setEmail(email);
+        if ("STUDENT".equals(role)) {
+            // Старая форма «Иванов И.И. (гр. 321702)» — на переходный период; номер тёзки выдаётся так же.
+            Namesakes.saveStudent(userRepository, user, null, null);
+            return ResponseEntity.ok(Map.of("status", "OK", "role", role, "full_name", fullName));
+        }
         if (urlIdToSave != null) {
             user.setUrlId(urlIdToSave);
             // Сохраняем список групп преподавателя для быстрой фильтрации
@@ -181,14 +305,35 @@ public class UploadController {
         ));
     }
 
+    /**
+     * Раскладывает ФИО по полям пользователя — так же, как миграция V2 для уже зарегистрированных.
+     * Студент пока вводит «Иванов И.И.»: известна только фамилия, имя и отчество остаются пустыми.
+     * У преподавателя ФИО из ИИС полное: «Фамилия Имя Отчество».
+     */
+    public static void setNameParts(User user, String fullName, String groupNumber) {
+        String[] parts = fullName.strip().split("\\s+");
+        boolean initialsOnly = parts.length < 2 || parts[1].contains(".");
+        user.setLastName(parts[0].isEmpty() ? null : parts[0]);
+        user.setFirstName(initialsOnly ? null : parts[1]);
+        user.setMiddleName(initialsOnly || parts.length < 3
+                ? null : String.join(" ", Arrays.copyOfRange(parts, 2, parts.length)));
+        user.setGroupNumber(groupNumber);
+    }
+
+    /**
+     * Работы студента, новые сверху. Версии одной работы связаны parent_id (решение 9): интерфейс собирает
+     * из них цепочку, номер версии считается здесь же.
+     */
     @GetMapping("/submissions")
     public ResponseEntity<?> getSubmissions(HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
         if (telegramId == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+            return ResponseEntity.status(401).body(Map.of("error", NOT_IN_TELEGRAM));
         }
 
         List<Submission> submissions = submissionRepository.findByStudent_TelegramIdOrderByCreatedAtDesc(telegramId);
+        Map<Integer, Integer> parents = new HashMap<>();
+        for (Submission s : submissions) parents.put(s.getId(), s.getParentId());
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Submission s : submissions) {
@@ -196,47 +341,125 @@ public class UploadController {
             item.put("id", s.getId());
             item.put("status", normalizeDbCode(s.getStatus()));
             item.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            item.put("parent_id", s.getParentId());
+            item.put("version", version(s.getId(), parents));
+            item.put("work_type", s.getWorkType());
+            if (s.getTeacher() != null) {
+                // Ключ преподавателя, как в GET /teachers, а не его Telegram ID (план Котко, К7).
+                item.put("teacher_id", com.sapsr.backend.service.TeacherKey.of(s.getTeacher(), keySecret));
+                item.put("teacher_name", s.getTeacher().displayName());
+            }
+            // Ход проверки (queue-v2.md, разделы 4 и 6): этап для индикатора и идёт ли ещё проверка содержания.
+            item.put("pipeline_stage", s.getPipelineStage());
+            item.put("content_status", s.getContentStatus());
+            // Причина сбоя (queue-v2.md, раздел 5) — интерфейс показывает её словами.
+            item.put("failure_code", s.getFailureCode());
             item.put("format_errors", s.getFormatErrors());
             item.put("teacher_verdict", normalizeNullableDbCode(s.getTeacherVerdict()));
             item.put("teacher_comment", s.getTeacherComment());
-
-            String fp = s.getFilePath();
-            if (fp != null) {
-                String name = fp.contains("/") ? fp.substring(fp.lastIndexOf('/') + 1) : fp;
-                name = name.contains("\\") ? name.substring(name.lastIndexOf('\\') + 1) : name;
-                if (name.matches("^\\d+_.*")) name = name.substring(name.indexOf('_') + 1);
-                item.put("file_name", name);
-            } else {
-                item.put("file_name", "file.pdf");
-            }
+            item.put("file_name", s.displayFileName());
+            // Сдана в DOCX — проверялась PDF-версия, номера страниц в замечаниях относятся к ней (решение 3).
+            item.put("source_format", s.getSourceFormat());
+            // Комментарии преподавателя в файле видны студенту только после вердикта.
+            boolean reviewed = s.getTeacherVerdict() != null && !s.getTeacherVerdict().isBlank();
+            item.put("review_annotations", reviewed ? reviewFiles.countAnnotations(s.getId()) : 0);
+            item.put("has_review_file", reviewed && reviewFiles.find(s.getId()).isPresent());
             result.add(item);
         }
 
         return ResponseEntity.ok(result);
     }
 
+    /** Номер версии по цепочке parent_id внутри работ студента: 1 — первая загрузка. */
+    static int version(Integer id, Map<Integer, Integer> parents) {
+        int version = 1;
+        Set<Integer> seen = new HashSet<>();
+        Integer parent = parents.get(id);
+        while (parent != null && seen.add(parent)) {
+            version++;
+            parent = parents.get(parent);
+        }
+        return version;
+    }
+
     @DeleteMapping("/submissions/{id}")
     public ResponseEntity<?> withdrawSubmission(@PathVariable Integer id, HttpServletRequest request) {
         Long telegramId = (Long) request.getAttribute("telegram_id");
-        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", "Не авторизован"));
+        if (telegramId == null) return ResponseEntity.status(401).body(Map.of("error", NOT_IN_TELEGRAM));
 
         Optional<Submission> opt = submissionRepository.findById(id);
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
 
         Submission s = opt.get();
         if (s.getStudent() == null || !s.getStudent().getTelegramId().equals(telegramId)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Нет доступа"));
+            return ResponseEntity.status(403).body(Map.of("error", "Это не ваша работа."));
         }
         if (!"SUCCESS".equals(s.getStatus()) || s.getTeacherVerdict() != null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Работу нельзя отозвать на этом этапе"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Эту работу уже нельзя отозвать."));
         }
 
         if (s.getTeacher() != null && s.getTeacherMessageId() != null) {
             bot.deleteMessage(s.getTeacher().getTelegramId(), s.getTeacherMessageId());
         }
 
+        reviewFiles.deleteFor(id);
         submissionRepository.deleteById(id);
+        deleteStoredFile(s);
         return ResponseEntity.ok(Map.of("status", "OK"));
+    }
+
+    // Файл удаляется вместе с записью (решение 7). Если удалить не вышло, работа всё равно считается отозванной.
+    private void deleteStoredFile(Submission s) {
+        for (String key : new String[] {s.getStorageKey(), s.getSourceStorageKey()}) {
+            if (key == null) continue;
+            try {
+                fileStorage.delete(key);
+            } catch (IOException | IllegalArgumentException e) {
+                System.err.println("[WITHDRAW] Не удалось удалить файл работы #" + s.getId() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /** PDF-версия работы — та, что проверялась (api-v1.md, раздел 18): автору и преподавателю работы. */
+    @GetMapping("/submissions/{id}/pdf")
+    public ResponseEntity<?> getPdf(@PathVariable Integer id, HttpServletRequest request) {
+        return download(id, request, false);
+    }
+
+    /** Исходный DOCX работы, сданной в Word (api-v1.md, раздел 18): автору и преподавателю работы. */
+    @GetMapping("/submissions/{id}/source")
+    public ResponseEntity<?> getSource(@PathVariable Integer id, HttpServletRequest request) {
+        return download(id, request, true);
+    }
+
+    private ResponseEntity<?> download(Integer id, HttpServletRequest request, boolean source) {
+        Long telegramId = (Long) request.getAttribute("telegram_id");
+        if (telegramId == null) return ApiErrors.error(401, "UNAUTHORIZED", NOT_IN_TELEGRAM);
+        Optional<Submission> opt = submissionRepository.findById(id);
+        if (opt.isEmpty()) return ApiErrors.error(404, "NOT_FOUND", "Работа не найдена. Возможно, её отозвали.");
+        Submission s = opt.get();
+        boolean isStudent = s.getStudent() != null && s.getStudent().getTelegramId().equals(telegramId);
+        boolean isTeacher = s.getTeacher() != null && s.getTeacher().getTelegramId().equals(telegramId);
+        if (!(isStudent || isTeacher)) return ApiErrors.error(403, "FORBIDDEN", "Это не ваша работа.");
+        String key = source ? s.getSourceStorageKey() : s.getStorageKey();
+        if (key == null) {
+            return ApiErrors.error(404, "NOT_FOUND", source ? "Работа сдана в PDF — исходного DOCX нет." : "Файл не найден.");
+        }
+        try {
+            Path path = fileStorage.resolve(key);
+            if (!Files.isRegularFile(path)) return ApiErrors.error(404, "NOT_FOUND", "Файл не найден.");
+            ContentDisposition disposition = ContentDisposition.attachment()
+                    .filename(source ? s.displayFileName() : s.pdfFileName(), StandardCharsets.UTF_8).build();
+            return ResponseEntity.ok()
+                    .header("Content-Type", source
+                            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            : "application/pdf")
+                    .header("Content-Disposition", disposition.toString())
+                    .body(Files.readAllBytes(path));
+        } catch (IOException | IllegalArgumentException e) {
+            System.err.println("[DOWNLOAD] Не удалось отдать файл работы #" + id + ": " + e.getMessage());
+            return ApiErrors.error(500, "INTERNAL", "Не удалось открыть файл. Попробуйте ещё раз.");
+        }
     }
 
     @GetMapping("/submissions/{id}/report")
@@ -249,211 +472,23 @@ public class UploadController {
         }
 
         Submission s = opt.get();
-        if (s.getStudent() != null && telegramId != null
-                && !s.getStudent().getTelegramId().equals(telegramId)) {
+        // Отчёт видят автор работы и её преподаватель (решение 9: преподаватель получает и отклонённые работы).
+        boolean isStudent = s.getStudent() != null && s.getStudent().getTelegramId().equals(telegramId);
+        boolean isTeacher = s.getTeacher() != null && s.getTeacher().getTelegramId().equals(telegramId);
+        if (telegramId == null || !(isStudent || isTeacher)) {
             return ResponseEntity.status(403).build();
         }
 
         try {
-            byte[] content = buildPdfReport(s);
+            byte[] content = CheckReportPdf.build(s);
             return ResponseEntity.ok()
                     .header("Content-Type", "application/pdf")
                     .header("Content-Disposition", "attachment; filename=\"report_" + id + ".pdf\"")
                     .body(content);
         } catch (Exception e) {
+            System.err.println("[REPORT] Не удалось собрать отчёт работы #" + id + ": " + e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
-    }
-
-    private byte[] buildPdfReport(Submission s) throws Exception {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        Document doc = new Document(PageSize.A4, 50, 50, 60, 60);
-        PdfWriter.getInstance(doc, baos);
-        doc.open();
-
-        BaseFont bf    = loadCyrillicFont();
-        BaseFont bfMono = bf; // fallback to same font for snippet blocks
-
-        Font fontTitle    = new Font(bf, 16, Font.BOLD);
-        Font fontSection  = new Font(bf, 12, Font.BOLD);
-        Font fontHeader   = new Font(bf, 11, Font.BOLD);
-        Font fontNormal   = new Font(bf, 10, Font.NORMAL);
-        Font fontSmall    = new Font(bf, 9,  Font.NORMAL,  new Color(80, 80, 80));
-        Font fontSnippet  = new Font(bfMono, 9, Font.NORMAL, new Color(30, 30, 30));
-        Font fontLabel    = new Font(bf, 9,  Font.BOLD,   new Color(80, 80, 80));
-        Font fontOk       = new Font(bf, 10, Font.NORMAL,  new Color(56, 142, 60));
-        Font fontWarn     = new Font(bf, 10, Font.BOLD,    new Color(230, 81, 0));
-        Font fontErr      = new Font(bf, 10, Font.BOLD,    new Color(211, 47, 47));
-        Font fontCrit     = new Font(bf, 10, Font.BOLD,    new Color(180, 0, 0));
-        Font fontPageBadge = new Font(bf, 9, Font.BOLD,   new Color(255, 255, 255));
-
-        // ── Заголовок отчёта ──────────────────────────────────────────────
-        doc.add(new Paragraph("SAPSR — отчёт о проверке оформления", fontTitle));
-
-        String studentName = (s.getStudent() != null && s.getStudent().getFullName() != null)
-                ? s.getStudent().getFullName() : "—";
-        String fp = s.getFilePath();
-        String fileName = fp != null ? fp.replace('\\', '/') : "file.pdf";
-        fileName = fileName.contains("/") ? fileName.substring(fileName.lastIndexOf('/') + 1) : fileName;
-        if (fileName.matches("^\\d+_.*")) fileName = fileName.substring(fileName.indexOf('_') + 1);
-
-        boolean isSuccess = "SUCCESS".equals(s.getStatus());
-
-        Paragraph meta = new Paragraph();
-        meta.add(new Chunk("Студент: ", fontLabel));
-        meta.add(new Chunk(studentName + "\n", fontNormal));
-        meta.add(new Chunk("Файл: ",    fontLabel));
-        meta.add(new Chunk(fileName + "\n", fontNormal));
-        meta.add(new Chunk("Дата: ",    fontLabel));
-        meta.add(new Chunk((s.getCreatedAt() != null ? s.getCreatedAt().toString() : "—") + "\n", fontNormal));
-        meta.add(new Chunk("Итог: ",    fontLabel));
-        meta.add(new Chunk(
-                isSuccess ? "Оформление соответствует требованиям ✓" : "Обнаружены нарушения оформления",
-                isSuccess ? fontOk : fontErr
-        ));
-        meta.setSpacingBefore(6);
-        meta.setSpacingAfter(6);
-        doc.add(meta);
-
-        // Разделительная линия
-        doc.add(new Paragraph("─────────────────────────────────────────────────────────────", fontSmall));
-
-        // ── Тело отчёта ───────────────────────────────────────────────────
-        String errorsJson = s.getFormatErrors();
-        if (errorsJson == null || errorsJson.equals("[]") || errorsJson.equals("null")) {
-            Paragraph ok = new Paragraph("Ошибок не найдено. Документ соответствует требованиям оформления.", fontOk);
-            ok.setSpacingBefore(10);
-            doc.add(ok);
-        } else {
-            try {
-                ObjectMapper om  = new ObjectMapper();
-                JsonNode     arr = om.readTree(errorsJson);
-
-                // Счётчики для краткой сводки в начале
-                long critical = 0, major = 0, warn = 0;
-                for (JsonNode e : arr) {
-                    String sev = getJsonText(e, "severity", "");
-                    if ("critical".equals(sev)) critical++;
-                    else if ("major".equals(sev))    major++;
-                    else                              warn++;
-                }
-
-                Paragraph summary = new Paragraph();
-                summary.setSpacingBefore(4);
-                summary.setSpacingAfter(8);
-                summary.add(new Chunk("Сводка: ", fontLabel));
-                if (critical > 0)
-                    summary.add(new Chunk("● " + critical + " критических  ", fontCrit));
-                if (major > 0)
-                    summary.add(new Chunk("● " + major + " серьёзных  ", fontErr));
-                if (warn > 0)
-                    summary.add(new Chunk("● " + warn + " предупреждений", fontWarn));
-                doc.add(summary);
-
-                int idx = 0;
-                for (JsonNode err : arr) {
-                    idx++;
-                    String severity = getJsonText(err, "severity", "warning");
-                    String location = getJsonText(err, "location", "");
-                    String page     = getJsonText(err, "page",     "");
-                    String message  = getJsonText(err, "message",  err.toString());
-                    String rule     = getJsonText(err, "rule",     "");
-                    String found    = getJsonText(err, "found",    "");
-                    String fix      = getJsonText(err, "fix",      "");
-                    String context  = getJsonText(err, "context",  "");
-
-                    Font fSev = switch (severity) {
-                        case "critical" -> fontCrit;
-                        case "major"    -> fontErr;
-                        default         -> fontWarn;
-                    };
-                    String sevLabel = severityLabel(severity).toUpperCase();
-
-                    // Заголовок нарушения
-                    Paragraph errHead = new Paragraph();
-                    errHead.setSpacingBefore(10);
-                    errHead.add(new Chunk("[" + idx + "] ", fontSmall));
-                    errHead.add(new Chunk("[" + sevLabel + "] ", fSev));
-                    errHead.add(new Chunk(message, fontHeader));
-                    doc.add(errHead);
-
-                    // Местоположение / номер страницы
-                    String loc = location.isBlank() ? (page.isBlank() ? "" : "Страница " + page) : location;
-                    if (!loc.isBlank()) {
-                        Paragraph locP = new Paragraph();
-                        locP.add(new Chunk("📍 Место: ", fontLabel));
-                        locP.add(new Chunk(loc, fontNormal));
-                        locP.setSpacingBefore(2);
-                        doc.add(locP);
-                    }
-
-                    // Блок с фрагментом текста (context)
-                    if (!context.isBlank()) {
-                        Paragraph ctxLabel = new Paragraph();
-                        ctxLabel.add(new Chunk("Фрагмент из документа:", fontLabel));
-                        ctxLabel.setSpacingBefore(3);
-                        doc.add(ctxLabel);
-
-                        // Рамка-блок для сниппета
-                        PdfPTable snippet = new PdfPTable(1);
-                        snippet.setWidthPercentage(100);
-                        snippet.setSpacingBefore(1);
-                        snippet.setSpacingAfter(2);
-
-                        PdfPCell snippetCell = new PdfPCell(
-                                new Phrase("    " + context.replace("\n", " ↵ "), fontSnippet)
-                        );
-                        snippetCell.setBackgroundColor(new Color(245, 245, 245));
-                        snippetCell.setBorder(Rectangle.BOX);
-                        snippetCell.setBorderColor(new Color(200, 200, 200));
-                        snippetCell.setPadding(4);
-
-                        snippet.addCell(snippetCell);
-                        doc.add(snippet);
-                    }
-
-                    // Что обнаружено
-                    if (!found.isBlank()) {
-                        Paragraph foundP = new Paragraph();
-                        foundP.add(new Chunk("Обнаружено: ", fontLabel));
-                        foundP.add(new Chunk(found, fontNormal));
-                        foundP.setSpacingBefore(2);
-                        doc.add(foundP);
-                    }
-
-                    // Правило
-                    if (!rule.isBlank()) {
-                        Paragraph ruleP = new Paragraph();
-                        ruleP.add(new Chunk("Правило: ", fontLabel));
-                        ruleP.add(new Chunk(rule, fontSmall));
-                        doc.add(ruleP);
-                    }
-
-                    // Рекомендация
-                    if (!fix.isBlank()) {
-                        Paragraph fixP = new Paragraph();
-                        fixP.add(new Chunk("✔ Как исправить: ", fontLabel));
-                        fixP.add(new Chunk(fix, fontNormal));
-                        fixP.setSpacingBefore(2);
-                        doc.add(fixP);
-                    }
-
-                    doc.add(new Paragraph("· · · · · · · · · · · · · · · · · · · · · · · · · · · ·", fontSmall));
-                }
-            } catch (Exception ex) {
-                doc.add(new Paragraph(errorsJson, fontNormal));
-            }
-        }
-
-        doc.close();
-        return baos.toByteArray();
-    }
-
-    private String getJsonText(JsonNode node, String field, String fallback) {
-        if (node.has(field) && !node.get(field).isNull()) {
-            return node.get(field).asText();
-        }
-        return fallback;
     }
 
     private String normalizeDbCode(String value) {
@@ -465,95 +500,137 @@ public class UploadController {
         return normalized.isBlank() ? null : normalized;
     }
 
-    private String severityLabel(String severity) {
-        return switch (severity == null ? "" : severity.toLowerCase()) {
-            case "critical" -> "критическое";
-            case "major" -> "серьёзное";
-            case "warning", "minor" -> "предупреждение";
-            default -> "ошибка";
-        };
-    }
-
-    private Font fontForSeverity(String severity, Font fontErr, Font fontWarn) {
-        String normalized = severity == null ? "" : severity.toLowerCase();
-        return ("warning".equals(normalized) || "minor".equals(normalized)) ? fontWarn : fontErr;
-    }
-
-    private BaseFont loadCyrillicFont() {
-        String[] candidates = {
-            "C:/Windows/Fonts/arial.ttf",
-            "C:/Windows/Fonts/times.ttf",
-            "C:/Windows/Fonts/calibri.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        };
-        for (String path : candidates) {
-            if (new File(path).exists()) {
-                try {
-                    return BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-                } catch (Exception ignored) {}
-            }
-        }
-        try {
-            return BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, false);
-        } catch (Exception e) {
-            throw new RuntimeException("Cannot create font", e);
-        }
-    }
-
+    /**
+     * Загрузка работы. Семестр и этап опроцентовки определяет сервер по группе студента и учебному календарю,
+     * вид работы — по семестру и титульному листу (решение 11); от клиента нужны только файл и преподаватель.
+     */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
-                                        @RequestParam(value = "teacher_id", required = false) Long teacherId,
+                                        @RequestParam(value = "teacher_id", required = false) String teacherId,
                                         HttpServletRequest request) {
+        // Сдавать работы может только студент, и только преподавателю (план Котко, К7).
+        Long uploaderId = (Long) request.getAttribute("telegram_id");
+        if (uploaderId == null) return ApiErrors.error(401, "UNAUTHORIZED", NOT_IN_TELEGRAM);
+        Optional<User> uploader = userRepository.findById(uploaderId);
+        if (uploader.isEmpty() || !"STUDENT".equals(uploader.get().getRole())) {
+            return ApiErrors.error(403, "FORBIDDEN", "Сдавать работы может только студент.");
+        }
+        User chosenTeacher = null;
+        if (teacherId != null && !teacherId.isBlank()) {
+            chosenTeacher = findTeacher(teacherId.strip()).orElse(null);
+            if (chosenTeacher == null) {
+                return ApiErrors.error(400, "VALIDATION_ERROR", "Преподаватель не найден. Выберите его из списка.",
+                        "teacher_id");
+            }
+        }
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой!"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Файл пустой."));
+        }
+        if (ApiErrors.tooLarge(file.getSize(), maxUploadMb)) {
+            return ApiErrors.fileTooLarge(maxUploadMb);
         }
 
+        // Вид файла — по содержимому (решение 3): PDF проверяется как есть, DOCX сначала становится PDF.
+        byte[] original;
         try {
-            File directory = new File(UPLOAD_DIR);
-            if (!directory.exists()) {
-                directory.mkdirs();
-            }
-
-            String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = Paths.get(UPLOAD_DIR + fileName);
-            Files.write(filePath, file.getBytes());
-
-            Submission submission = new Submission();
-            submission.setFilePath(filePath.toAbsolutePath().toString());
-            submission.setStatus("PROCESSING");
-
-            Long telegramId = (Long) request.getAttribute("telegram_id");
-            if (telegramId != null) {
-                Optional<User> student = userRepository.findById(telegramId);
-                student.ifPresent(submission::setStudent);
-            }
-
-            if (teacherId != null) {
-                Optional<User> teacher = userRepository.findById(teacherId);
-                teacher.ifPresent(submission::setTeacher);
-            }
-
-            Submission savedSubmission = submissionRepository.save(submission);
-
-            String jsonMessage = String.format(
-                    "{\"task_id\": %d, \"file_path\": \"%s\", \"status\": \"PROCESSING\"}",
-                    savedSubmission.getId(),
-                    filePath.toAbsolutePath().toString().replace("\\", "/"));
-
-            rabbitTemplate.convertAndSend(tasksQueue, jsonMessage);
-            System.out.println("Отправлено задание Питону: " + jsonMessage);
-
-            return ResponseEntity.ok(Map.of(
-                    "status", "SUCCESS",
-                    "message", "Файл успешно загружен в систему SAPSR!",
-                    "db_id", savedSubmission.getId()
-            ));
-
+            original = file.getBytes();
         } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body(Map.of("error", "Ошибка при сохранении файла"));
+            System.err.println("[UPLOAD] Не удалось прочитать файл: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", "Не удалось сохранить файл. Попробуйте ещё раз."));
         }
+        FileKind kind = FileKind.of(original);
+        if (kind == FileKind.UNKNOWN) {
+            return ApiErrors.error(400, "UNSUPPORTED_FORMAT", "Нужен файл PDF или DOCX.");
+        }
+        byte[] pdf = original;
+        if (kind == FileKind.DOCX) {
+            try {
+                pdf = docxConverter.toPdf(original);
+            } catch (DocxConverter.ConversionException e) {
+                System.err.println("[UPLOAD] DOCX не преобразован в PDF: " + e.getMessage());
+                return ApiErrors.error(422, "CONVERSION_FAILED",
+                        "Не получилось преобразовать DOCX в PDF. Сохраните работу в PDF и загрузите его.");
+            }
+        }
+
+        // На диск файл попадает под сгенерированным ключом; имя от пользователя — только в базу.
+        FileStorage.StoredFile stored;
+        String sourceKey = null;
+        try {
+            stored = fileStorage.store(new ByteArrayInputStream(pdf), TaskMessage.SOURCE_FORMAT_PDF);
+            if (kind == FileKind.DOCX) {
+                try {
+                    sourceKey = fileStorage.store(new ByteArrayInputStream(original), kind.extension()).key();
+                } catch (IOException e) {
+                    fileStorage.delete(stored.key());
+                    throw e;
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("[UPLOAD] Не удалось сохранить файл: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", "Не удалось сохранить файл. Попробуйте ещё раз."));
+        }
+
+        Submission submission = new Submission();
+        submission.setStorageKey(stored.key());
+        submission.setSourceStorageKey(sourceKey);
+        submission.setSourceFormat(kind.extension());
+        submission.setFileSha256(stored.sha256());
+        submission.setOriginalFileName(Submission.cleanFileName(file.getOriginalFilename()));
+        submission.setTraceId(UUID.randomUUID());
+        // В очереди, пока обработчик не начал: первое сообщение о ходе проверки переведёт в PROCESSING.
+        submission.setStatus(PipelineState.QUEUED);
+
+        submission.setStudent(uploader.get());
+        AcademicCalendar.Term term = calendar.termFor(
+                submission.getStudent() != null ? submission.getStudent().getGroupNumber() : null);
+        submission.setSemester(term.semester());
+        submission.setStage(term.stage());
+        // Курсовая работа или проект станет известна из титульного листа (PipelineState); дипломная — сразу.
+        submission.setWorkType(WorkTypes.atUpload(term.semester()));
+
+        if (chosenTeacher != null) submission.setTeacher(chosenTeacher);
+        linkPreviousVersion(submission);
+
+        Submission savedSubmission = submissionRepository.save(submission);
+
+        TaskMessage task = TaskMessage.check(savedSubmission, fileStorage.resolve(savedSubmission.getStorageKey()),
+                llmModels.forTask());
+        rabbitTemplate.convertAndSend(tasksQueue, task);
+        // ФИО студента в лог не пишем — только идентификаторы.
+        System.out.println("Отправлено задание обработчику: task_id=" + task.taskId()
+                + ", storage_key=" + task.file().storageKey() + ", trace_id=" + task.traceId());
+
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Работа отправлена на проверку.",
+                "db_id", savedSubmission.getId()
+        ));
+    }
+
+    /**
+     * Преподаватель по ключу из GET /teachers; на переходный период принимается и Telegram ID —
+     * но только пользователя с ролью преподавателя.
+     */
+    private Optional<User> findTeacher(String key) {
+        Optional<User> byKey = com.sapsr.backend.service.TeacherKey.find(userRepository.findByRole("TEACHER"), key, keySecret);
+        if (byKey.isPresent() || !key.matches("\\d{1,18}")) return byKey;
+        return userRepository.findById(Long.parseLong(key)).filter(u -> "TEACHER".equals(u.getRole()));
+    }
+
+    /**
+     * Решение 9: новая загрузка студента тому же преподавателю — следующая версия последней работы,
+     * если та ещё не принята. Новая версия заменяет предыдущую в очереди преподавателя, а срок сдачи
+     * по-прежнему считается от первой версии. После «принято» загрузка начинает новую работу.
+     */
+    private void linkPreviousVersion(Submission submission) {
+        if (submission.getStudent() == null || submission.getTeacher() == null) return;
+        submissionRepository.findFirstByStudent_TelegramIdAndTeacher_TelegramIdOrderByCreatedAtDescIdDesc(
+                        submission.getStudent().getTelegramId(), submission.getTeacher().getTelegramId())
+                .filter(previous -> !"APPROVED".equals(normalizeDbCode(previous.getTeacherVerdict())))
+                .ifPresent(previous -> {
+                    submission.setParentId(previous.getId());
+                    submission.setFirstSubmittedAt(previous.submittedForDeadline());
+                });
     }
 }

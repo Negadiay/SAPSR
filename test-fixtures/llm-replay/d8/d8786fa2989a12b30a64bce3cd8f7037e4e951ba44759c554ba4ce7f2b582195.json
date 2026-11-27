@@ -1,0 +1,6 @@
+{
+ "model": "qwen3.5:4b",
+ "prompt": "requirements.v1",
+ "key": "d8786fa2989a12b30a64bce3cd8f7037e4e951ba44759c554ba4ce7f2b582195",
+ "response": "{\n  \"judgements\": [\n    {\n      \"block_id\": \"[b-0040]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"\"\n    },\n    {\n      \"block_id\": \"[b-0044]\",\n      \"verdict\": \"supports\",\n      \"confidence\": 1.0,\n      \"quote\": \"если ответ модели не проходит схему, запрос повторяется один раз... при низкой уверенности модели замечание передаётся на решение преподавателю\"\n    },\n    {\n      \"block_id\": \"[b-0045]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"\"\n    },\n    {\n      \"block_id\": \"[b-0049]\",\n      \"verdict\": \"irrelevant\",\n      \"confidence\": 0.5,\n      \"quote\": \"\"\n    }\n  ]\n}"
+}
