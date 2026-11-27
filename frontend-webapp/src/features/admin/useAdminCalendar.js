@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  deleteGroup, fetchCalendar, fetchPeople, makeAdmin, resetGroupCourse, saveGroupCourse, saveHalf, saveSchedule,
-  saveUser,
+  deleteGroup, deleteUser, fetchCalendar, fetchPeople, makeAdmin, resetGroupCourse, saveGroupCourse, saveHalf,
+  saveSchedule, saveUser,
 } from '../../api/admin';
 import { readError } from '../../api/client';
 
@@ -20,7 +20,7 @@ export function useAdminCalendar({ active }) {
       const res = await request();
       if (!res.ok) {
         setError((await readError(res)).error || 'Не удалось сохранить.');
-        return false;
+        return null;
       }
       const body = await res.json();
       if (onPeople) setPeople(body);
@@ -28,10 +28,10 @@ export function useAdminCalendar({ active }) {
         setCalendar(body);
         if (body.people) setPeople(body.people);
       }
-      return true;
+      return body;
     } catch {
       setError('Нет связи с сервером.');
-      return false;
+      return null;
     } finally { setSaving(false); }
   };
 
@@ -55,9 +55,21 @@ export function useAdminCalendar({ active }) {
     changeUser: (id, data) => apply(() => saveUser(id, data)),
     // После назначения человек уходит из группы — обновляем и её список.
     appointAdmin: async (id) => {
-      const ok = await apply(() => makeAdmin(id));
-      if (ok && people?.group) await apply(() => fetchPeople(people.group), { onPeople: true });
-      return ok;
+      const next = await apply(() => makeAdmin(id));
+      if (next && people?.group) await apply(() => fetchPeople(people.group), { onPeople: true });
+      return Boolean(next);
+    },
+    // После удаления человек уходит из группы — обновляем список, если группа ещё осталась в экране.
+    removeUser: async (id) => {
+      const group = people?.group;
+      const next = await apply(() => deleteUser(id));
+      if (!next) return false;
+      if (group && next.groups?.some((g) => g.group === group)) {
+        await apply(() => fetchPeople(group), { onPeople: true });
+      } else {
+        setPeople(null);
+      }
+      return true;
     },
   };
 }

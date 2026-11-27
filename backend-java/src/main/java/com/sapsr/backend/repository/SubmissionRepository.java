@@ -98,6 +98,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
     @Query("update Submission s set s.studentMessageId = :messageId where s.id = :id")
     int setStudentMessageId(@Param("id") Integer id, @Param("messageId") Integer messageId);
 
+    /** Сбрасывает преподавателя у его работ перед удалением аккаунта преподавателя. */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Submission s set s.teacher = null, s.teacherMessageId = null where s.teacher.telegramId = :teacherTelegramId")
+    int clearTeacher(@Param("teacherTelegramId") Long teacherTelegramId);
+
     @Query("""
             select s from Submission s
             where s.teacher.telegramId = :teacherTelegramId

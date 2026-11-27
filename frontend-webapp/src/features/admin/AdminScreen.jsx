@@ -186,8 +186,8 @@ function GroupChip({ group, selected, onSelect }) {
   );
 }
 
-// Правка студента. «Сделать администратором» — только отсюда: в списке её не задеть случайно при листании.
-function PersonForm({ person, digits, saving, onSave, onCancel, onAppoint }) {
+// Правка студента. «Сделать администратором» и «Удалить пользователя» — только отсюда: в списке их не задеть случайно при листании.
+function PersonForm({ person, digits, saving, onSave, onCancel, onAppoint, onDelete }) {
   const [name, setName] = useState(person.name);
   const [group, setGroup] = useState(person.group || '');
   const valid = name.trim().length > 1 && /^\d{6}$/.test(group);
@@ -204,12 +204,15 @@ function PersonForm({ person, digits, saving, onSave, onCancel, onAppoint }) {
       <button type="button" className="link-btn link-danger" disabled={saving} onClick={onAppoint}>
         <Icon name="admin" /><span>Сделать администратором</span>
       </button>
+      <button type="button" className="link-btn link-danger" disabled={saving} onClick={onDelete}>
+        <Icon name="trash" /><span>Удалить пользователя</span>
+      </button>
     </li>
   );
 }
 
-// Студентов можно исправить, преподавателей — только посмотреть (editable не передан).
-function PeopleList({ title, people, editable, digits, saving, onSave, onAppoint }) {
+// Студентов можно исправить и удалить из правки; преподавателей — только посмотреть или удалить.
+function PeopleList({ title, people, editable, digits, saving, onSave, onAppoint, onDelete }) {
   const [editing, setEditing] = useState(null);
   if (!people) return <p className="hint">Загрузка…</p>;
   return (
@@ -220,13 +223,17 @@ function PeopleList({ title, people, editable, digits, saving, onSave, onAppoint
         {people.map((p) => (editing === p.id ? (
           <PersonForm key={p.id} person={p} digits={digits} saving={saving}
             onSave={async (data) => { if (await onSave(p.id, data)) setEditing(null); }}
-            onCancel={() => setEditing(null)} onAppoint={() => onAppoint(p)} />
+            onCancel={() => setEditing(null)} onAppoint={() => onAppoint(p)} onDelete={() => onDelete(p)} />
         ) : (
           <li key={p.id} className="admin-person">
             <span className="admin-person-name">{p.name}</span>
-            {editable && (
+            {editable ? (
               <button type="button" className="icon-btn" onClick={() => setEditing(p.id)}>
                 <Icon name="edit" label={`Изменить: ${p.name}`} />
+              </button>
+            ) : onDelete && (
+              <button type="button" className="icon-btn icon-btn-danger" disabled={saving} onClick={() => onDelete(p)}>
+                <Icon name="trash" label={`Удалить: ${p.name}`} />
               </button>
             )}
           </li>
@@ -236,7 +243,7 @@ function PeopleList({ title, people, editable, digits, saving, onSave, onAppoint
   );
 }
 
-function GroupPanel({ group, calendar, admin, onClose, onAppoint, onRemove }) {
+function GroupPanel({ group, calendar, admin, onClose, onAppoint, onDeleteUser, onRemove }) {
   const { people, saving, changeCourse, changeUser } = admin;
   const possible = calendar.group_digits.includes(Number(group.group[0]));
   const loaded = people?.group === group.group;
@@ -261,8 +268,10 @@ function GroupPanel({ group, calendar, admin, onClose, onAppoint, onRemove }) {
         <p className="hint">Группа не относится к текущим курсам</p>
       )}
       <PeopleList title="Студенты" people={loaded ? people.students : null} editable digits={calendar.group_digits}
-        saving={saving} onSave={changeUser} onAppoint={onAppoint} />
-      <PeopleList title="Преподаватели" people={loaded ? people.teachers : null} />
+        saving={saving} onSave={changeUser} onAppoint={onAppoint}
+        onDelete={(p) => onDeleteUser({ ...p, role: 'STUDENT' })} />
+      <PeopleList title="Преподаватели" people={loaded ? people.teachers : null} saving={saving}
+        onDelete={(p) => onDeleteUser({ ...p, role: 'TEACHER' })} />
       {group.manual && (
         <button type="button" className="btn btn-ghost-danger btn-block" disabled={saving}
           onClick={() => onRemove(group.group)}>
@@ -276,6 +285,7 @@ function GroupPanel({ group, calendar, admin, onClose, onAppoint, onRemove }) {
 function GroupsSection({ calendar, admin }) {
   const [selected, setSelected] = useState(null);
   const [appointee, setAppointee] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
   const [removing, setRemoving] = useState(null);
   const courses = range(calendar.max_course).reverse();
   const unknown = calendar.groups.filter((g) => g.course == null);
@@ -301,7 +311,7 @@ function GroupsSection({ calendar, admin }) {
       {unknown.length > 0 && row('Курс не определён', unknown)}
       {selectedGroup && (
         <GroupPanel key={selectedGroup.group} group={selectedGroup} calendar={calendar} admin={admin}
-          onClose={() => select(null)} onAppoint={setAppointee} onRemove={setRemoving} />
+          onClose={() => select(null)} onAppoint={setAppointee} onDeleteUser={setDeletingUser} onRemove={setRemoving} />
       )}
       {appointee && (
         <ConfirmDialog title="Назначить администратором?" danger
@@ -309,6 +319,15 @@ function GroupsSection({ calendar, admin }) {
           confirmLabel="Назначить"
           onConfirm={() => { admin.appointAdmin(appointee.id); setAppointee(null); }}
           onCancel={() => setAppointee(null)} />
+      )}
+      {deletingUser && (
+        <ConfirmDialog title="Удалить пользователя?" danger
+          body={deletingUser.role === 'TEACHER'
+            ? `«${deletingUser.name}» будет удалён из системы, а у его работ сбросится преподаватель. Пользователь сможет зарегистрироваться заново.`
+            : `«${deletingUser.name}» и все его работы будут удалены безвозвратно. Пользователь сможет зарегистрироваться заново.`}
+          confirmLabel="Удалить"
+          onConfirm={() => { admin.removeUser(deletingUser.id); setDeletingUser(null); }}
+          onCancel={() => setDeletingUser(null)} />
       )}
       {removing && (
         <ConfirmDialog title={`Удалить группу ${removing}?`} body="В группе никого нет." danger

@@ -240,6 +240,56 @@ describe('администратор', () => {
     expect(screen.getByText('Иванов Иван Иванович')).toBeInTheDocument();
   });
 
+  it('удаляет студента из формы правки и преподавателя из списка после подтверждения', async () => {
+    let students = [TERESHKOVA, IVANOV];
+    let teachers = [GRAKOVA];
+    let groups = CALENDAR.groups;
+    const { api, user } = start({
+      ...adminRoutes,
+      'GET /admin/groups/321702/people': () => people('321702', students, teachers),
+      'DELETE /admin/users/101': () => {
+        students = [IVANOV];
+        return { ...CALENDAR, groups };
+      },
+      'DELETE /admin/users/201': () => {
+        teachers = [];
+        return { ...CALENDAR, groups };
+      },
+      'DELETE /admin/users/102': () => {
+        students = [];
+        groups = groups.filter((g) => g.group !== '321702');
+        return { ...CALENDAR, groups };
+      },
+    });
+    await ready();
+    await user.click(screen.getByRole('button', { name: '321702' }));
+    await user.click(await screen.findByRole('button', { name: 'Изменить: Терешкова Ана Викторовна' }));
+
+    await user.click(screen.getByRole('button', { name: 'Удалить пользователя' }));
+    expect(screen.getByText('Удалить пользователя?')).toBeInTheDocument();
+    expect(within(dialog()).getByText(/и все его работы будут удалены безвозвратно/)).toBeInTheDocument();
+    await user.click(within(dialog()).getByRole('button', { name: 'Отмена' }));
+    expect(api.find('DELETE', '/admin/users/101')).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Удалить пользователя' }));
+    await user.click(within(dialog()).getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(api.find('DELETE', '/admin/users/101')).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('Терешкова Ана Викторовна')).toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'Удалить: Гракова Наталья Викторовна' }));
+    expect(within(dialog()).getByText(/у его работ сбросится преподаватель/)).toBeInTheDocument();
+    await user.click(within(dialog()).getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(api.find('DELETE', '/admin/users/201')).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('Гракова Наталья Викторовна')).toBeNull());
+
+    // Удаление последнего человека в группе закрывает панель без лишних запросов.
+    await user.click(screen.getByRole('button', { name: 'Изменить: Иванов Иван Иванович' }));
+    await user.click(screen.getByRole('button', { name: 'Удалить пользователя' }));
+    await user.click(within(dialog()).getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(api.find('DELETE', '/admin/users/102')).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('Группа 321702')).toBeNull());
+  });
+
   it('новую группу создать нельзя; при правке студента первая цифра — только из возможных', async () => {
     const { user } = start(adminRoutes);
     await ready();

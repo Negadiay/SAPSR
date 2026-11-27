@@ -2,8 +2,10 @@ package com.sapsr.backend.repository;
 
 import com.sapsr.backend.entity.FindingFeedback;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,10 @@ public interface FindingFeedbackRepository extends JpaRepository<FindingFeedback
     List<FindingFeedback> findBySubmissionId(Integer submissionId);
 
     Optional<FindingFeedback> findBySubmissionIdAndFindingId(Integer submissionId, String findingId);
+
+    @Transactional
+    @Modifying(flushAutomatically = true)
+    void deleteByTeacherTelegramId(Long teacherTelegramId);
 
     /**
      * Сколько замечаний преподаватели отметили верными и неверными — по происхождению замечания и его категории
